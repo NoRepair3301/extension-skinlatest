@@ -43,3 +43,7 @@ export const WEB_STORES: readonly string[] = [
   "microsoftedge.microsoft.com/addons",
   "addons.mozilla.org",
 ];
+
+/** Client-side guard on AI calls (SPEC 7). */
+export const DAILY_AI_CALLS = 20;
+export const MIN_CALL_GAP_MS = 3000;
