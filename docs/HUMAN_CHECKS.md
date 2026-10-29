@@ -46,3 +46,10 @@
 - [ ] Sort and filter a real table, then press Restore order and Restore original: the page is exactly as before.
 - [ ] Pick mode: on a page with links and buttons, clicks only toggle the blur while pick mode is on; after Escape the page behaves normally. The popup closes when you click the page, so reopen it to see counts, Save picks and Safe screenshot.
 - [ ] Decision to confirm: Share mode off removes the blur entirely (there is no reveal-on-hover state), and saved picks are not auto-applied by the always-on script.
+
+## Phase 9
+- [ ] Choose the final name and check it for trademark conflicts. Host docs/store/privacy.md at a public URL and add a contact address.
+- [ ] Re-read the current Chrome Web Store policies and the extension review requirements before you submit; policies changed in 2026 and the details could not be verified here. Fill the data-use form accurately (docs/store/data-use.md is a draft).
+- [ ] Run docs/QA.md on Edge, Chrome and Brave. Fix any failure with a fix prompt, one test per bug.
+- [ ] Final privacy check: with the Network tab open, use the extension on a page: the only requests from the extension go to the provider you chose and only after consent.
+- [ ] Look at the icon at 16 px in the toolbar on a light and a dark browser theme; replace scripts/icons.ts if you want another design.

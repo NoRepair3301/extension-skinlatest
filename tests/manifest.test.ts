@@ -12,7 +12,7 @@ describe("manifest.json", () => {
     expect(good["optional_host_permissions"]).toEqual(["https://*/*", "http://*/*"]);
     expect("host_permissions" in good).toBe(false);
     expect("content_scripts" in good).toBe(false);
-    expect("icons" in good).toBe(false);
+    expect(Object.keys(good["icons"] as object)).toEqual(["16", "32", "48", "128"]);
   });
 
   it("passes validation", () => {
@@ -29,6 +29,11 @@ describe("manifest.json", () => {
     expect(validateManifest(with_({ content_scripts: [] }))).toContain("content_scripts must not exist");
     expect(validateManifest(with_({ optional_host_permissions: ["<all_urls>"] }))).toContain("<all_urls> must not appear");
     expect(validateManifest(with_({ optional_host_permissions: ["https://*/*"] }))).toHaveLength(1);
+  });
+
+  it("rejects a missing or malformed version", () => {
+    expect(validateManifest(with_({ version: "1.0" }))).toContain("version must look like 1.2.3");
+    expect(validateManifest(with_({ version: undefined }))).toContain("version must look like 1.2.3");
   });
 
   it("rejects a non-MV3 manifest", () => {

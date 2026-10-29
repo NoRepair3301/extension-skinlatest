@@ -62,3 +62,11 @@
 - Page side: `globalThis.skinlyTools` (src/extension/pageTools.ts) lives in applier.js and is undone by the applier's Restore. The popup's PrivacyTools section injects applier.js on first use and calls it through `runTool`.
 - Decisions: the download is a Blob link the user clicks (`.click(` is forbidden in src), no downloads permission. Share mode off removes the blur (the reveal-on-hover idea is dropped); saved picks are stored via "Save picks for this site" (needs a remembered site) and loaded when the popup uses the tools; the auto script does not apply them. A selector that is not unique resolves to the first match.
 - Safety greps: clean.
+
+## Phase 9: release build, store text, QA (merged, tag phase-9-done and v0.1.0-rc1)
+- Version 0.1.0 is in package.json and manifest.json (a test checks they match, and the store text). `minimum_chrome_version` 96 because `scripting.registerContentScripts` with `persistAcrossSessions` needs it.
+- Icons: scripts/icons.ts draws four PNGs with Node only (zlib crc32/deflate, no dependency); vite emits them into dist/icons, so no binary files are in the repo. validate-dist also checks the icons exist, rejects .map files, source map references and developer-machine paths.
+- `npm run release` builds, zips dist/ only (scripts/zip.ts is a small writer and reader, deterministic timestamps) and verifies the file list; tests unzip a synthetic dist and check the file list, and also check release/*.zip when it exists.
+- Store text is in docs/store/ (tracked, not the gitignored store/, so the privacy test runs in a fresh clone): listing, single-purpose, permissions, data-use, privacy, screenshots. tests/release.test.ts checks permissions, provider hosts, the 20 KB claim and the "no text, links or forms" claim against the manifest, config and the marker tests.
+- docs/QA.md (15 checks x Edge, Chrome, Brave, results empty) and assets/LICENSES.md written.
+- Safety greps: clean.

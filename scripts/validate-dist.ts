@@ -27,6 +27,7 @@ export function validateManifest(m: Record<string, unknown>): string[] {
   if ("host_permissions" in m) out.push("host_permissions must not exist");
   if ("content_scripts" in m) out.push("content_scripts must not exist");
   if (JSON.stringify(m).includes("<all_urls>")) out.push("<all_urls> must not appear");
+  if (typeof m["version"] !== "string" || !/^\d+\.\d+\.\d+$/.test(m["version"])) out.push("version must look like 1.2.3");
   return out;
 }
 
@@ -35,6 +36,8 @@ export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLO
   const out: string[] = [];
   if (/\beval\s*\(/.test(text)) out.push("eval(");
   if (/\bnew\s+Function\b/.test(text)) out.push("new Function");
+  if (/[A-Za-z]:\\(?:Users|Downloads)\\|\/(?:Users|home)\/[A-Za-z0-9._-]+\//.test(text)) out.push("developer machine path");
+  if (/\/\/# sourceMappingURL=/.test(text)) out.push("source map reference");
   for (const [rule, re] of KEY_PATTERNS) if (re.test(text)) out.push(rule);
   for (const m of text.matchAll(/https?:\/\/([^\s/"'`)<>\\:?#]+)[^\s"'`)<>\\]*/gi)) {
     if (NAMESPACE_URL.test(m[0])) continue;
@@ -44,12 +47,13 @@ export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLO
   return out;
 }
 
-const jsFiles = (dir: string): string[] =>
+const allFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
-    if (statSync(p).isDirectory()) return jsFiles(p);
-    return name.endsWith(".js") ? [p] : [];
+    return statSync(p).isDirectory() ? allFiles(p) : [p];
   });
+
+const jsFiles = (dir: string): string[] => allFiles(dir).filter((p) => p.endsWith(".js"));
 
 /** Validates a built extension folder. Returns problems (empty when fine). */
 export function validateDist(dist: string): string[] {
@@ -60,9 +64,11 @@ export function validateDist(dist: string): string[] {
   const bg = (manifest["background"] as { service_worker?: string } | undefined)?.service_worker;
   const popup = (manifest["action"] as { default_popup?: string } | undefined)?.default_popup;
   const options = manifest["options_page"] as string | undefined;
-  for (const f of [bg, popup, options, "applier.js", "palette.js"]) {
+  const icons = Object.values((manifest["icons"] as Record<string, string> | undefined) ?? {});
+  for (const f of [bg, popup, options, "applier.js", "palette.js", ...icons]) {
     if (!f || !existsSync(join(dist, f))) out.push(`missing built file: ${f ?? "(unset in manifest)"}`);
   }
+  if (allFiles(dist).some((f) => f.endsWith(".map"))) out.push("source map files must not ship");
   for (const file of jsFiles(dist)) {
     for (const rule of scanBuiltJs(readFileSync(file, "utf8"))) out.push(`${file}: ${rule}`);
   }
