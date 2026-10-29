@@ -1,9 +1,13 @@
 import { useEffect, useState } from "preact/hooks";
 import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
 import { deleteKey, keyStatus, MASK, saveKey, testKey } from "../keys.ts";
+import { entryHost } from "../../analyzer/eligibility.ts";
 import { callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { forgetAll, forgetSite } from "../siteActions.ts";
+import { loadSites, type Sites } from "../sites.ts";
 
 const NAMES: Record<ProviderId, string> = { gemini: "Gemini (Google AI Studio)", groq: "Groq" };
+const HOST = /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/;
 const today = (): string => new Date().toISOString().slice(0, 10);
 
 const TEST_MESSAGES: Record<string, string> = {
@@ -23,11 +27,15 @@ export function Options() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   const [saved, setSaved] = useState<Record<ProviderId, boolean>>({ gemini: false, groq: false });
   const [drafts, setDrafts] = useState<Record<ProviderId, string>>({ gemini: "", groq: "" });
+  const [sites, setSites] = useState<Sites>({});
+  const [blockDraft, setBlockDraft] = useState("");
+  const [blockNote, setBlockNote] = useState("");
   const [notes, setNotes] = useState<Record<ProviderId, string>>({ gemini: "", groq: "" });
 
   useEffect(() => {
     void loadSettings().then(setSettings);
     void keyStatus().then(setSaved);
+    void loadSites().then(setSites);
   }, []);
 
   const note = (id: ProviderId, text: string) => setNotes((n) => ({ ...n, [id]: text }));
@@ -35,6 +43,27 @@ export function Options() {
     setSettings(next);
     void saveSettings(next);
   };
+
+  const forget = async (origin: string) => {
+    await forgetSite(origin);
+    setSites(await loadSites());
+  };
+
+  const forgetEverything = async () => {
+    await forgetAll();
+    setSites(await loadSites());
+  };
+
+  const addBlock = () => {
+    const host = entryHost(blockDraft);
+    if (!HOST.test(host)) return setBlockNote("Enter a site such as example.org.");
+    setBlockDraft("");
+    if (settings.blocklist.includes(host)) return setBlockNote("Already on the list.");
+    setBlockNote("");
+    update({ ...settings, blocklist: [...settings.blocklist, host] });
+  };
+
+  const removeBlock = (host: string) => update({ ...settings, blocklist: settings.blocklist.filter((h) => h !== host) });
 
   const move = (id: ProviderId, by: -1 | 1) => {
     const order = [...settings.order];
@@ -112,6 +141,35 @@ export function Options() {
           <p role="status">{notes[id]}</p>
         </section>
       ))}
+
+      <section>
+        <h2>Saved sites</h2>
+        {Object.keys(sites).length === 0 && <p class="note">No sites saved.</p>}
+        {Object.entries(sites).map(([origin, rec]) => (
+          <div class="row" key={origin}>
+            <span>{origin} · {rec.provider} · {rec.savedAt.slice(0, 10)}{rec.mode === "auto" ? " · automatic" : ""}</span>
+            <button type="button" onClick={() => void forget(origin)} aria-label={`Forget ${origin}`}>Forget</button>
+          </div>
+        ))}
+        {Object.keys(sites).length > 0 && <button type="button" onClick={() => void forgetEverything()}>Forget all</button>}
+      </section>
+
+      <section>
+        <h2>Blocklist</h2>
+        <p class="note">Skinly AI never changes these sites.</p>
+        {settings.blocklist.map((host) => (
+          <div class="row" key={host}>
+            <span>{host}</span>
+            <button type="button" onClick={() => removeBlock(host)} aria-label={`Remove ${host} from the blocklist`}>Remove</button>
+          </div>
+        ))}
+        <label>
+          Site to block
+          <input type="text" value={blockDraft} placeholder="example.org" onInput={(e) => setBlockDraft((e.currentTarget as HTMLInputElement).value)} />
+        </label>
+        <button type="button" onClick={addBlock} disabled={blockDraft.trim() === ""}>Add to blocklist</button>
+        <p role="status">{blockNote}</p>
+      </section>
 
       <section>
         <h2>Privacy and storage</h2>

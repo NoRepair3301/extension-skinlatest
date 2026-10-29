@@ -6,7 +6,7 @@ export type Eligibility = { allowed: true } | { allowed: false; reason: BlockRea
 const blocked = (reason: BlockReason): Eligibility => ({ allowed: false, reason });
 
 /** Reduces a blocklist entry (host or origin) to a bare lowercase host. */
-const entryHost = (entry: string): string =>
+export const entryHost = (entry: string): string =>
   entry
     .trim()
     .toLowerCase()
