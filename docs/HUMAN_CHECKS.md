@@ -35,3 +35,8 @@
 ## Phase 6
 - [ ] Turn the pet on for three sites with very different stylesheets: it looks the same and the site's CSS does not leak in. Click through the page around it: nothing is blocked.
 - [ ] Turn on reduced motion in the operating system: the pet is static (also check after toggling it while the page is open).
+
+## Phase 7
+- [ ] On three sites (one with hundreds of links) open the palette with Alt+Shift+K, find a link by typing, press Enter in the palette, then Enter on the focused link: it opens as normal.
+- [ ] Rebind one shortcut in the browser's shortcut settings (extensions menu, Keyboard shortcuts) and confirm it works. Also check the three suggested keys do not collide with a browser or OS shortcut.
+- [ ] Alt+Shift+S applies the saved built-in theme only (it never asks an AI; that needs the popup because of the consent text). Decide whether that is acceptable.

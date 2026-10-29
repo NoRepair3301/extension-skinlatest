@@ -252,6 +252,15 @@ export function Popup() {
       <button type="button" onClick={() => void restore()} disabled={busy}>Restore original</button>
 
       <p role="status">{statusText(view)}</p>
+      <section aria-label="Shortcuts">
+        <h2>Keyboard shortcuts</h2>
+        <ul>
+          <li>Alt+Shift+S: apply your built-in theme</li>
+          <li>Alt+Shift+R: restore the original page</li>
+          <li>Alt+Shift+K: find a link or button</li>
+        </ul>
+        <p class="note">To change them, open the extensions menu in your browser and choose Keyboard shortcuts.</p>
+      </section>
       <footer>Skinly AI is not affiliated with any website.</footer>
     </main>
   );

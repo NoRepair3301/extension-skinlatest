@@ -9,9 +9,9 @@ const manifestPlugin = {
   },
 };
 
-// Three builds share this file: the default one (background, popup, options),
-// `--mode applier` (injected on demand) and `--mode applier-auto` (registered per origin after the user opts in).
-// Both are self-contained classic scripts.
+// Four builds share this file: the default one (background, popup, options),
+// `--mode applier` and `--mode palette` (injected on demand) and `--mode applier-auto` (registered per origin after the user opts in).
+// The last three are self-contained classic scripts.
 export default defineConfig(({ mode }) => {
   const common = {
     root: "src/extension",
@@ -20,14 +20,20 @@ export default defineConfig(({ mode }) => {
     logLevel: "silent" as const,
     oxc: { jsx: { runtime: "automatic" as const, importSource: "preact" } },
   };
-  if (mode === "applier" || mode === "applier-auto") {
+  if (mode === "applier" || mode === "applier-auto" || mode === "palette") {
     const auto = mode === "applier-auto";
+    const pal = mode === "palette";
     return {
       ...common,
       build: {
         outDir: "../../dist",
         emptyOutDir: false,
-        lib: { entry: auto ? "applier-auto.ts" : "applier.ts", formats: ["iife" as const], name: auto ? "SkinlyApplierAuto" : "SkinlyApplier", fileName: () => (auto ? "applier-auto.js" : "applier.js") },
+        lib: {
+          entry: pal ? "palette.ts" : auto ? "applier-auto.ts" : "applier.ts",
+          formats: ["iife" as const],
+          name: pal ? "SkinlyPalette" : auto ? "SkinlyApplierAuto" : "SkinlyApplier",
+          fileName: () => (pal ? "palette.js" : auto ? "applier-auto.js" : "applier.js"),
+        },
       },
     };
   }

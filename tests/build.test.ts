@@ -37,7 +37,7 @@ describe("validateDist", () => {
     mkdirSync(`${dir}/popup`, { recursive: true });
     mkdirSync(`${dir}/options`, { recursive: true });
     writeFileSync(`${dir}/manifest.json`, JSON.stringify(m));
-    for (const f of ["popup/index.html", "options/index.html", "applier.js"]) writeFileSync(`${dir}/${f}`, "x");
+    for (const f of ["popup/index.html", "options/index.html", "applier.js", "palette.js"]) writeFileSync(`${dir}/${f}`, "x");
     writeFileSync(`${dir}/background.js`, js);
   };
 
