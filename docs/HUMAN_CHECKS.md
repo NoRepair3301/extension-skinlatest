@@ -19,3 +19,9 @@
 - [ ] Bake-off ran once with the Gemini key found in `.env.local` (no Groq key was present, so Groq was skipped): gemini-3.8-flash gave 14 of 15 timeouts at 15 s and 1 valid plan (7%), median 15010 ms. Check the model id and whether the request shape (system_instruction + response_format schema) is accepted, then rerun `npm run bakeoff`. Add `GROQ_API_KEY` to `.env.local` to include Groq. Results are in private/bakeoff.json (gitignored).
 - [ ] Create keys (restrict the Gemini key to the Gemini API), keep them in `.env.local` only.
 - [ ] In the options page click Test key for each provider: it succeeds, and the browser's permission prompt names only that provider's host.
+
+## Phase 4
+- [ ] With a real key on five public pages record for each: seconds to baseline, seconds to AI result, better/worse/broken. At least 3 of 5 acceptable, otherwise list failures in docs/BUGS.md. Undo restores the page.
+- [ ] Offline: click Change my page. The baseline stays and the message says AI is unavailable.
+- [ ] On a sign-in page and a payment-style page: the Network tab shows no provider request.
+- [ ] The popup closes when you click elsewhere, which ends a running flow (baseline stays). Decide whether that is acceptable or whether the flow should move to the service worker.
