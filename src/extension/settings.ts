@@ -1,6 +1,23 @@
 import { DEFAULT_MODELS, PROVIDER_IDS, type ProviderId } from "../config.ts";
 import { DEFAULT_THEME_ID, isBuiltinThemeId, type BuiltinThemeId } from "../themes/index.ts";
 import { storageGet, storageSet } from "./api.ts";
+import { toOrigin } from "./origin.ts";
+
+export const PET_KINDS = ["pebble", "sprout"] as const;
+export const PET_SIZES = ["small", "medium", "large"] as const;
+export const PET_CORNERS = ["bottom-right", "bottom-left", "top-right", "top-left"] as const;
+export type PetKind = (typeof PET_KINDS)[number];
+export type PetSize = (typeof PET_SIZES)[number];
+export type PetCorner = (typeof PET_CORNERS)[number];
+
+export interface PetSettings {
+  enabled: boolean;
+  kind: PetKind;
+  size: PetSize;
+  corner: PetCorner;
+  /** Origins only. */
+  disabledOrigins: string[];
+}
 
 export interface Settings {
   theme: BuiltinThemeId;
@@ -11,6 +28,7 @@ export interface Settings {
   aiCallsToday: { date: string; count: number };
   /** Set once the user accepts the consent text; asked again when CONSENT_VERSION changes. */
   consent: { version: number; acceptedAt: string } | null;
+  pet: PetSettings;
 }
 
 const KEY = "settings";
@@ -24,6 +42,7 @@ export const defaultSettings = (): Settings => ({
   models: { ...DEFAULT_MODELS },
   aiCallsToday: { date: "", count: 0 },
   consent: null,
+  pet: { enabled: false, kind: "pebble", size: "medium", corner: "bottom-right", disabledOrigins: [] },
 });
 
 const isProviderId = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDER_IDS as readonly string[]).includes(v);
@@ -60,6 +79,18 @@ export function parseSettings(raw: unknown): Settings {
     const { version, acceptedAt } = consent as Record<string, unknown>;
     if (typeof version === "number" && Number.isInteger(version) && version >= 0 && typeof acceptedAt === "string" && acceptedAt.length <= 40) {
       out.consent = { version, acceptedAt };
+    }
+  }
+  const pet = r["pet"];
+  if (typeof pet === "object" && pet !== null) {
+    const p = pet as Record<string, unknown>;
+    if (p["enabled"] === true) out.pet.enabled = true;
+    const pick = <T extends string>(list: readonly T[], v: unknown): T | undefined => list.find((x) => x === v);
+    out.pet.kind = pick(PET_KINDS, p["kind"]) ?? out.pet.kind;
+    out.pet.size = pick(PET_SIZES, p["size"]) ?? out.pet.size;
+    out.pet.corner = pick(PET_CORNERS, p["corner"]) ?? out.pet.corner;
+    if (Array.isArray(p["disabledOrigins"])) {
+      out.pet.disabledOrigins = [...new Set(p["disabledOrigins"].filter((v): v is string => toOrigin(v) !== undefined))].slice(0, 200);
     }
   }
   return out;

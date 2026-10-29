@@ -31,3 +31,7 @@
 - [ ] Forget this site: the next visit is original, and the extension details page shows no site access for it.
 - [ ] On a site where a different page type has a very different layout, confirm the "This page changed. Regenerate?" banner appears and nothing breaks.
 - [ ] Confirm the toolbar badge shows ON on a themed tab and clears after Restore.
+
+## Phase 6
+- [ ] Turn the pet on for three sites with very different stylesheets: it looks the same and the site's CSS does not leak in. Click through the page around it: nothing is blocked.
+- [ ] Turn on reduced motion in the operating system: the pet is static (also check after toggling it while the page is open).

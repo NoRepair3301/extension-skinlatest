@@ -57,6 +57,27 @@ export function Popup() {
     void refreshSite();
   }, []);
 
+  /** Tells the applier in the page about the pet setting; does nothing when no applier is injected. */
+  const syncPet = (next: Settings, tabId: number | undefined) => {
+    if (tabId === undefined) return;
+    void (async () => {
+      try {
+        await runInPage(tabId, "syncPet", next.pet);
+      } catch {
+        // no applier in this tab: nothing to show
+      }
+    })();
+  };
+
+  const updatePet = (pet: Settings["pet"]) => {
+    const next = { ...settings, pet };
+    setSettings(next);
+    void saveSettings(next);
+    syncPet(next, site?.tabId);
+  };
+
+  const petHereOff = site !== undefined && settings.pet.disabledOrigins.includes(site.origin);
+
   const pickTheme = (theme: BuiltinThemeId) => {
     const next = { ...settings, theme };
     setSettings(next);
@@ -85,6 +106,7 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      if (outcome.kind === "preview" || outcome.kind === "baseline") syncPet(await loadSettings(), tab.id);
     } catch {
       setView({ state: "error", kind: "error", message: MSG.baselineFailed });
     }
@@ -157,6 +179,28 @@ export function Popup() {
             {t.name}
           </label>
         ))}
+      </fieldset>
+
+      <fieldset>
+        <legend>Pet</legend>
+        <label>
+          <input type="checkbox" checked={settings.pet.enabled} onChange={(e) => updatePet({ ...settings.pet, enabled: (e.currentTarget as HTMLInputElement).checked })} />
+          Show a small pet on pages I change
+        </label>
+        {site && settings.pet.enabled && (
+          <label>
+            <input
+              type="checkbox"
+              checked={petHereOff}
+              onChange={(e) => {
+                const off = (e.currentTarget as HTMLInputElement).checked;
+                const rest = settings.pet.disabledOrigins.filter((o) => o !== site.origin);
+                updatePet({ ...settings.pet, disabledOrigins: off ? [...rest, site.origin] : rest });
+              }}
+            />
+            Disable pet on this site
+          </label>
+        )}
       </fieldset>
 
       {view.state === "consent" && (

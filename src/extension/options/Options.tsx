@@ -2,7 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
 import { deleteKey, keyStatus, MASK, saveKey, testKey } from "../keys.ts";
 import { entryHost } from "../../analyzer/eligibility.ts";
-import { callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { PET_CORNERS, PET_KINDS, PET_SIZES, callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
 import { forgetAll, forgetSite } from "../siteActions.ts";
 import { loadSites, type Sites } from "../sites.ts";
 
@@ -169,6 +169,25 @@ export function Options() {
         </label>
         <button type="button" onClick={addBlock} disabled={blockDraft.trim() === ""}>Add to blocklist</button>
         <p role="status">{blockNote}</p>
+      </section>
+
+      <section>
+        <h2>Pet</h2>
+        <label>
+          <input type="checkbox" checked={settings.pet.enabled} onChange={(e) => update({ ...settings, pet: { ...settings.pet, enabled: (e.currentTarget as HTMLInputElement).checked } })} />
+          Show a small pet on pages I change
+        </label>
+        {([["kind", "Pet", PET_KINDS], ["size", "Size", PET_SIZES], ["corner", "Corner", PET_CORNERS]] as const).map(([field, label, values]) => (
+          <label key={field}>
+            {label}
+            <select value={settings.pet[field]} onChange={(e) => update({ ...settings, pet: { ...settings.pet, [field]: (e.currentTarget as HTMLSelectElement).value } })}>
+              {values.map((v) => (
+                <option key={v} value={v}>{v}</option>
+              ))}
+            </select>
+          </label>
+        ))}
+        <p class="note">The pet never appears on blocked pages and moves away from form fields. Turn it off for one site from the popup.</p>
       </section>
 
       <section>
