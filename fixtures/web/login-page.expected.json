@@ -1,0 +1,34 @@
+{
+  "counts": {
+    "nodes": 10,
+    "links": 1,
+    "forms": 1,
+    "tables": 0,
+    "images": 0,
+    "headings": 1,
+    "iframes": 0
+  },
+  "risk": [
+    "password"
+  ],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "main",
+      "childCount": 3,
+      "linkCount": 1
+    },
+    {
+      "id": "r2",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r3",
+      "role": "form",
+      "childCount": 3,
+      "linkCount": 0
+    }
+  ]
+}

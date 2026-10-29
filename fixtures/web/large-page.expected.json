@@ -1,0 +1,254 @@
+{
+  "counts": {
+    "nodes": 1814,
+    "links": 310,
+    "forms": 0,
+    "tables": 0,
+    "images": 0,
+    "headings": 300,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 1,
+      "linkCount": 10
+    },
+    {
+      "id": "r2",
+      "role": "nav",
+      "childCount": 10,
+      "linkCount": 10
+    },
+    {
+      "id": "r3",
+      "role": "main",
+      "childCount": 300,
+      "linkCount": 300
+    },
+    {
+      "id": "r4",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r5",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r6",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r7",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r8",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r9",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r10",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r11",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r12",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r13",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r14",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r15",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r16",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r17",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r18",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r19",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r20",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r21",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r22",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r23",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r24",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r25",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r26",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r27",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r28",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r29",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r30",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r31",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r32",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r33",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r34",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r35",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r36",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r37",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r38",
+      "role": "section",
+      "childCount": 2,
+      "linkCount": 1
+    },
+    {
+      "id": "r39",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r40",
+      "role": "footer",
+      "childCount": 0,
+      "linkCount": 0
+    }
+  ]
+}

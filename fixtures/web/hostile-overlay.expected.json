@@ -1,0 +1,32 @@
+{
+  "counts": {
+    "nodes": 37,
+    "links": 0,
+    "forms": 0,
+    "tables": 0,
+    "images": 0,
+    "headings": 1,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r2",
+      "role": "button-group",
+      "childCount": 2,
+      "linkCount": 0
+    },
+    {
+      "id": "r3",
+      "role": "card-list",
+      "childCount": 5,
+      "linkCount": 0
+    }
+  ]
+}

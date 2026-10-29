@@ -1,0 +1,98 @@
+{
+  "counts": {
+    "nodes": 90,
+    "links": 37,
+    "forms": 0,
+    "tables": 0,
+    "images": 0,
+    "headings": 1,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 1,
+      "linkCount": 30
+    },
+    {
+      "id": "r2",
+      "role": "nav",
+      "childCount": 1,
+      "linkCount": 30
+    },
+    {
+      "id": "r3",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 30
+    },
+    {
+      "id": "r4",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 5
+    },
+    {
+      "id": "r5",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 5
+    },
+    {
+      "id": "r6",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 5
+    },
+    {
+      "id": "r7",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 5
+    },
+    {
+      "id": "r8",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 5
+    },
+    {
+      "id": "r9",
+      "role": "aside",
+      "childCount": 1,
+      "linkCount": 7
+    },
+    {
+      "id": "r10",
+      "role": "nav",
+      "childCount": 1,
+      "linkCount": 7
+    },
+    {
+      "id": "r11",
+      "role": "link-list",
+      "childCount": 7,
+      "linkCount": 7
+    },
+    {
+      "id": "r12",
+      "role": "main",
+      "childCount": 2,
+      "linkCount": 0
+    },
+    {
+      "id": "r13",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r14",
+      "role": "footer",
+      "childCount": 0,
+      "linkCount": 0
+    }
+  ]
+}

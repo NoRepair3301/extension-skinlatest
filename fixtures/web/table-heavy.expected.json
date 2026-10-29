@@ -1,0 +1,52 @@
+{
+  "counts": {
+    "nodes": 537,
+    "links": 0,
+    "forms": 0,
+    "tables": 3,
+    "images": 0,
+    "headings": 1,
+    "iframes": 0
+  },
+  "risk": [
+    "big-table"
+  ],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 1,
+      "linkCount": 0
+    },
+    {
+      "id": "r2",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r3",
+      "role": "main",
+      "childCount": 3,
+      "linkCount": 0
+    },
+    {
+      "id": "r4",
+      "role": "table",
+      "childCount": 2,
+      "linkCount": 0
+    },
+    {
+      "id": "r5",
+      "role": "table",
+      "childCount": 2,
+      "linkCount": 0
+    },
+    {
+      "id": "r6",
+      "role": "footer",
+      "childCount": 0,
+      "linkCount": 0
+    }
+  ]
+}

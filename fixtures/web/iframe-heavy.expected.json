@@ -1,0 +1,40 @@
+{
+  "counts": {
+    "nodes": 13,
+    "links": 0,
+    "forms": 0,
+    "tables": 0,
+    "images": 0,
+    "headings": 1,
+    "iframes": 4
+  },
+  "risk": [
+    "iframes"
+  ],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 1,
+      "linkCount": 0
+    },
+    {
+      "id": "r2",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r3",
+      "role": "main",
+      "childCount": 5,
+      "linkCount": 0
+    },
+    {
+      "id": "r4",
+      "role": "footer",
+      "childCount": 0,
+      "linkCount": 0
+    }
+  ]
+}
