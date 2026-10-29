@@ -40,7 +40,7 @@ export const onMessage = (handler: MessageHandler): void => {
   });
 };
 
-export type PageMethod = "applyTheme" | "applyPlan" | "analyze" | "restore";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore";
 
 /** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */
 export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown): Promise<R | undefined> => {
