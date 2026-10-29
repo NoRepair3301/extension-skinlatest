@@ -8,3 +8,4 @@ private/
 *.log
 .DS_Store
 coverage/
+.scrub-terms.local.json

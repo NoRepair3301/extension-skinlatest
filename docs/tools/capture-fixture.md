@@ -6,7 +6,7 @@ A fixture is a saved copy of a real page's structure with the text, links and va
 - Public pages only. No page that needs a login. No page showing your name, email, balances or messages.
 - Raw captures go in `private/raw/` (gitignored). Only scrubbed output goes in `fixtures/web/`.
 - Never paste raw captures into a chat.
-- Put anything personal you can think of (your name, email, phone, roll number, city) one per line in `private/terms.txt`. The audit searches fixtures and history for these.
+- Put anything personal you can think of (your name, email, phone, roll number, city) in `.scrub-terms.local.json` in the project root (`{"terms":["..."]}`, gitignored). The scrub tool, the fixtures-clean test and the audit use these.
 
 ## Page types to capture
 Pick one real public page for each:
@@ -37,9 +37,9 @@ If a page builds itself inside an iframe or shadow root, copy the outerHTML of t
 ## Scrub
 From the project folder:
 ```
-npm run scrub
+npm run scrub -- private/raw/<name>.html fixtures/web/<name>.html
 ```
-This reads `private/raw/*.html` and writes `fixtures/web/<name>.html` with text replaced by filler, links replaced by `#`, and values emptied. Open two or three outputs in the browser and check they contain no names, emails or numbers you recognise. If a scrubbed file still holds something personal, delete it and tell Claude Code to improve the scrub tool with a test for that case.
+Run it once per file. It reads the raw file and writes the scrubbed output with text replaced by filler, links replaced by `#`, and values emptied. Open two or three outputs in the browser and check they contain no names, emails or numbers you recognise. If a scrubbed file still holds something personal, delete it and tell Claude Code to improve the scrub tool with a test for that case.
 
 ## Index
 Create or update `fixtures/web/INDEX.md` with one line per file: `<name>.html | page type | rough node count | why it is hard`. Claude Code can write this for you after Phase 1 starts, but the list of page types is yours.
