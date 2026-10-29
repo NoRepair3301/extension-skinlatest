@@ -12,3 +12,10 @@
 - [ ] On three real public pages (an article site, a strict-CSP site such as github.com, a link-heavy portal): Transform shows the theme within 1 s, all five themes work, text is readable, images keep their colours, Restore returns the exact original look.
 - [ ] If any site shows no styling at all (possible CSP issue with adopted stylesheets), write the site and what you saw in docs/BUGS.md.
 - [ ] Judge whether `!important` colour overrides make some sites look worse than intended (dark theme on pages with many explicit light backgrounds).
+
+## Phase 3
+- [ ] UNVERIFIED: Gemini raw response shape. `extractGeminiText` (src/providers/gemini.ts) guesses `output_text` / a `model_output` step; the docs fetched only show SDK accessors. Confirm against the Interactions API reference and fix the function.
+- [ ] UNVERIFIED: Gemini error bodies and retry-after (not documented in the fetched pages); Groq data-retention terms; CORS from the service worker (docs silent; the Test key button checks it).
+- [ ] Bake-off ran once with the Gemini key found in `.env.local` (no Groq key was present, so Groq was skipped): gemini-3.8-flash gave 14 of 15 timeouts at 15 s and 1 valid plan (7%), median 15010 ms. Check the model id and whether the request shape (system_instruction + response_format schema) is accepted, then rerun `npm run bakeoff`. Add `GROQ_API_KEY` to `.env.local` to include Groq. Results are in private/bakeoff.json (gitignored).
+- [ ] Create keys (restrict the Gemini key to the Gemini API), keep them in `.env.local` only.
+- [ ] In the options page click Test key for each provider: it succeeds, and the browser's permission prompt names only that provider's host.

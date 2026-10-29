@@ -1,3 +1,5 @@
 import { render } from "preact";
+import { Options } from "./Options.tsx";
+import "./options.css";
 
-render(<p>Settings are coming in a later phase.</p>, document.getElementById("app")!);
+render(<Options />, document.getElementById("app")!);

@@ -11,7 +11,8 @@
     "scrub": "node scripts/scrub-fixture.ts",
     "contrast": "node scripts/contrast.ts",
     "validate-dist": "node scripts/validate-dist.ts",
-    "check": "npm run typecheck --silent && npm run lint --silent && npm run test --silent && npm run build --silent && npm run validate-dist --silent && npm run contrast --silent"
+    "check": "npm run typecheck --silent && npm run lint --silent && npm run test --silent && npm run build --silent && npm run validate-dist --silent && npm run contrast --silent",
+    "bakeoff": "node scripts/bakeoff.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",

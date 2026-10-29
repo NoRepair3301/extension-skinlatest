@@ -37,7 +37,7 @@ describe("compileCss", () => {
     it("matches its golden file", () => {
       const path = `tests/golden/${id}.css`;
       if (process.env["UPDATE_GOLDEN"] === "1" || !existsSync(path)) writeFileSync(path, css);
-      expect(css).toBe(readFileSync(path, "utf8"));
+      expect(css).toBe(readFileSync(path, "utf8").split("\r\n").join("\n"));
     });
   });
 
