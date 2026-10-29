@@ -1,4 +1,13 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+
+// Ships the root manifest.json unchanged.
+const manifestPlugin = {
+  name: "skinly-manifest",
+  generateBundle(this: { emitFile(f: { type: "asset"; fileName: string; source: string }): void }) {
+    this.emitFile({ type: "asset", fileName: "manifest.json", source: readFileSync("manifest.json", "utf8") });
+  },
+};
 
 // Two builds share this file: the default one (background, popup, options) and
 // `--mode applier`, a self-contained classic script that is injected on demand.
@@ -22,6 +31,7 @@ export default defineConfig(({ mode }) => {
   }
   return {
     ...common,
+    plugins: [manifestPlugin],
     build: {
       outDir: "../../dist",
       emptyOutDir: true,

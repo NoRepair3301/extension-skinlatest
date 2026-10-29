@@ -1,0 +1,11 @@
+{
+  "manifest_version": 3,
+  "name": "Skinly AI",
+  "version": "0.0.0",
+  "description": "Restyle the page you are on. Not affiliated with any website.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "optional_host_permissions": ["https://*/*", "http://*/*"],
+  "background": { "service_worker": "background.js", "type": "module" },
+  "action": { "default_title": "Skinly AI", "default_popup": "popup/index.html" },
+  "options_page": "options/index.html"
+}
