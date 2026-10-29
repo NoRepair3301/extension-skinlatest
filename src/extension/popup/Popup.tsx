@@ -6,6 +6,7 @@ import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
 
@@ -252,6 +253,8 @@ export function Popup() {
       <button type="button" onClick={() => void restore()} disabled={busy}>Restore original</button>
 
       <p role="status">{statusText(view)}</p>
+      {site && view.state !== "consent" && <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} />}
+
       <section aria-label="Shortcuts">
         <h2>Keyboard shortcuts</h2>
         <ul>

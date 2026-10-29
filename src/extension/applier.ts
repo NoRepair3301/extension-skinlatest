@@ -1,4 +1,5 @@
 import { browserEnv, createPetController, type PetConfig } from "../features/pet/pet.ts";
+import { createPageTools } from "./pageTools.ts";
 import { createApplier, type Applier, type StyleHost } from "./applier-core.ts";
 import { originOf } from "./origin.ts";
 
@@ -20,7 +21,7 @@ const adoptedSheetHost = (doc: Document): StyleHost => ({
 
 export type PageApplier = Applier & { syncPet(cfg: PetConfig): void };
 
-const slot = globalThis as unknown as { skinlyApplier?: PageApplier };
+const slot = globalThis as unknown as { skinlyApplier?: PageApplier; skinlyTools?: ReturnType<typeof createPageTools> };
 
 function withPet(applier: Applier): PageApplier {
   const pet = createPetController(browserEnv(window));
@@ -32,4 +33,11 @@ function withPet(applier: Applier): PageApplier {
 }
 
 // Injecting the file twice must not replace the live instance, or its rollback ledger would be lost.
-if (!slot.skinlyApplier) slot.skinlyApplier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
+if (!slot.skinlyApplier) {
+  const applier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
+  // Blur and table tools live beside the applier and are undone by the same Restore.
+  const tools = createPageTools(document, adoptedSheetHost(document));
+  applier.onRestore(() => tools.restore());
+  slot.skinlyTools = tools;
+  slot.skinlyApplier = applier;
+}

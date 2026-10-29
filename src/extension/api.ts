@@ -80,6 +80,24 @@ export const openPaletteInPage = async (tabId: number): Promise<void> => {
   });
 };
 
+export type ToolMethod = "blurTargets" | "blurShare" | "blurState" | "pickStart" | "pickStop" | "tablesEnable" | "tablesFilter" | "tablesRestoreOrder";
+
+/** Calls a privacy or table tool of the applier script already injected in the tab. */
+export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ...args: unknown[]): Promise<R | undefined> => {
+  const [res] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (m: string, a: unknown[]) => {
+      const tools = (globalThis as unknown as { skinlyTools?: Record<string, (...x: unknown[]) => unknown> }).skinlyTools;
+      return tools?.[m]?.(...a);
+    },
+    args: [method, args],
+  });
+  return res?.result as R | undefined;
+};
+
+/** PNG data URL of the visible area of the tab's window. Needs the activeTab grant from the user's click. */
+export const captureVisible = (): Promise<string> => chrome.tabs.captureVisibleTab({ format: "png" });
+
 export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet";
 
 /** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */

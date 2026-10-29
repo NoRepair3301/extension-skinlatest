@@ -8,6 +8,8 @@ const api = vi.hoisted(() => ({
   queryActiveTab: vi.fn(),
   injectFile: vi.fn(),
   runInPage: vi.fn(),
+  runTool: vi.fn(),
+  captureVisible: vi.fn(),
   storageGet: vi.fn(),
   storageSet: vi.fn(),
   setBadge: vi.fn(),
