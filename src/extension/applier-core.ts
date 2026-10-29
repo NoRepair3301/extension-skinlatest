@@ -1,7 +1,8 @@
 import { analyze } from "../analyzer/analyze.ts";
 import type { SummaryDeps } from "../analyzer/summary.ts";
-import type { RiskMarker, StructuralSummary } from "../core/types.ts";
+import type { Fingerprint, RiskMarker, StructuralSummary } from "../core/types.ts";
 import { compileCss } from "../plan/compile.ts";
+import { contrastFailures } from "../plan/contrast.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
 import { validatePlan, type StylePlan } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
@@ -31,7 +32,7 @@ export type ApplyResult =
   | { ok: false; reason: "invalid-plan" | "too-large" | "invariants" | "bad-theme" | "error"; detail?: string[] };
 
 /** What the page tells the extension about itself: the summary and risk, nothing else. */
-export type PageAnalysis = { status: "ok"; risk: RiskMarker[]; summary: StructuralSummary } | { status: "too-large"; risk: RiskMarker[] };
+export type PageAnalysis = { status: "ok"; risk: RiskMarker[]; summary: StructuralSummary; fingerprint: Fingerprint } | { status: "too-large"; risk: RiskMarker[] };
 
 interface Ledger {
   tags: Array<{ el: Element; id: string; previous: string | null }>;
@@ -55,6 +56,7 @@ type PlanSource = StylePlan | ((summary: StructuralSummary | undefined) => Style
 
 export function createApplier(doc: Document, opts: ApplierOptions) {
   let ledger: Ledger | undefined;
+  const restoreHooks: Array<() => void> = [];
 
   const html = doc.documentElement;
 
@@ -62,6 +64,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   function restore(): { ok: true } {
     const l = ledger;
     ledger = undefined;
+    for (const hook of restoreHooks) hook();
     if (!l) return { ok: true };
     l.observer?.disconnect();
     l.sheet.remove();
@@ -84,17 +87,21 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     if (!l.sheet.isAttached()) l.sheet = opts.style.add(l.css);
   }
 
-  function run(source: PlanSource): ApplyResult {
+  /** `tokensOnly` skips the page analysis (used at document_start, before the body exists) and applies no region rules. */
+  function run(source: PlanSource, tokensOnly = false): ApplyResult {
     restore();
     try {
       const before = snapshot(doc);
-      const analysis = analyze(doc, opts.summaryDeps);
-      const summary = analysis.status === "ok" ? analysis.summary : undefined;
-      const plan = typeof source === "function" ? source(summary) : source;
+      const analysis = tokensOnly ? undefined : analyze(doc, opts.summaryDeps);
+      const summary = analysis?.status === "ok" ? analysis.summary : undefined;
+      const chosen = typeof source === "function" ? source(summary) : source;
+      const plan = tokensOnly ? { ...chosen, regionRules: [] } : chosen;
 
       if (!summary && plan.regionRules.length > 0) return { ok: false, reason: "too-large" };
       const checked = validatePlan(plan, summary ?? EMPTY_SUMMARY);
       if (!checked.ok) return { ok: false, reason: "invalid-plan", detail: checked.errors };
+
+      if (contrastFailures(checked.plan.themeId, checked.plan.tokens).length > 0) return { ok: false, reason: "invalid-plan", detail: ["contrast"] };
 
       const css = compileCss(checked.plan, summary ?? EMPTY_SUMMARY);
       const next: Ledger = {
@@ -106,7 +113,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       };
       ledger = next;
 
-      if (analysis.status === "ok") {
+      if (analysis?.status === "ok") {
         const byId = new Map(analysis.regions.map((r) => [r.id, r.el]));
         for (const rule of checked.plan.regionRules) {
           const el = byId.get(rule.region);
@@ -138,13 +145,19 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
 
   return {
     apply: (plan: StylePlan): ApplyResult => run(plan),
+    /** Global tokens only, no page analysis: safe at document_start. */
+    applyTokens: (plan: StylePlan): ApplyResult => run(plan, true),
+    /** Runs `fn` whenever Restore removes our changes (used by the extension-owned banner). */
+    onRestore(fn: () => void): void {
+      restoreHooks.push(fn);
+    },
     applyTheme(id: string): ApplyResult {
       if (!isBuiltinThemeId(id)) return { ok: false, reason: "bad-theme" };
       return run((summary) => themeToPlan(id, summary));
     },
     analyze: (): PageAnalysis => {
       const a = analyze(doc, opts.summaryDeps);
-      return a.status === "ok" ? { status: "ok", risk: a.risk, summary: a.summary } : { status: "too-large", risk: a.risk };
+      return a.status === "ok" ? { status: "ok", risk: a.risk, summary: a.summary, fingerprint: a.fingerprint } : { status: "too-large", risk: a.risk };
     },
     restore,
     isActive: (): boolean => ledger !== undefined,

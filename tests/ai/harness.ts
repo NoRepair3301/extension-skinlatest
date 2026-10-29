@@ -43,7 +43,7 @@ export const fakePage = (analysis: PageAnalysis | (() => PageAnalysis)) => {
   return { page, calls };
 };
 
-export const okAnalysis = (risk: RiskMarker[] = []): PageAnalysis => ({ status: "ok", risk, summary: sampleSummary(risk) });
+export const okAnalysis = (risk: RiskMarker[] = []): PageAnalysis => ({ status: "ok", risk, summary: sampleSummary(risk), fingerprint: { hash: "00000000", seq: "nmlc" } });
 
 export interface Harness {
   deps: PipelineDeps;

@@ -25,3 +25,9 @@
 - [ ] Offline: click Change my page. The baseline stays and the message says AI is unavailable.
 - [ ] On a sign-in page and a payment-style page: the Network tab shows no provider request.
 - [ ] The popup closes when you click elsewhere, which ends a running flow (baseline stays). Decide whether that is acceptable or whether the flow should move to the service worker.
+
+## Phase 5
+- [ ] On two public sites: Keep, then Always on this site. Close the whole browser, reopen, visit the site: it is themed without clicking, with at most a brief flash. Record any visible flash in docs/BUGS.md.
+- [ ] Forget this site: the next visit is original, and the extension details page shows no site access for it.
+- [ ] On a site where a different page type has a very different layout, confirm the "This page changed. Regenerate?" banner appears and nothing breaks.
+- [ ] Confirm the toolbar badge shows ON on a themed tab and clears after Restore.

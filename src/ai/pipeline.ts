@@ -1,7 +1,7 @@
 import { checkUrl } from "../analyzer/eligibility.ts";
 import { decideGate } from "../analyzer/gate.ts";
 import { CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, type ProviderId } from "../config.ts";
-import type { BlockReason, StructuralSummary } from "../core/types.ts";
+import type { BlockReason, Fingerprint, StructuralSummary } from "../core/types.ts";
 import { debug } from "../core/log.ts";
 import type { ApplyResult, PageAnalysis } from "../extension/applier-core.ts";
 import { callsOn, type Settings } from "../extension/settings.ts";
@@ -55,7 +55,7 @@ export type BaselineWhy = "no-ai-page" | "too-large" | "no-key" | "consent-decli
 export type Outcome =
   | { kind: "blocked"; reason: BlockReason; message: string }
   | { kind: "baseline"; themeId: BuiltinThemeId; why: BaselineWhy; message: string }
-  | { kind: "preview"; source: "ai" | "fallback"; plan: StylePlan; baselineThemeId: BuiltinThemeId; providerId?: ProviderId; message?: string }
+  | { kind: "preview"; source: "ai" | "fallback"; plan: StylePlan; baselineThemeId: BuiltinThemeId; fingerprint: Fingerprint; providerId?: ProviderId; model?: string; message?: string }
   | { kind: "error"; errorKind: ErrorKind | "baseline"; message: string; themeId: BuiltinThemeId }
   | { kind: "cancelled"; themeId: BuiltinThemeId };
 
@@ -160,7 +160,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       const id = nearestTheme(summary, rejectedBg);
       const r = await deps.page.applyTheme(id);
       if (!r?.ok) return baseline("apply-failed", MSG.applyFailed);
-      return { kind: "preview", source: "fallback", plan: themeToPlan(id, summary), baselineThemeId: baselineId, message: MSG.fallbackTheme };
+      return { kind: "preview", source: "fallback", plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };
     }
     return baseline("ai-unavailable", MSG.allFailed);
   }
@@ -172,5 +172,5 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
     await deps.page.applyTheme(baselineId);
     return baseline("apply-failed", MSG.applyFailed);
   }
-  return { kind: "preview", source: "ai", plan: validPlan, baselineThemeId: baselineId, providerId: result.providerId };
+  return { kind: "preview", source: "ai", plan: validPlan, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model };
 }

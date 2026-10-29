@@ -6,6 +6,9 @@ const api = vi.hoisted(() => ({
   storageGet: vi.fn(),
   storageSet: vi.fn(),
   requestOrigins: vi.fn(),
+  removeOrigins: vi.fn(),
+  unregisterAutoScript: vi.fn(),
+  setBadge: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 const keys = vi.hoisted(() => ({
@@ -41,7 +44,7 @@ describe("options page", () => {
   it("has password key inputs, model fields with defaults, and the unencrypted note", async () => {
     const root = await mount();
     expect(root.querySelectorAll('input[type="password"]')).toHaveLength(2);
-    const models = Array.from(root.querySelectorAll<HTMLInputElement>('input[type="text"]')).map((i) => i.value);
+    const models = Array.from(root.querySelectorAll<HTMLInputElement>('input[type="text"]:not([placeholder="example.org"])')).map((i) => i.value);
     expect(models).toEqual(["gemini-3.8-flash", "openai/gpt-oss-120b"]);
     expect(root.textContent).toContain("stored unencrypted in this browser profile");
     expect(root.textContent).toContain("AI calls today: 0 of 20");
@@ -97,5 +100,82 @@ describe("options page", () => {
     const root = await mount();
     await act(() => btn(root, "Down", 0).click());
     expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ order: ["groq", "gemini"] }));
+  });
+
+  describe("saved sites and blocklist", () => {
+    const rec = (provider: string) => ({
+      v: 1,
+      plan: { v: 1, themeId: "ocean", tokens: {}, regionRules: [], reasons: [] },
+      fingerprint: { hash: "0123abcd", seq: "hnm" },
+      provider,
+      model: "m",
+      promptVersion: "1",
+      savedAt: "2026-10-30T10:00:00.000Z",
+      mode: "auto",
+      blur: [],
+      blurImages: false,
+    });
+    const withSites = () => {
+      let sites: Record<string, unknown> = { "https://a.example": rec("gemini"), "https://b.example": rec("groq") };
+      api.storageGet.mockImplementation(async (k: string) => (k === "sites" ? sites : undefined));
+      api.storageSet.mockImplementation(async (k: string, v: unknown) => {
+        if (k === "sites") sites = v as Record<string, unknown>;
+      });
+      api.removeOrigins.mockResolvedValue(true);
+      api.unregisterAutoScript.mockResolvedValue(undefined);
+      return () => sites;
+    };
+
+    it("lists origin, provider and date", async () => {
+      withSites();
+      const root = await mount();
+      expect(root.textContent).toContain("https://a.example · gemini · 2026-10-30");
+      expect(root.textContent).toContain("https://b.example · groq");
+    });
+
+    it("Forget removes the record, script and permission for that site only", async () => {
+      const sites = withSites();
+      const root = await mount();
+      await act(() => (root.querySelector('button[aria-label="Forget https://a.example"]') as HTMLButtonElement).click());
+      await act(() => new Promise<void>((r) => setTimeout(r, 0)));
+      expect(Object.keys(sites())).toEqual(["https://b.example"]);
+      expect(api.removeOrigins).toHaveBeenCalledWith(["https://a.example/*"]);
+      expect(api.unregisterAutoScript).toHaveBeenCalledTimes(1);
+      expect(root.textContent).not.toContain("https://a.example ·");
+    });
+
+    it("Forget all clears every record", async () => {
+      const sites = withSites();
+      const root = await mount();
+      await act(() => btn(root, "Forget all").click());
+      await act(() => new Promise<void>((r) => setTimeout(r, 0)));
+      expect(sites()).toEqual({});
+      expect(root.textContent).toContain("No sites saved.");
+    });
+
+    it("adds a host to the blocklist, reducing an origin to its host, and removes it", async () => {
+      const root = await mount();
+      const input = root.querySelector<HTMLInputElement>('input[placeholder="example.org"]')!;
+      await act(() => {
+        input.value = "https://Bad.Example/path?x=1";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(() => btn(root, "Add to blocklist").click());
+      expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ blocklist: ["bad.example"] }));
+      expect(root.textContent).toContain("bad.example");
+      await act(() => btn(root, "Remove").click());
+      expect(api.storageSet).toHaveBeenLastCalledWith("settings", expect.objectContaining({ blocklist: [] }));
+    });
+
+    it("rejects text that is not a site", async () => {
+      const root = await mount();
+      const input = root.querySelector<HTMLInputElement>('input[placeholder="example.org"]')!;
+      await act(() => {
+        input.value = "not a site!";
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+      });
+      await act(() => btn(root, "Add to blocklist").click());
+      expect(root.textContent).toContain("Enter a site such as example.org.");
+    });
   });
 });
