@@ -20,3 +20,10 @@
 - Applier core takes an injected StyleHost (jsdom has no constructable stylesheets); applier.ts wires the real one and registers `globalThis.skinlyApplier` once per page.
 - Observer re-checks repair the page (attribute, tags, sheet) but do not diff invariants, because only page-driven changes can alter them; invariants run at apply time and roll back on any difference.
 - Popup injects the applier only after the Transform click; CSS uses `!important` on colour rules so dark themes stay readable over site styles.
+
+## Phase 3: providers, prompt, keys, bake-off (merged, tag phase-3-done)
+- docs/providers/{gemini,groq}.md were written from the official docs pages (fetched 2026-10-30, URLs inside).
+- src/providers: types, mock, shared http layer (15 s timeout, one retry for 429/5xx with retry-after <= 5 s), Gemini and Groq adapters, registry (fallback order, one repair retry with reason codes only, 20 s budget).
+- Groq is built from documented facts. Gemini's raw REST response shape is NOT documented in the fetched pages: `extractGeminiText` is UNVERIFIED and fails closed (bad-output). Gemini error body shape and retry-after are also undocumented, so errors map by HTTP status only.
+- src/extension/keys.ts stores keys in storage.local "keys", requests only that provider's host before saving, and masks saved keys; the options page covers order, keys, models, Test key, Remove key and the call counter.
+- scripts/bakeoff.ts reads .env.local and never prints keys; see docs/HUMAN_CHECKS.md for the result and open items.
