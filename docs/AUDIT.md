@@ -14,7 +14,7 @@ C7. Permissions: the built manifest matches SPEC 9 exactly. Required: activeTab,
 C8. Gate: blocked origins, internal and store pages, PDFs, and pages with password, payment or file inputs never reach a provider. Find the test.
 C9. Network: `fetch` appears only under src/providers/. No XMLHttpRequest, WebSocket, sendBeacon, remote script or stylesheet, `eval`, `new Function`. `innerHTML` only with constant strings or not at all.
 C10. chrome.* APIs appear only in src/extension/api.ts (grep `chrome\.` and `browser\.`).
-C11. Personal data: grep fixtures/, tests/, docs/ and `git log -p` for emails, phone numbers and every term listed in private/terms.txt if it exists. Zero hits. The fixtures-clean test must pass, and must fail when you temporarily put a term from private/terms.txt into a fixture (restore it afterwards).
+C11. Personal data: grep fixtures/, tests/, docs/ and `git log -p` for emails, phone numbers and every term listed in `.scrub-terms.local.json` (`{"terms":[...]}`) if it exists. Zero hits. The fixtures-clean test must pass, and must fail when you temporarily put a term from `.scrub-terms.local.json` into a fixture (restore it afterwards).
 C12. Scope creep: `git diff --stat main...HEAD` (or the previous tag). List every file not named in the phase doc. Compare package.json dependencies with CLAUDE.md. Unexpected files or dependencies are FAIL until explained.
 C13. No heavy test tooling: devDependencies contain only what CLAUDE.md lists (no browser automation framework).
 C14. Docs honesty: every [auto] Acceptance item of the phase maps to a named test or command; list the mapping. Items without one are FAIL.
