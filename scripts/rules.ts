@@ -59,7 +59,7 @@ export function scanSource(path: string, text: string, allowedHosts: readonly st
     for (const [rule, re] of KEY_PATTERNS) if (re.test(line)) add(rule);
     if (!inSrc) return;
     for (const [rule, re] of FORBIDDEN) if (re.test(line)) add(rule);
-    if (p !== API_FILE && /\b(?:chrome|browser)\s*\./.test(line)) add("chrome./browser. outside src/extension/api.ts");
+    if (p !== API_FILE && /\b(?:chrome|browser)\s*\.\s*[A-Za-z_$]/.test(line)) add("chrome./browser. outside src/extension/api.ts");
     if (!p.startsWith(PROVIDERS_DIR) && /\bfetch\s*\(/.test(line)) add("fetch( outside src/providers/");
     if (p !== CONFIG_FILE) {
       for (const m of line.matchAll(URL_RE)) {
