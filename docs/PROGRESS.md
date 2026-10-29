@@ -70,3 +70,8 @@
 - Store text is in docs/store/ (tracked, not the gitignored store/, so the privacy test runs in a fresh clone): listing, single-purpose, permissions, data-use, privacy, screenshots. tests/release.test.ts checks permissions, provider hosts, the 20 KB claim and the "no text, links or forms" claim against the manifest, config and the marker tests.
 - docs/QA.md (15 checks x Edge, Chrome, Brave, results empty) and assets/LICENSES.md written.
 - Safety greps: clean.
+
+## Final step (after Phase 9)
+- Fresh clone: `npm ci` and `npm run check` green (37 files, 611 tests), `npm run release` ok. The first clone failed because `.gitignore` `store/` also ignored docs/store; fixed (`/store/`), merged and the tags moved to the fixed merge.
+- C1 to C14 run on the clone; results, UNVERIFIED items and the full human list are in docs/FINAL_REPORT.md.
+ALL DONE
