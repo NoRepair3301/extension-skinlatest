@@ -10,7 +10,7 @@ const OPAQUE = new Set(["svg", "canvas", "video", "audio", "object", "embed", "i
 const TABLE_PARTS = new Set(["table", "thead", "tbody", "tfoot", "tr", "td", "th", "caption", "colgroup", "col"]);
 const SECTIONING = new Set(["article", "section", "aside", "nav", "main"]);
 const NO_GROUP_CONTAINER = new Set([...TABLE_PARTS, "select", "datalist", "optgroup", "dl", "svg", "picture", "p", "button", "a"]);
-const NO_GROUP_MEMBER = new Set(["option", "optgroup", "br", "hr", "source", "tr", "td", "th", "script", "style"]);
+const NO_GROUP_MEMBER = new Set(["option", "optgroup", "br", "hr", "source", "tr", "td", "th", "script", "style", "p", "h1", "h2", "h3", "h4", "h5", "h6", "img", "input", "label"]);
 
 export interface ScanNode {
   el: Element;
@@ -259,12 +259,12 @@ export function detectRegions(s: Scan, stats: Stats[]): RegionNode[] {
       if (members.length >= 4) {
         const meaningful = members.filter((m) => {
           const st = stats[m]!;
-          return st.textLen > 0 || st.images > 0 || st.elements > 1;
+          return st.links >= 1 || st.images > 0 || st.elements > 1;
         });
         if (meaningful.length >= 4) {
           const linky = members.filter((m) => {
             const st = stats[m]!;
-            return st.links >= 1 && st.elements <= 6 && (st.textLen === 0 || st.linkTextLen / st.textLen >= 0.6);
+            return st.links >= 1 && st.elements <= 30 && (st.textLen === 0 || st.linkTextLen / st.textLen >= 0.6);
           });
           role = linky.length / members.length >= 0.75 ? "link-list" : "card-list";
           bonus = Math.min(10, members.length);

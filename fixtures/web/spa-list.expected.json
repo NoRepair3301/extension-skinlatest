@@ -1,0 +1,122 @@
+{
+  "counts": {
+    "nodes": 89,
+    "links": 14,
+    "forms": 0,
+    "tables": 0,
+    "images": 0,
+    "headings": 15,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 1,
+      "linkCount": 0
+    },
+    {
+      "id": "r2",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r3",
+      "role": "main",
+      "childCount": 1,
+      "linkCount": 14
+    },
+    {
+      "id": "r4",
+      "role": "card-list",
+      "childCount": 14,
+      "linkCount": 14
+    },
+    {
+      "id": "r5",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r6",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r7",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r8",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r9",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r10",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r11",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r12",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r13",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r14",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r15",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r16",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r17",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r18",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    }
+  ]
+}

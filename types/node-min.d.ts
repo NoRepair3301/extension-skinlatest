@@ -17,6 +17,7 @@ declare module "node:path" {
 declare const process: {
   argv: string[];
   exitCode: number | undefined;
+  env: Record<string, string | undefined>;
   cwd(): string;
   stdout: { write(text: string): void };
 };

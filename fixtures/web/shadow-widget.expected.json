@@ -1,0 +1,38 @@
+{
+  "counts": {
+    "nodes": 9,
+    "links": 3,
+    "forms": 0,
+    "tables": 0,
+    "images": 0,
+    "headings": 1,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 1,
+      "linkCount": 3
+    },
+    {
+      "id": "r2",
+      "role": "nav",
+      "childCount": 3,
+      "linkCount": 3
+    },
+    {
+      "id": "r3",
+      "role": "main",
+      "childCount": 3,
+      "linkCount": 0
+    },
+    {
+      "id": "r4",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    }
+  ]
+}
