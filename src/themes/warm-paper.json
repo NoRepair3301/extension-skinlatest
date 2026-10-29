@@ -1,0 +1,9 @@
+{
+  "id": "warm-paper",
+  "name": "Warm paper",
+  "tokens": {
+    "bg": "#f6efe2", "surface": "#fffaf0", "text": "#3a2e22", "muted": "#6b5a47",
+    "link": "#8a3b12", "accent": "#a8541f", "border": "#d9c9ad", "focus": "#7a3510",
+    "radius": 4, "font": "serif", "baseSize": 17, "lineHeight": 1.7
+  }
+}

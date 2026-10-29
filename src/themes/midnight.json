@@ -1,0 +1,9 @@
+{
+  "id": "midnight",
+  "name": "Midnight",
+  "tokens": {
+    "bg": "#0f1420", "surface": "#182030", "text": "#e6eaf2", "muted": "#a3adc2",
+    "link": "#8ab4ff", "accent": "#6c9cff", "border": "#2c3750", "focus": "#ffd166",
+    "radius": 8, "font": "system", "baseSize": 16, "lineHeight": 1.6
+  }
+}
