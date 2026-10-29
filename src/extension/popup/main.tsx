@@ -1,3 +1,4 @@
 import { render } from "preact";
+import { Popup } from "./Popup.tsx";
 
-render(<p>Skinly AI</p>, document.getElementById("app")!);
+render(<Popup />, document.getElementById("app")!);

@@ -1,1 +1,1 @@
-export {};
+document.documentElement.dataset.skinly = "hello";
