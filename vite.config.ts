@@ -9,8 +9,9 @@ const manifestPlugin = {
   },
 };
 
-// Two builds share this file: the default one (background, popup, options) and
-// `--mode applier`, a self-contained classic script that is injected on demand.
+// Three builds share this file: the default one (background, popup, options),
+// `--mode applier` (injected on demand) and `--mode applier-auto` (registered per origin after the user opts in).
+// Both are self-contained classic scripts.
 export default defineConfig(({ mode }) => {
   const common = {
     root: "src/extension",
@@ -19,13 +20,14 @@ export default defineConfig(({ mode }) => {
     logLevel: "silent" as const,
     oxc: { jsx: { runtime: "automatic" as const, importSource: "preact" } },
   };
-  if (mode === "applier") {
+  if (mode === "applier" || mode === "applier-auto") {
+    const auto = mode === "applier-auto";
     return {
       ...common,
       build: {
         outDir: "../../dist",
         emptyOutDir: false,
-        lib: { entry: "applier.ts", formats: ["iife" as const], name: "SkinlyApplier", fileName: () => "applier.js" },
+        lib: { entry: auto ? "applier-auto.ts" : "applier.ts", formats: ["iife" as const], name: auto ? "SkinlyApplierAuto" : "SkinlyApplier", fileName: () => (auto ? "applier-auto.js" : "applier.js") },
       },
     };
   }

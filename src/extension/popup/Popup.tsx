@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { MSG, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId } from "../../themes/index.ts";
-import { queryActiveTab, runInPage } from "../api.ts";
+import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
+import { queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { getSite, originOf, type SiteRecord } from "../sites.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -19,11 +22,16 @@ const STEP_TEXT: Record<Step, string> = {
 
 export type View =
   | { state: "idle"; note?: string }
+  | { state: "kept"; tabId: number; origin: string | undefined; kept: KeptPlan }
   | { state: "blocked"; reason: string }
   | { state: "working"; step: Step; detail?: string }
   | { state: "consent"; req: ConsentRequest }
   | { state: "preview"; outcome: Extract<Outcome, { kind: "preview" }>; tabId: number }
   | { state: "error"; kind: string; message: string };
+
+const badge = (tabId: number, text: string): void => {
+  void setBadge(tabId, text).catch(() => undefined);
+};
 
 export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
@@ -31,9 +39,22 @@ export function Popup() {
   const [showPayload, setShowPayload] = useState(false);
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
+  const tabUrl = useRef<string | undefined>(undefined);
+  const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
+
+  const refreshSite = async () => {
+    try {
+      const tab = await queryActiveTab();
+      const origin = tab?.url ? originOf(tab.url) : undefined;
+      setSite(tab && origin ? { origin, tabId: tab.id, record: await getSite(origin) } : undefined);
+    } catch {
+      setSite(undefined);
+    }
+  };
 
   useEffect(() => {
     void loadSettings().then(setSettings);
+    void refreshSite();
   }, []);
 
   const pickTheme = (theme: BuiltinThemeId) => {
@@ -46,6 +67,7 @@ export function Popup() {
     try {
       const tab = await queryActiveTab();
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
+      tabUrl.current = tab.url;
       abort.current = new AbortController();
       setShowPayload(false);
       setView({ state: "working", step: "checking" });
@@ -83,6 +105,7 @@ export function Popup() {
       const tab = await queryActiveTab();
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
       await runInPage(tab.id, "restore");
+      badge(tab.id, "");
       setView({ state: "idle", note: "Original restored." });
     } catch {
       setView({ state: "blocked", reason: MSG.blocked });
@@ -93,10 +116,32 @@ export function Popup() {
   const undo = async (tabId: number, baseline: BuiltinThemeId) => {
     try {
       await createPageClient(tabId).applyTheme(baseline);
+      badge(tabId, "");
       setView({ state: "idle", note: "Back to the built-in theme." });
     } catch {
       setView({ state: "error", kind: "error", message: MSG.baselineFailed });
     }
+  };
+
+  const siteAction = async (run: () => Promise<ActionResult>, done: string, failed: string) => {
+    try {
+      const r = await run();
+      setView({ state: "idle", note: r.ok ? done : failed });
+    } catch {
+      setView({ state: "idle", note: failed });
+    }
+    await refreshSite();
+  };
+
+  const keepNow = (outcome: Extract<Outcome, { kind: "preview" }>, tabId: number, url: string | undefined) => {
+    const provider: string = outcome.providerId ?? "builtin";
+    badge(tabId, "ON");
+    setView({
+      state: "kept",
+      tabId,
+      origin: url ? originOf(url) : undefined,
+      kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider, model: outcome.model ?? "builtin" },
+    });
   };
 
   const busy = view.state === "working" || view.state === "consent";
@@ -127,9 +172,32 @@ export function Popup() {
       {view.state === "preview" && (
         <section aria-label="Preview">
           <p>{view.outcome.message ?? "Here is the AI-improved theme."}</p>
-          <button type="button" onClick={() => setView({ state: "idle", note: "Kept." })}>Keep</button>
+          <button type="button" onClick={() => keepNow(view.outcome, view.tabId, tabUrl.current)}>Keep</button>
           <button type="button" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</button>
           <button type="button" onClick={() => void start()}>Try another</button>
+        </section>
+      )}
+
+      {view.state === "kept" && (
+        <section aria-label="Remember">
+          <p>Kept for this visit.</p>
+          {view.origin ? (
+            <>
+              <button type="button" onClick={() => void siteAction(() => rememberSite(view.origin!, view.kept), "Saved for this site. It applies when you click.", "Couldn't save this site.")}>Remember this site</button>
+              <button type="button" onClick={() => void siteAction(() => enableAuto(view.origin!, view.kept, view.tabId), "This site will be themed automatically.", "Couldn't turn on automatic mode (permission needed).")}>Always on this site</button>
+            </>
+          ) : (
+            <p>This page can't be remembered.</p>
+          )}
+          <button type="button" onClick={() => setView({ state: "idle", note: "Kept." })}>Done</button>
+        </section>
+      )}
+
+      {site?.record && view.state !== "consent" && view.state !== "working" && (
+        <section aria-label="This site">
+          <p>{site.record.mode === "auto" ? `Automatic on this site (${providerLabel(site.record.provider)}).` : `Saved for this site (${providerLabel(site.record.provider)}).`}</p>
+          {site.record.mode === "auto" && <button type="button" onClick={() => void siteAction(() => pauseSite(site.origin), "Paused on this site.", "Couldn't pause.")}>Pause on this site</button>}
+          <button type="button" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), "Forgotten.", "Couldn't forget this site.")}>Forget this site</button>
         </section>
       )}
 
@@ -144,6 +212,8 @@ export function Popup() {
     </main>
   );
 }
+
+const providerLabel = (id: string): string => (id in PROVIDER_NAMES ? PROVIDER_NAMES[id as ProviderId] : "built-in theme");
 
 function toView(o: Outcome, tabId: number): View {
   switch (o.kind) {

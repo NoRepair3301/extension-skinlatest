@@ -3,12 +3,18 @@ import { act } from "preact/test-utils";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FlowHooks } from "../src/extension/flow.ts";
 
+const store = vi.hoisted(() => new Map<string, unknown>());
 const api = vi.hoisted(() => ({
   queryActiveTab: vi.fn(),
   injectFile: vi.fn(),
   runInPage: vi.fn(),
   storageGet: vi.fn(),
   storageSet: vi.fn(),
+  setBadge: vi.fn(),
+  requestOrigins: vi.fn(),
+  removeOrigins: vi.fn(),
+  registerAutoScript: vi.fn(),
+  unregisterAutoScript: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 
@@ -19,14 +25,18 @@ vi.mock("../src/extension/flow.ts", () => ({
 }));
 
 import { MSG } from "../src/ai/messages.ts";
+import { planFor } from "./plan/helpers.ts";
 import { BLOCKED_MESSAGE, Popup } from "../src/extension/popup/Popup.tsx";
 
 const TAB = { id: 7, url: "https://example.org/a" };
 const previewOutcome = (message?: string) => ({
   kind: "preview" as const,
   source: "ai" as const,
-  plan: {},
+  plan: planFor("ocean"),
   baselineThemeId: "calm-light",
+  fingerprint: { hash: "0123abcd", seq: "hnm" },
+  providerId: "gemini",
+  model: "m-1",
   ...(message ? { message } : {}),
 });
 
@@ -36,7 +46,7 @@ const mount = async () => {
   await act(() => render(h(Popup, {}), root));
   return root;
 };
-const flush = () => act(() => Promise.resolve());
+const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
 const find = (root: HTMLElement, label: string) => Array.from(root.querySelectorAll("button")).find((b) => b.textContent === label);
 const click = async (root: HTMLElement, label: string) => {
   const btn = find(root, label);
@@ -51,8 +61,14 @@ describe("popup", () => {
     document.body.innerHTML = "";
     Object.values(api).forEach((f) => f.mockReset());
     Object.values(flow).forEach((f) => f.mockReset());
-    api.storageGet.mockResolvedValue(undefined);
-    api.storageSet.mockResolvedValue(undefined);
+    store.clear();
+    api.storageGet.mockImplementation(async (k: string) => store.get(k));
+    api.storageSet.mockImplementation(async (k: string, v: unknown) => void store.set(k, v));
+    api.setBadge.mockResolvedValue(undefined);
+    api.requestOrigins.mockResolvedValue(true);
+    api.removeOrigins.mockResolvedValue(true);
+    api.registerAutoScript.mockResolvedValue(undefined);
+    api.unregisterAutoScript.mockResolvedValue(undefined);
     api.queryActiveTab.mockResolvedValue(TAB);
   });
 
@@ -73,7 +89,7 @@ describe("popup", () => {
   });
 
   it("restores the last saved theme from storage", async () => {
-    api.storageGet.mockResolvedValue({ theme: "ocean", blocklist: [] });
+    store.set("settings", { theme: "ocean", blocklist: [] });
     const root = await mount();
     await flush();
     expect(root.querySelector<HTMLInputElement>('input[value="ocean"]')!.checked).toBe(true);
@@ -184,6 +200,8 @@ describe("popup", () => {
       expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(5);
       await click(root, "Keep");
       expect(find(root, "Undo")).toBeUndefined();
+      expect(api.setBadge).toHaveBeenCalledWith(7, "ON");
+      await click(root, "Done");
       expect(status(root)).toBe("Kept.");
     });
 
@@ -241,6 +259,64 @@ describe("popup", () => {
       await click(root, "Change my page");
       expect(status(root)).toBe(MSG.baselineFailed);
       expect(root.textContent).not.toContain("secret detail");
+    });
+  });
+
+  describe("per site", () => {
+    const keep = async () => {
+      flow.runTransform.mockResolvedValue(previewOutcome());
+      const root = await mount();
+      await click(root, "Change my page");
+      await click(root, "Keep");
+      return root;
+    };
+    const sites = () => store.get("sites") as Record<string, { mode: string }> | undefined;
+
+    it("after Keep offers Remember and Always, and does nothing until clicked", async () => {
+      const root = await keep();
+      expect(find(root, "Remember this site")).toBeDefined();
+      expect(find(root, "Always on this site")).toBeDefined();
+      expect(sites()).toBeUndefined();
+      expect(api.requestOrigins).not.toHaveBeenCalled();
+    });
+
+    it("Remember this site saves the origin only, with mode ask", async () => {
+      const root = await keep();
+      await click(root, "Remember this site");
+      expect(Object.keys(sites()!)).toEqual(["https://example.org"]);
+      expect(sites()!["https://example.org"]!.mode).toBe("ask");
+      expect(api.requestOrigins).not.toHaveBeenCalled();
+      expect(find(root, "Forget this site")).toBeDefined();
+    });
+
+    it("Always on this site requests only the active origin and registers the script", async () => {
+      const root = await keep();
+      await click(root, "Always on this site");
+      expect(api.requestOrigins).toHaveBeenCalledWith(["https://example.org/*"]);
+      expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
+      expect(sites()!["https://example.org"]!.mode).toBe("auto");
+      expect(find(root, "Pause on this site")).toBeDefined();
+    });
+
+    it("a refused permission leaves nothing saved and says so", async () => {
+      api.requestOrigins.mockResolvedValue(false);
+      const root = await keep();
+      await click(root, "Always on this site");
+      expect(sites()).toBeUndefined();
+      expect(status(root)).toContain("permission");
+    });
+
+    it("Pause switches to ask; Forget removes record, script and permission", async () => {
+      const root = await keep();
+      await click(root, "Always on this site");
+      await click(root, "Pause on this site");
+      expect(sites()!["https://example.org"]!.mode).toBe("ask");
+      expect(find(root, "Pause on this site")).toBeUndefined();
+      await click(root, "Forget this site");
+      expect(sites()).toEqual({});
+      expect(api.removeOrigins).toHaveBeenCalledWith(["https://example.org/*"]);
+      expect(api.unregisterAutoScript).toHaveBeenCalled();
+      expect(find(root, "Forget this site")).toBeUndefined();
     });
   });
 
