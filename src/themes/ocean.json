@@ -1,0 +1,9 @@
+{
+  "id": "ocean",
+  "name": "Ocean",
+  "tokens": {
+    "bg": "#eef6f9", "surface": "#ffffff", "text": "#12333f", "muted": "#44636e",
+    "link": "#006a8e", "accent": "#0a7ea4", "border": "#b9d4de", "focus": "#005f87",
+    "radius": 10, "font": "humanist", "baseSize": 16, "lineHeight": 1.6
+  }
+}

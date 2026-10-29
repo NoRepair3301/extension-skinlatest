@@ -1,0 +1,9 @@
+{
+  "id": "calm-light",
+  "name": "Calm light",
+  "tokens": {
+    "bg": "#f7f8fa", "surface": "#ffffff", "text": "#1f2933", "muted": "#52606d",
+    "link": "#0b5cad", "accent": "#2f6fdb", "border": "#cbd2d9", "focus": "#1a56db",
+    "radius": 8, "font": "system", "baseSize": 16, "lineHeight": 1.6
+  }
+}

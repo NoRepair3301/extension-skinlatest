@@ -1,0 +1,9 @@
+{
+  "id": "high-contrast",
+  "name": "High contrast",
+  "tokens": {
+    "bg": "#000000", "surface": "#0a0a0a", "text": "#ffffff", "muted": "#e0e0e0",
+    "link": "#ffff66", "accent": "#66ccff", "border": "#ffffff", "focus": "#ffbf00",
+    "radius": 0, "font": "system", "baseSize": 18, "lineHeight": 1.7
+  }
+}
