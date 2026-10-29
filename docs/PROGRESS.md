@@ -34,3 +34,11 @@
 - Popup states: idle, blocked, working, consent, preview (Keep, Undo, Try another), error. Popup tests mock flow.ts; pipeline tests use the mock provider.
 - Decisions: the 3 s gap clock lives in the popup's memory (resets when the popup closes); the daily counter is persisted. Keep holds the plan in memory only (Phase 5 persists). Closing the popup mid-flow ends the flow, the baseline stays on the page.
 - Safety greps (skip/only, click/submit/focus, chrome.* outside api.ts, fetch/eval/innerHTML, key patterns, tracked env files): clean.
+
+## Phase 5: remember per site and auto-apply (merged, tag phase-5-done)
+- src/extension/sites.ts (origin-only keys, cap 200 oldest-first, shape validation on read, migration stub), siteActions.ts (Remember, Always on, Pause, Forget, Forget all), auto-core.ts + applier-auto.ts (third build `--mode applier-auto` -> dist/applier-auto.js, registered per origin with id `skinly-<fnv1a of origin>`).
+- The applier now re-checks contrast on every plan (stored plans are untrusted) and has `applyTokens` (no page analysis, safe at document_start) and `onRestore` hooks (banner removal). PageAnalysis and the preview outcome carry the fingerprint.
+- Auto path: tokens at document_start, regions after DOMContentLoaded only if the role-sequence similarity is >= 0.8, else tokens plus the banner "This page changed. Regenerate?" (it cannot regenerate itself; it points to the popup). A test walks the import graph and asserts no providers, ai, keys or flow modules and no fetch.
+- Badge: popup sets ON on Keep and clears on Undo/Restore/Forget; the auto script sends a data-less message and the service worker sets the badge on the sender tab.
+- Decisions: the content script reads only the `sites` and `settings` storage keys (it can technically read the whole storage.local area, as any extension context can). Blocklist entries are stored as bare hosts. Pause keeps the host permission so it can be switched on again; Forget removes it (except provider hosts).
+- Safety greps: clean.
