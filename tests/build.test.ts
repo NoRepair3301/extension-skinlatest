@@ -27,6 +27,7 @@ describe("validateDist", () => {
   const dir = "node_modules/.skinly-test-dist";
   const manifest = {
     manifest_version: 3,
+    version: "1.0.0",
     permissions: ["activeTab", "scripting", "storage"],
     optional_host_permissions: ["https://*/*", "http://*/*"],
     background: { service_worker: "background.js", type: "module" },

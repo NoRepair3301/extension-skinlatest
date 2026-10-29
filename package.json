@@ -1,6 +1,6 @@
 {
   "name": "skinly-ai",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -12,6 +12,7 @@
     "contrast": "node scripts/contrast.ts",
     "validate-dist": "node scripts/validate-dist.ts",
     "check": "npm run typecheck --silent && npm run lint --silent && npm run test --silent && npm run build --silent && npm run validate-dist --silent && npm run contrast --silent",
+    "release": "npm run build --silent && node scripts/release.ts",
     "bakeoff": "node scripts/bakeoff.ts"
   },
   "devDependencies": {

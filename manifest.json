@@ -1,12 +1,18 @@
 {
   "manifest_version": 3,
   "name": "Skinly AI",
-  "version": "0.0.0",
-  "description": "Restyle the page you are on. Not affiliated with any website.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "96",
+  "description": "Restyle the page you are on with calm built-in themes or an AI-suggested one. Not affiliated with any website.",
+  "icons": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" },
   "permissions": ["activeTab", "scripting", "storage"],
   "optional_host_permissions": ["https://*/*", "http://*/*"],
   "background": { "service_worker": "background.js", "type": "module" },
-  "action": { "default_title": "Skinly AI", "default_popup": "popup/index.html" },
+  "action": {
+    "default_title": "Skinly AI",
+    "default_popup": "popup/index.html",
+    "default_icon": { "16": "icons/icon-16.png", "32": "icons/icon-32.png", "48": "icons/icon-48.png", "128": "icons/icon-128.png" }
+  },
   "options_page": "options/index.html",
   "commands": {
     "transform-page": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "Apply your built-in theme to this page" },

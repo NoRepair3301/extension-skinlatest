@@ -1,11 +1,13 @@
 import { readFileSync } from "node:fs";
 import { defineConfig } from "vite";
+import { ICON_SIZES, iconFileName, renderIcon } from "./scripts/icons.ts";
 
-// Ships the root manifest.json unchanged.
+// Ships the root manifest.json unchanged, plus the icons drawn by scripts/icons.ts (no binary files in the repo).
 const manifestPlugin = {
   name: "skinly-manifest",
-  generateBundle(this: { emitFile(f: { type: "asset"; fileName: string; source: string }): void }) {
+  generateBundle(this: { emitFile(f: { type: "asset"; fileName: string; source: string | Uint8Array }): void }) {
     this.emitFile({ type: "asset", fileName: "manifest.json", source: readFileSync("manifest.json", "utf8") });
+    for (const size of ICON_SIZES) this.emitFile({ type: "asset", fileName: iconFileName(size), source: renderIcon(size) });
   },
 };
 
