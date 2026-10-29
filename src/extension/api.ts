@@ -61,6 +61,25 @@ export const setBadge = async (tabId: number, text: string): Promise<void> => {
   await chrome.action.setBadgeText({ tabId, text });
 };
 
+export const setTitle = async (tabId: number, title: string): Promise<void> => {
+  await chrome.action.setTitle({ tabId, title });
+};
+
+/** Runs the callback for each keyboard command; the tab is the one the shortcut was pressed in. */
+export const onCommand = (handler: (command: string, tab: ActiveTab | undefined) => void): void => {
+  chrome.commands.onCommand.addListener((command, tab) => {
+    handler(command, tab && tab.id !== undefined ? { id: tab.id, url: tab.url } : undefined);
+  });
+};
+
+/** Opens the palette that palette.js registered in the tab. */
+export const openPaletteInPage = async (tabId: number): Promise<void> => {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: () => (globalThis as unknown as { skinlyPalette?: { open(): void } }).skinlyPalette?.open(),
+  });
+};
+
 export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet";
 
 /** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */

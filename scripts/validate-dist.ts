@@ -60,7 +60,7 @@ export function validateDist(dist: string): string[] {
   const bg = (manifest["background"] as { service_worker?: string } | undefined)?.service_worker;
   const popup = (manifest["action"] as { default_popup?: string } | undefined)?.default_popup;
   const options = manifest["options_page"] as string | undefined;
-  for (const f of [bg, popup, options, "applier.js"]) {
+  for (const f of [bg, popup, options, "applier.js", "palette.js"]) {
     if (!f || !existsSync(join(dist, f))) out.push(`missing built file: ${f ?? "(unset in manifest)"}`);
   }
   for (const file of jsFiles(dist)) {

@@ -49,3 +49,9 @@
 - The applier script exposes `syncPet(cfg)`; the popup calls it after a transform, and the auto script after auto-apply. Restore destroys the pet. Settings changes reach a page only on those calls or the next visit.
 - The SVG namespace string is assembled from parts because the URL scanner flags any literal URL and it is a name, not a network address.
 - Safety greps: clean.
+
+## Phase 7: command palette and shortcuts (merged, tag phase-7-done)
+- src/features/palette: index-items (visible a[href], button, role=button, summary, role=tab; cap 500; labels trimmed to 80; our own UI skipped), score (exact > prefix > substring > subsequence, stable), ui (shadow-root combobox/listbox, arrows, Enter focuses and outlines for 2 s, Escape restores focus, Tab trapped), index (controller and temporary outline stylesheet).
+- Decisions: the UI is plain DOM (ui.ts, not ui.tsx) so the injected palette.js carries no Preact; a fourth build `--mode palette` makes dist/palette.js and validate-dist checks it. The outline is a data attribute plus one temporary stylesheet and goes away after 2 s.
+- src/extension/commands.ts: transform-page applies the saved built-in theme only (a shortcut cannot show the consent text, so no AI call); restore-page; open-palette. Blocked pages get badge "!" and the action title "Skinly can't change this kind of page" (no notifications permission). Manifest `commands` added; the popup lists them.
+- Safety greps: clean.
