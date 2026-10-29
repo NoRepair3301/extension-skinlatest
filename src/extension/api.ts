@@ -61,7 +61,7 @@ export const setBadge = async (tabId: number, text: string): Promise<void> => {
   await chrome.action.setBadgeText({ tabId, text });
 };
 
-export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet";
 
 /** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */
 export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown): Promise<R | undefined> => {

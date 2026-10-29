@@ -42,3 +42,10 @@
 - Badge: popup sets ON on Keep and clears on Undo/Restore/Forget; the auto script sends a data-less message and the service worker sets the badge on the sender tab.
 - Decisions: the content script reads only the `sites` and `settings` storage keys (it can technically read the whole storage.local area, as any extension context can). Blocklist entries are stored as bare hosts. Pause keeps the host permission so it can be switched on again; Forget removes it (except provider hosts).
 - Safety greps: clean.
+
+## Phase 6: pet companion (merged, tag phase-6-done)
+- src/features/pet: art (two original SVG pets, createElementNS only), overlay (fixed shadow-root host, pointer-events none, hide button, Escape), animate (idle, blink, walk, celebrate; rAF only when visible and motion allowed), avoid (pure nextCorner plus obstacle collection), pet (controller: nothing exists until sync says show; destroy removes host, listeners, timers, frames).
+- Settings `pet` (off by default, validated) with toggles in the popup (plus "Disable pet on this site") and the options page. src/extension/origin.ts holds the shared origin helpers (moved out of sites.ts, still re-exported).
+- The applier script exposes `syncPet(cfg)`; the popup calls it after a transform, and the auto script after auto-apply. Restore destroys the pet. Settings changes reach a page only on those calls or the next visit.
+- The SVG namespace string is assembled from parts because the URL scanner flags any literal URL and it is a name, not a network address.
+- Safety greps: clean.

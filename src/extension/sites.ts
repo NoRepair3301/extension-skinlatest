@@ -1,6 +1,9 @@
 import type { Fingerprint } from "../core/types.ts";
 import type { StylePlan } from "../plan/schema.ts";
 import { storageGet, storageSet } from "./api.ts";
+import { originOf, toOrigin } from "./origin.ts";
+
+export { originOf, toOrigin };
 
 export const SITES_KEY = "sites";
 export const SITE_VERSION = 1;
@@ -23,28 +26,7 @@ export interface SiteRecord {
 
 export type Sites = Record<string, SiteRecord>;
 
-const ORIGIN = /^https?:\/\/[a-z0-9.-]+(:[0-9]{1,5})?$/;
 const MODEL = /^[A-Za-z0-9._/:-]{1,100}$/;
-
-/** Returns the input only if it is exactly scheme + host (+ port): no path, query, fragment or credentials. */
-export function toOrigin(input: unknown): string | undefined {
-  if (typeof input !== "string" || input.length > 260 || !ORIGIN.test(input)) return undefined;
-  try {
-    return new URL(input).origin === input ? input : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** The origin of a page URL (used when the user acts on the active tab). */
-export function originOf(url: string): string | undefined {
-  try {
-    const u = new URL(url);
-    return toOrigin(u.origin);
-  } catch {
-    return undefined;
-  }
-}
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
