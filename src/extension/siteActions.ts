@@ -64,6 +64,16 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
   }
 }
 
+/** Saves the picked blur selectors for a site that is already remembered (selectors only, never text). */
+export async function saveBlur(origin: string, selectors: string[], blurImages: boolean): Promise<ActionResult> {
+  const o = toOrigin(origin);
+  if (!o) return { ok: false, reason: "bad-origin" };
+  const previous = await getSite(o);
+  if (!previous) return { ok: false, reason: "no-record" };
+  await saveSite(o, { ...previous, blur: selectors.slice(0, 50), blurImages });
+  return { ok: true };
+}
+
 /** "Pause on this site": keep the record, stop applying by itself. The permission stays so it can be switched on again. */
 export async function pauseSite(origin: string): Promise<ActionResult> {
   const o = toOrigin(origin);

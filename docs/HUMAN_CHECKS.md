@@ -40,3 +40,9 @@
 - [ ] On three sites (one with hundreds of links) open the palette with Alt+Shift+K, find a link by typing, press Enter in the palette, then Enter on the focused link: it opens as normal.
 - [ ] Rebind one shortcut in the browser's shortcut settings (extensions menu, Keyboard shortcuts) and confirm it works. Also check the three suggested keys do not collide with a browser or OS shortcut.
 - [ ] Alt+Shift+S applies the saved built-in theme only (it never asks an AI; that needs the popup because of the consent text). Decide whether that is acceptable.
+
+## Phase 8
+- [ ] On a real page pick three elements, turn Share mode on, take a safe screenshot and read the PNG yourself: the picked parts are unreadable. Try a page where you did not pick something sensitive and confirm it is visible (the tool only blurs what you pick).
+- [ ] Sort and filter a real table, then press Restore order and Restore original: the page is exactly as before.
+- [ ] Pick mode: on a page with links and buttons, clicks only toggle the blur while pick mode is on; after Escape the page behaves normally. The popup closes when you click the page, so reopen it to see counts, Save picks and Safe screenshot.
+- [ ] Decision to confirm: Share mode off removes the blur entirely (there is no reveal-on-hover state), and saved picks are not auto-applied by the always-on script.
