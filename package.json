@@ -5,10 +5,13 @@
   "type": "module",
   "scripts": {
     "build": "vite build && vite build --mode applier",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
-    "test": "vitest run",
-    "scrub": "node scripts/scrub-fixture.ts"
+    "typecheck": "tsc --noEmit --pretty false",
+    "lint": "eslint . --quiet",
+    "test": "vitest run --reporter=dot",
+    "scrub": "node scripts/scrub-fixture.ts",
+    "contrast": "node scripts/contrast.ts",
+    "validate-dist": "node scripts/validate-dist.ts",
+    "check": "npm run typecheck --silent && npm run lint --silent && npm run test --silent && npm run build --silent && npm run validate-dist --silent && npm run contrast --silent"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",
