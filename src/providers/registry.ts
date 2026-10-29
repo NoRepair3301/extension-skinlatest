@@ -15,6 +15,8 @@ export interface RegistryOptions {
   signal?: AbortSignal;
   /** Returns null when the answer is usable, otherwise reason codes (never provider text). */
   validate?: (json: unknown) => string[] | null;
+  /** Called when a provider is given up on and another one will be tried. */
+  onSwitch?: (from: ProviderId, kind: ErrorKind, next: ProviderId) => void;
 }
 
 export type RegistryResult =
@@ -54,8 +56,13 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
   };
 
   try {
-    for (const entry of order) {
+    for (let idx = 0; idx < order.length; idx++) {
+      const entry = order[idx]!;
       const { provider } = entry;
+      const switchAway = (kind: ErrorKind) => {
+        const next = order[idx + 1];
+        if (next) opts.onSwitch?.(provider.id, kind, next.provider.id);
+      };
       const model = entry.model || provider.defaultModel;
       tried.push(provider.id);
       const call = (r: Base): Promise<Result> => provider.generate({ ...r, model, signal: overall.signal });
@@ -78,12 +85,16 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
           last = kind;
           if (kind === "auth") return fail("auth", provider.id);
           if (kind === "aborted") return fail("aborted", provider.id);
-          if (RETRYABLE_KINDS.includes(kind)) break; // next provider
+          if (RETRYABLE_KINDS.includes(kind)) {
+            switchAway(kind);
+            break; // next provider
+          }
           badCodes = ["unreadable"]; // bad-output
         }
 
         if (repaired) {
           last = "bad-output";
+          switchAway("bad-output");
           break; // repair already used on this provider: next provider
         }
         repaired = true;

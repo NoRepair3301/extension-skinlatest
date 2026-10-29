@@ -96,3 +96,11 @@ describe("real tree", () => {
     expect(scanTree(".", ["src", "scripts", "tests", "docs"])).toEqual([]);
   });
 });
+
+describe("sentence-ending words", () => {
+  it("does not flag the word browser. at the end of user-facing copy, but still flags API use", () => {
+    expect(scanSource("src/ai/messages.ts", 'const t = "Nothing else leaves your browser.";', [])).toEqual([]);
+    expect(scanSource("src/ai/messages.ts", "browser.storage.local.get()", [])).toHaveLength(1);
+    expect(scanSource("src/ai/messages.ts", "chrome . tabs.query()", [])).toHaveLength(1);
+  });
+});

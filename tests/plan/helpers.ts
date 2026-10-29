@@ -1,5 +1,5 @@
 import type { RegionRole, StructuralSummary } from "../../src/core/types.ts";
-import type { RegionRule, StylePlan } from "../../src/plan/schema.ts";
+import type { RegionRule, ValidPlan } from "../../src/plan/schema.ts";
 import { getTheme, type BuiltinThemeId } from "../../src/themes/index.ts";
 
 export const region = (id: string, role: RegionRole, linkCount: number) => ({
@@ -24,13 +24,14 @@ export const sampleSummary = (risk: StructuralSummary["risk"] = []): StructuralS
   regions: [region("r1", "nav", 6), region("r2", "link-list", 2), region("r3", "main", 0), region("r4", "card-list", 8)],
 });
 
-export const planFor = (id: BuiltinThemeId, regionRules: RegionRule[] = []): StylePlan => ({
+/** Test plans are cast to ValidPlan; production code can only get one from validatePlan. */
+export const planFor = (id: BuiltinThemeId, regionRules: RegionRule[] = []): ValidPlan => ({
   v: 1,
   themeId: id,
   tokens: getTheme(id).tokens,
   regionRules,
   reasons: [],
-});
+} as unknown as ValidPlan);
 
 export const SAMPLE_RULES: RegionRule[] = [
   { region: "r1", layout: "nav-wrap", surface: "flat", spacing: 2 },

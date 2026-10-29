@@ -44,7 +44,11 @@ export interface StylePlan {
   reasons: Reason[];
 }
 
-export type ValidationResult = { ok: true; plan: StylePlan } | { ok: false; errors: string[] };
+declare const validated: unique symbol;
+/** A plan that came out of validatePlan. The compiler only accepts this type, so unvalidated (AI) output cannot be compiled. */
+export type ValidPlan = StylePlan & { readonly [validated]: true };
+
+export type ValidationResult = { ok: true; plan: ValidPlan } | { ok: false; errors: string[] };
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const REGION_ID = /^r[0-9]{1,3}$/;
@@ -166,6 +170,6 @@ export function validatePlan(input: unknown, summary: StructuralSummary): Valida
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
-    plan: { v: 1, themeId: input["themeId"] as ThemeId, tokens: tokens as Tokens, regionRules: rules, reasons },
+    plan: { v: 1, themeId: input["themeId"] as ThemeId, tokens: tokens as Tokens, regionRules: rules, reasons } as ValidPlan,
   };
 }

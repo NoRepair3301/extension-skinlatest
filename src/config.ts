@@ -47,3 +47,8 @@ export const WEB_STORES: readonly string[] = [
 /** Client-side guard on AI calls (SPEC 7). */
 export const DAILY_AI_CALLS = 20;
 export const MIN_CALL_GAP_MS = 3000;
+
+/** Bump to ask for consent again (SPEC 11). */
+export const CONSENT_VERSION = 1;
+
+export const PROVIDER_NAMES: Record<ProviderId, string> = { gemini: "Gemini", groq: "Groq" };

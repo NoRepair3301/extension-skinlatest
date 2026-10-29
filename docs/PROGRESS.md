@@ -27,3 +27,10 @@
 - Groq is built from documented facts. Gemini's raw REST response shape is NOT documented in the fetched pages: `extractGeminiText` is UNVERIFIED and fails closed (bad-output). Gemini error body shape and retry-after are also undocumented, so errors map by HTTP status only.
 - src/extension/keys.ts stores keys in storage.local "keys", requests only that provider's host before saving, and masks saved keys; the options page covers order, keys, models, Test key, Remove key and the call counter.
 - scripts/bakeoff.ts reads .env.local and never prints keys; see docs/HUMAN_CHECKS.md for the result and open items.
+
+## Phase 4: Change my page end to end (merged, tag phase-4-done)
+- src/ai/pipeline.ts: gate, baseline, analyse, key/limit guards, consent, provider call with one repair, nearest-theme fallback, preview. Page side is src/extension/flow.ts (injects the applier, calls it through scripting).
+- `ValidPlan` is a branded type only `validatePlan` returns; `compileCss` accepts nothing else (type-level proof in tests/ai/flow-safety.test.ts).
+- Popup states: idle, blocked, working, consent, preview (Keep, Undo, Try another), error. Popup tests mock flow.ts; pipeline tests use the mock provider.
+- Decisions: the 3 s gap clock lives in the popup's memory (resets when the popup closes); the daily counter is persisted. Keep holds the plan in memory only (Phase 5 persists). Closing the popup mid-flow ends the flow, the baseline stays on the page.
+- Safety greps (skip/only, click/submit/focus, chrome.* outside api.ts, fetch/eval/innerHTML, key patterns, tracked env files): clean.

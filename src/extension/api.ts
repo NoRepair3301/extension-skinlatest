@@ -40,14 +40,14 @@ export const onMessage = (handler: MessageHandler): void => {
   });
 };
 
-export type PageMethod = "applyTheme" | "restore";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore";
 
 /** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */
-export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: string): Promise<R | undefined> => {
+export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown): Promise<R | undefined> => {
   const [res] = await chrome.scripting.executeScript({
     target: { tabId },
-    func: (m: string, a?: string) => {
-      const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: string) => unknown> }).skinlyApplier;
+    func: (m: string, a?: unknown) => {
+      const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
       return applier?.[m]?.(a);
     },
     args: [method, arg],

@@ -1,6 +1,6 @@
 import type { StructuralSummary } from "../core/types.ts";
 import { isDark } from "./contrast.ts";
-import { layoutAllowed, type FontKey, type StylePlan } from "./schema.ts";
+import { layoutAllowed, type FontKey, type ValidPlan } from "./schema.ts";
 
 /** SPEC 4.3 tier A and tier B. The compiler may emit nothing else. */
 export const TIER_A = [
@@ -52,7 +52,7 @@ const decl = (prop: string, value: string): string => `${prop}: ${value} !import
 const rule = (selector: string, decls: string[]): string => `${selector} { ${decls.join(" ")} }`;
 
 /** CSS from fixed templates only. Every value is a validated hex, an enum mapped to a constant, or a bounded number. */
-export function compileCss(plan: StylePlan, summary: StructuralSummary): string {
+export function compileCss(plan: ValidPlan, summary: StructuralSummary): string {
   const t = plan.tokens;
   const s = (sel: string): string => sel.split(",").map((p) => `${ROOT} ${p.trim()}`).join(", ");
   const out: string[] = [];

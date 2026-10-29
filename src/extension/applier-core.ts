@@ -1,6 +1,6 @@
 import { analyze } from "../analyzer/analyze.ts";
 import type { SummaryDeps } from "../analyzer/summary.ts";
-import type { StructuralSummary } from "../core/types.ts";
+import type { RiskMarker, StructuralSummary } from "../core/types.ts";
 import { compileCss } from "../plan/compile.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
 import { validatePlan, type StylePlan } from "../plan/schema.ts";
@@ -29,6 +29,9 @@ export interface ApplierOptions {
 export type ApplyResult =
   | { ok: true; themeId: string; regions: number }
   | { ok: false; reason: "invalid-plan" | "too-large" | "invariants" | "bad-theme" | "error"; detail?: string[] };
+
+/** What the page tells the extension about itself: the summary and risk, nothing else. */
+export type PageAnalysis = { status: "ok"; risk: RiskMarker[]; summary: StructuralSummary } | { status: "too-large"; risk: RiskMarker[] };
 
 interface Ledger {
   tags: Array<{ el: Element; id: string; previous: string | null }>;
@@ -138,6 +141,10 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     applyTheme(id: string): ApplyResult {
       if (!isBuiltinThemeId(id)) return { ok: false, reason: "bad-theme" };
       return run((summary) => themeToPlan(id, summary));
+    },
+    analyze: (): PageAnalysis => {
+      const a = analyze(doc, opts.summaryDeps);
+      return a.status === "ok" ? { status: "ok", risk: a.risk, summary: a.summary } : { status: "too-large", risk: a.risk };
     },
     restore,
     isActive: (): boolean => ledger !== undefined,

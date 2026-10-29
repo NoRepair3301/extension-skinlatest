@@ -9,6 +9,8 @@ export interface Settings {
   order: ProviderId[];
   models: Record<ProviderId, string>;
   aiCallsToday: { date: string; count: number };
+  /** Set once the user accepts the consent text; asked again when CONSENT_VERSION changes. */
+  consent: { version: number; acceptedAt: string } | null;
 }
 
 const KEY = "settings";
@@ -21,6 +23,7 @@ export const defaultSettings = (): Settings => ({
   order: [...PROVIDER_IDS],
   models: { ...DEFAULT_MODELS },
   aiCallsToday: { date: "", count: 0 },
+  consent: null,
 });
 
 const isProviderId = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDER_IDS as readonly string[]).includes(v);
@@ -50,6 +53,13 @@ export function parseSettings(raw: unknown): Settings {
     const { date, count } = calls as Record<string, unknown>;
     if (typeof date === "string" && DAY.test(date) && typeof count === "number" && Number.isInteger(count) && count >= 0 && count <= 100000) {
       out.aiCallsToday = { date, count };
+    }
+  }
+  const consent = r["consent"];
+  if (typeof consent === "object" && consent !== null) {
+    const { version, acceptedAt } = consent as Record<string, unknown>;
+    if (typeof version === "number" && Number.isInteger(version) && version >= 0 && typeof acceptedAt === "string" && acceptedAt.length <= 40) {
+      out.consent = { version, acceptedAt };
     }
   }
   return out;

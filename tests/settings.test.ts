@@ -34,3 +34,11 @@ describe("entitlements", () => {
     expect(canUse("anything-else")).toBe(true);
   });
 });
+
+describe("consent setting", () => {
+  it("is null by default and keeps a valid record", () => {
+    expect(defaultSettings().consent).toBeNull();
+    expect(parseSettings({ consent: { version: 1, acceptedAt: "2026-10-30T00:00:00.000Z" } }).consent).toEqual({ version: 1, acceptedAt: "2026-10-30T00:00:00.000Z" });
+    expect(parseSettings({ consent: { version: "1", acceptedAt: 5 } }).consent).toBeNull();
+  });
+});
