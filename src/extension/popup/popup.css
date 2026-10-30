@@ -1,4 +1,4 @@
-body { min-width: 340px; max-width: 380px; }
+body { min-width: 340px; max-width: 380px; max-height: 600px; overflow-y: auto; }
 main.popup { padding: var(--sp-3) var(--sp-4) var(--sp-4); display: grid; gap: var(--sp-3); }
 .popup-head h1 { font-size: var(--fs-5); margin: 0; display: flex; align-items: center; gap: var(--sp-2); }
 .popup-head [role="status"] { margin: var(--sp-1) 0 0; min-height: 1.3em; font-size: var(--fs-3); color: var(--ui-muted); }
@@ -9,7 +9,7 @@ main.popup { padding: var(--sp-3) var(--sp-4) var(--sp-4); display: grid; gap: v
 fieldset { border: 1px solid var(--ui-border); border-radius: var(--r-3); padding: var(--sp-2) var(--sp-3) var(--sp-3); margin: 0; background: var(--ui-surface); }
 legend { font-size: var(--fs-2); font-weight: 600; padding: 0 var(--sp-1); color: var(--ui-muted); }
 label { display: flex; gap: var(--sp-2); align-items: center; padding: var(--sp-1) 0; font-size: var(--fs-3); }
-.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--sp-2); }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: var(--sp-2); }
 .theme-card { position: relative; display: grid; gap: var(--sp-1); padding: var(--sp-1); border: 2px solid transparent; border-radius: var(--r-2); cursor: pointer; text-align: center; }
 .theme-card input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
 .theme-card.on { border-color: var(--ui-accent); }
@@ -17,7 +17,9 @@ label { display: flex; gap: var(--sp-2); align-items: center; padding: var(--sp-
 .theme-card .mini { display: grid; gap: 3px; align-content: start; height: 40px; padding: 5px; border: 1px solid; border-radius: var(--r-1); box-sizing: border-box; }
 .theme-card .mini i { display: block; height: 8px; border-radius: 2px; }
 .theme-card .mini.auto { background: linear-gradient(90deg, #f6f5fb 50%, #14122a 50%); border-color: var(--ui-border); }
-.theme-name { font-size: var(--fs-1); line-height: var(--lh-tight); }
+.theme-card { min-width: 0; }
+.theme-name { font-size: var(--fs-1); line-height: var(--lh-tight); overflow-wrap: anywhere; }
+.import-box { width: 100%; box-sizing: border-box; font: inherit; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: var(--fs-1); }
 [role="status"] { margin: 0; }
 button:not(.ui-btn) { font: inherit; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-2); border: 1px solid var(--ui-border); background: var(--ui-surface); color: var(--ui-text); cursor: pointer; }
 section[aria-label] { display: grid; gap: var(--sp-2); border: 1px solid var(--ui-border); border-radius: var(--r-3); padding: var(--sp-3); background: var(--ui-surface); }

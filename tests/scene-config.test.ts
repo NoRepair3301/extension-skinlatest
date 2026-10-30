@@ -136,7 +136,7 @@ describe("site actions and scene.js registration", () => {
     await enableAuto(A, kept(), 5);
     expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
     expect(hasArt(undefined)).toBe(false);
-    expect(hasArt({ pet: { kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true } })).toBe(false);
+    expect(hasArt({ pet: { kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, edgeFallback: true } })).toBe(false);
     expect(hasArt(withScene)).toBe(true);
   });
   it("keeping a plan without a look does not erase the look saved earlier", async () => {

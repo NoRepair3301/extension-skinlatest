@@ -107,7 +107,8 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       const analysis = tokensOnly ? undefined : analyze(doc, opts.summaryDeps);
       const summary = analysis?.status === "ok" ? analysis.summary : undefined;
       const chosen = typeof source === "function" ? source(summary) : source;
-      const plan = tokensOnly ? { ...chosen, regionRules: [] } : chosen;
+      // A tokens-only apply is never visually checked (no body yet), so it never goes beyond the safe strategy.
+      const plan: StylePlan = tokensOnly ? { ...chosen, regionRules: [], strategy: (chosen.strategy ?? "safe") === "full" ? "safe" : (chosen.strategy ?? "safe") } : chosen;
 
       if (!summary && plan.regionRules.length > 0) return { ok: false, reason: "too-large" };
       const checked = validatePlan(plan, summary ?? EMPTY_SUMMARY);

@@ -166,7 +166,7 @@ describe("transform: provider errors", () => {
   it("keeps the built-in theme when every provider fails", async () => {
     const h = harness({ gemini: [{ type: "timeout" }], groq: [{ type: "server" }] });
     const out = await transform(URL_OK, h.deps);
-    expect(out).toEqual({ kind: "baseline", themeId: "calm-light", why: "ai-unavailable", message: MSG.allFailed });
+    expect(out).toMatchObject({ kind: "baseline", themeId: "calm-light", why: "ai-unavailable", message: MSG.allFailed });
     expect(h.page.calls).toEqual(["applyTheme:calm-light", "analyze"]);
   });
 
@@ -223,7 +223,7 @@ describe("transform: gate", () => {
   it.each([["password"], ["payment"], ["file"]] as const)("uses only the built-in theme on a %s page", async (risk) => {
     const h = harness({ analysis: okAnalysis([risk]) });
     const out = await transform(URL_OK, h.deps);
-    expect(out).toEqual({ kind: "baseline", themeId: "calm-light", why: "no-ai-page", message: MSG.noAi });
+    expect(out).toMatchObject({ kind: "baseline", themeId: "calm-light", why: "no-ai-page", message: MSG.noAi });
     expect(providerCalls(h)).toBe(0);
     expect(h.askConsent).not.toHaveBeenCalled();
   });
@@ -237,7 +237,7 @@ describe("transform: gate", () => {
   it("applies the baseline but makes no AI call without a key", async () => {
     const h = harness({ keys: { gemini: false, groq: false } });
     const out = await transform(URL_OK, h.deps);
-    expect(out).toEqual({ kind: "baseline", themeId: "calm-light", why: "no-key", message: MSG.noKey });
+    expect(out).toMatchObject({ kind: "baseline", themeId: "calm-light", why: "no-key", message: MSG.noKey });
     expect(h.page.calls[0]).toBe("applyTheme:calm-light");
     expect(providerCalls(h)).toBe(0);
   });

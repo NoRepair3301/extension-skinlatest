@@ -67,6 +67,8 @@ export interface WalkTrack {
 export interface TrackInput {
   motion: "still" | "horizontal" | "vertical";
   keepInFreeSpace: boolean;
+  /** keepInFreeSpace with no usable gutter: walk along the viewport edge instead of staying put (default true). */
+  edgeFallback?: boolean;
   corner: "bottom-right" | "bottom-left" | "top-right" | "top-left";
   edge: Edge;
   /** Pet box size in px and the margin kept to the viewport edge. */
@@ -81,7 +83,8 @@ const pad = 4;
 
 /**
  * Pure. The line the pet may walk along, or undefined when it must stay in its corner.
- * keepInFreeSpace on: only inside a usable gutter (the one on the corner's side, else the other); none means still.
+ * keepInFreeSpace on: only inside a usable gutter (the one on the corner's side, else the other); with none the pet walks along the
+ * viewport edge (edgeFallback, the default) or stays still.
  * keepInFreeSpace off: along the viewport edge.
  */
 export function walkTrack(i: TrackInput): WalkTrack | undefined {
@@ -94,10 +97,15 @@ export function walkTrack(i: TrackInput): WalkTrack | undefined {
     const first = right ? i.gutters.right : i.gutters.left;
     const second = right ? i.gutters.left : i.gutters.right;
     const g = usable(first) ? first : usable(second) ? second : undefined;
-    if (!g) return undefined;
+    if (!g) return i.edgeFallback === false ? undefined : edgeTrack(i);
     if (i.motion === "horizontal") return { axis: "x", bounds: { min: g.x + pad, max: g.x + g.w - i.px - pad }, fixed: yFixed };
     return { axis: "y", bounds: { min: i.margin, max: i.vh - i.margin - i.px }, fixed: g.x + (g.w - i.px) / 2 };
   }
+  return edgeTrack(i);
+}
+
+/** The line along the viewport edge the user chose. */
+function edgeTrack(i: TrackInput): WalkTrack {
   if (i.motion === "horizontal") {
     const atTop = i.edge === "top";
     return { axis: "x", bounds: { min: i.margin, max: i.vw - i.margin - i.px }, fixed: atTop ? i.margin : i.vh - i.margin - i.px };

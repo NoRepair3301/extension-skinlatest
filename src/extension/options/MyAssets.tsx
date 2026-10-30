@@ -67,6 +67,7 @@ export function MyAssets({ placement, onPlacement, deps }: Props) {
       </label>
       <p class="note">Pictures up to 25 MB are shrunk to fit (at most 1920 px). GIFs up to 3 MB. Videos up to 4 MB and 15 seconds, played without sound. SVG files are not accepted.</p>
       <p role="status">{note}</p>
+      <p class="note">To use a file on one page only, open Skinly on that page and choose “Use my picture on this page”.</p>
       <p class="note">
         {list.length} saved, {megabytes(list.reduce((n, r) => n + recordBytes(r), 0))} used, {freeText(list)}
       </p>

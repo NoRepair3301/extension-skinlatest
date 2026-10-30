@@ -43,6 +43,35 @@ export function requestFromSite(site: SiteRecord): SceneRequest | null {
   return { scene, asset, fallback: null };
 }
 
+/** The box around the text an element itself holds (not its children's), when the browser can measure it. */
+function textExtent(doc: Document, el: Element): { x: number; y: number; w: number; h: number } | undefined {
+  try {
+    const range = doc.createRange();
+    range.selectNodeContents(el);
+    const r = range.getBoundingClientRect?.();
+    return r && r.width > 0 && r.height > 0 ? { x: r.left, y: r.top, w: r.width, h: r.height } : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const slimCache = new WeakMap<Element, boolean>();
+/** Is this element inside a fixed or sticky strip shorter than a quarter of the window (a header or toolbar)? Checked up to 6 levels up. */
+function inSlimBar(win: Window, el: Element, height: number): boolean {
+  if (height >= win.innerHeight * 0.25) return false;
+  let cur: Element | null = el;
+  for (let i = 0; i < 6 && cur; i++, cur = cur.parentElement) {
+    let fixed = slimCache.get(cur);
+    if (fixed === undefined) {
+      const pos = win.getComputedStyle(cur).position;
+      fixed = (pos === "fixed" || pos === "sticky") && cur.getBoundingClientRect().height < win.innerHeight * 0.25;
+      slimCache.set(cur, fixed);
+    }
+    if (fixed) return true;
+  }
+  return false;
+}
+
 export function createPageScene(win: Window): PageScene {
   const doc = win.document;
   const engine: SceneEngine = createSceneEngine({ doc, win });
@@ -130,8 +159,10 @@ export function createPageScene(win: Window): PageScene {
             },
             isHidden: (el) => {
               const cs = win.getComputedStyle(el);
-              return cs.display === "none" || cs.visibility === "hidden";
+              return cs.display === "none" || cs.visibility === "hidden" || cs.opacity === "0";
             },
+            textRect: (el) => textExtent(doc, el),
+            ignore: (el, rect) => inSlimBar(win, el, rect.h),
             setTimeout: (fn, ms) => win.setTimeout(fn, ms),
             clearTimeout: (id) => win.clearTimeout(id),
             now: () => Date.now(),

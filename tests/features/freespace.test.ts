@@ -91,3 +91,37 @@ describe("watchGutters", () => {
     expect(timers.size).toBe(0);
   });
 });
+
+describe("collectContentRects on app-style pages", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+  });
+  const vp = { w: 1200, h: 800 };
+
+  it("ignores off-screen skip links, tiny nodes, far-away blocks and slim fixed bars", () => {
+    document.body.innerHTML =
+      '<a data-r="-9999,0,200,30" href="#m">skip</a>' + // off to the left
+      '<p data-r="0,0,2,2">dot</p>' + // too small
+      '<p data-r="0,5000,1200,40">far below</p>' + // far down the page
+      '<header data-slim="1"><p data-r="0,0,1200,48">bar</p></header>' + // fixed toolbar
+      '<main><p data-r="300,100,600,40">column</p></main>';
+    const rects = collectContentRects(document, getRect, () => false, { viewport: vp, ignore: (el) => el.closest("[data-slim]") !== null });
+    expect(rects).toEqual([{ x: 300, w: 600 }]);
+    const g = computeGutters(rects, vp.w, vp.w);
+    expect(g.state).toBe("ok");
+    expect(g.left?.w).toBe(300);
+    expect(g.right?.w).toBe(300);
+  });
+
+  it("measures a full-width block by its text, and clamps content to the window", () => {
+    document.body.innerHTML = '<p data-r="0,100,1200,40" data-t="400,100,300,40">short label</p><div><img data-r="1000,200,600,100"></div>';
+    const textRect = (el: Element) => {
+      const t = el.getAttribute("data-t");
+      if (!t) return undefined;
+      const [x = 0, y = 0, w = 0, h = 0] = t.split(",").map(Number);
+      return { x, y, w, h };
+    };
+    const rects = collectContentRects(document, getRect, () => false, { viewport: vp, textRect });
+    expect(rects).toEqual([{ x: 400, w: 300 }, { x: 1000, w: 200 }]);
+  });
+});

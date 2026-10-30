@@ -116,13 +116,14 @@ describe("popup: every state renders and passes the accessibility audit", () => 
   });
 
   it("preview and kept", async () => {
+    (api as unknown as { requestOrigins?: { mockResolvedValue(v: boolean): void } }).requestOrigins?.mockResolvedValue(true);
     flow.runTransform.mockResolvedValue(previewOutcome());
     const root = await mountOf(Popup);
     await click(root, "Change my page");
     expect(root.querySelector('section[aria-label="Preview"]')).toBeTruthy();
     expect(audit(root)).toEqual([]);
-    await click(root, "Keep");
-    expect(root.querySelector('section[aria-label="Remember"]')).toBeTruthy();
+    await click(root, "Keep on this site");
+    expect(root.querySelector('section[aria-label="This site"]')).toBeTruthy();
     expect(audit(root)).toEqual([]);
   });
 

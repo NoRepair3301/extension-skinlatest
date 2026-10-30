@@ -1,5 +1,5 @@
 import { computeGutters, type Gutters } from "./index.ts";
-import { collectContentRects, type RectOf } from "./measure.ts";
+import { collectContentRects, type MeasureOptions, type RectOf } from "./measure.ts";
 
 export const RESIZE_DEBOUNCE_MS = 200;
 export const MUTATION_MIN_GAP_MS = 1000;
@@ -9,6 +9,8 @@ export interface WatchEnv {
   win: Window;
   getRect: RectOf;
   isHidden?: (el: Element) => boolean;
+  textRect?: MeasureOptions["textRect"];
+  ignore?: MeasureOptions["ignore"];
   setTimeout(fn: () => void, ms: number): number;
   clearTimeout(id: number): void;
   now(): number;
@@ -38,7 +40,7 @@ export function watchGutters(env: WatchEnv, onChange: (g: Gutters) => void): Gut
   const measure = (): Gutters => {
     const vw = win.innerWidth;
     const dw = doc.documentElement.scrollWidth || vw;
-    return computeGutters(collectContentRects(doc, env.getRect, env.isHidden), vw, dw);
+    return computeGutters(collectContentRects(doc, env.getRect, env.isHidden, { viewport: { w: vw, h: win.innerHeight }, ...(env.textRect ? { textRect: env.textRect } : {}), ...(env.ignore ? { ignore: env.ignore } : {}) }), vw, dw);
   };
   const refresh = () => {
     if (!alive) return;

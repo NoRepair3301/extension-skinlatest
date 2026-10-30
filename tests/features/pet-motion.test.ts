@@ -74,11 +74,14 @@ describe("walkTrack", () => {
     expect(t.fixed + 72).toBeLessThanOrEqual(1200);
     expect(t.bounds).toEqual({ min: 12, max: 800 - 12 - 72 });
   });
-  it("falls back to the other gutter and stays still when there is none", () => {
+  it("falls back to the other gutter; with none it walks the screen edge, or stays still when edgeFallback is off", () => {
     const oneSided = computeGutters([{ x: 0, w: 900 }], 1200, 1200);
     expect(walkTrack({ ...base, corner: "bottom-left", gutters: oneSided })!.bounds.min).toBeGreaterThanOrEqual(900);
-    expect(walkTrack({ ...base, gutters: computeGutters([{ x: 0, w: 1200 }], 1200, 1200) })).toBeUndefined();
-    expect(walkTrack({ ...base, gutters: computeGutters([{ x: 100, w: 1000 }], 1200, 1200) })).toBeUndefined();
+    const full = computeGutters([{ x: 0, w: 1200 }], 1200, 1200);
+    expect(walkTrack({ ...base, edgeFallback: false, gutters: full })).toBeUndefined();
+    expect(walkTrack({ ...base, edgeFallback: false, gutters: computeGutters([{ x: 100, w: 1000 }], 1200, 1200) })).toBeUndefined();
+    expect(walkTrack({ ...base, gutters: full })).toEqual({ axis: "x", bounds: { min: 12, max: 1200 - 12 - 72 }, fixed: 800 - 12 - 72 });
+    expect(walkTrack({ ...base, motion: "vertical", edge: "left", gutters: full })).toEqual({ axis: "y", bounds: { min: 12, max: 800 - 12 - 72 }, fixed: 12 });
   });
   it("without keepInFreeSpace it may walk along the viewport edge", () => {
     const h = walkTrack({ ...base, keepInFreeSpace: false, gutters: { state: "none" } })!;
@@ -86,6 +89,24 @@ describe("walkTrack", () => {
     expect(walkTrack({ ...base, keepInFreeSpace: false, edge: "top", gutters: { state: "none" } })!.fixed).toBe(12);
     const v = walkTrack({ ...base, keepInFreeSpace: false, motion: "vertical", edge: "left", gutters: { state: "none" } })!;
     expect(v).toEqual({ axis: "y", bounds: { min: 12, max: 800 - 12 - 72 }, fixed: 12 });
+  });
+});
+
+describe("vertical bounce inside a gutter", () => {
+  it("goes up and down between the track ends and never leaves the gutter column", () => {
+    const g = computeGutters([{ x: 300, w: 600 }], 1200, 1200);
+    const track = walkTrack({ motion: "vertical", keepInFreeSpace: true, corner: "bottom-right", edge: "bottom", px: 72, margin: 12, vw: 1200, vh: 800, gutters: g })!;
+    expect(track.axis).toBe("y");
+    expect(track.fixed).toBeGreaterThanOrEqual(900);
+    let w: Walker = { pos: track.bounds.max - 5, dir: 1 };
+    const seen = new Set<number>();
+    for (let i = 0; i < 400; i++) {
+      w = nextPosition(0.016, SPEED_PX.fast, track.bounds, "bounce", w);
+      expect(w.pos).toBeGreaterThanOrEqual(track.bounds.min);
+      expect(w.pos).toBeLessThanOrEqual(track.bounds.max);
+      seen.add(w.dir);
+    }
+    expect(seen).toEqual(new Set([1, -1]));
   });
 });
 
@@ -314,7 +335,7 @@ describe("controller: hide ways, commands and free space", () => {
     expect(frames.size).toBe(0);
   });
 
-  it("keepInFreeSpace with no gutter: the pet stays still in its corner (no frame)", () => {
+  it("keepInFreeSpace with no gutter and edgeFallback off: the pet stays still in its corner (no frame)", () => {
     document.body.innerHTML = '<p id="c">content</p>';
     vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
@@ -322,7 +343,7 @@ describe("controller: hide ways, commands and free space", () => {
     });
     const { env, frames } = makeEnv();
     const ctl = createPetController(env);
-    ctl.sync(cfg({ motion: "vertical", keepInFreeSpace: true }), undefined, true);
+    ctl.sync(cfg({ motion: "vertical", keepInFreeSpace: true, edgeFallback: false }), undefined, true);
     expect(frames.size).toBe(0);
     expect(host()!.style.getPropertyValue("bottom")).toBe("12px");
     ctl.destroy();

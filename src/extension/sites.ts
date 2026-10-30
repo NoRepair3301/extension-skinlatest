@@ -59,7 +59,7 @@ export function parseLook(raw: unknown): SiteLook | undefined {
   if (isObjLike(sc) && isSceneId(sc["id"]) && sc["id"] !== "none" && isDensity(sc["density"]) && isLaneChoice(sc["lane"])) out.scene = { id: sc["id"], density: sc["density"], lane: sc["lane"] };
   if (isObjLike(raw["pet"])) {
     const p = parseSettings({ pet: raw["pet"] }).pet;
-    out.pet = { kind: p.kind, size: p.size, corner: p.corner, motion: p.motion, direction: p.direction, edge: p.edge, speed: p.speed, sleepWhenIdle: p.sleepWhenIdle, keepInFreeSpace: p.keepInFreeSpace };
+    out.pet = { kind: p.kind, size: p.size, corner: p.corner, motion: p.motion, direction: p.direction, edge: p.edge, speed: p.speed, sleepWhenIdle: p.sleepWhenIdle, keepInFreeSpace: p.keepInFreeSpace, edgeFallback: p.edgeFallback };
   }
   const a = raw["asset"];
   if (isObjLike(a) && typeof a["assetId"] === "string" && ASSET_ID.test(a["assetId"])) out.asset = parsePlacement(a);

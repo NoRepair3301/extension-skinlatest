@@ -65,6 +65,35 @@ function setup(over: { site?: Partial<SiteRecord> | null; body?: string; blocked
 
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
+describe("applier-auto on a single-page app", () => {
+  it("puts the theme back after a same-document navigation, at most NAV_REAPPLY_MAX times", async () => {
+    const t = setup();
+    let navigate: (() => void) | undefined;
+    const done = runAuto({ ...t.deps, onNavigate: (cb) => void (navigate = cb) });
+    await tick();
+    t.fire();
+    expect(await done).toBe("full");
+    // the route change replaced the page's markup and dropped our sheet and marker
+    t.applier.restore();
+    expect(t.doc.documentElement.hasAttribute("data-skinly")).toBe(false);
+    navigate!();
+    expect(t.doc.documentElement.getAttribute("data-skinly")).toBe("on");
+    expect(t.sheets).toHaveLength(1);
+    for (let i = 0; i < 70; i++) navigate!();
+    t.applier.restore();
+    navigate!();
+    expect(t.doc.documentElement.hasAttribute("data-skinly")).toBe(false);
+  });
+
+  it("a saved full-strategy plan is applied no further than safe before the page is ready", async () => {
+    const t = setup();
+    t.site.plan = { ...t.site.plan, strategy: "full" };
+    void runAuto(t.deps);
+    await tick();
+    expect(t.sheets[0]).not.toContain('input[type="submit"]');
+  });
+});
+
 describe("applier-auto", () => {
   it("applies global tokens first, region rules only after the DOM is ready and the fingerprint matches", async () => {
     const t = setup();
