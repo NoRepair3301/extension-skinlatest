@@ -83,3 +83,9 @@ ALL DONE
 - Bake-off partial: Gemini 0/5 (stopped on 429), Groq 0/1 (key rejected, 401). Prompt not tuned (no answers to judge). Table in docs/HUMAN_CHECKS.md.
 - Accepted decisions: share mode off removes blur; saved blur picks not auto-applied by the auto script; palette UI is plain DOM (no Preact in palette.js).
 - Fresh clone: npm ci, npm run check (614 tests), npm run release OK; safety greps C1, C2, C6, C7, C9, C10, C12 clean.
+
+## fix/gemini-latency (v0.1.0-rc3, 2026-10-30)
+- Groq bake-off (5 calls, stopped on 429): 4/5 valid JSON, 3/5 valid StylePlans, median 2.5 s. First real complete StylePlans from a provider. Prompt unchanged.
+- Gemini: docs give generation_config.thinking_level and gemini-3.5-flash-lite (sources in docs/providers/gemini.md). Probes: 3.8-flash+low 429; 3.5-flash-lite 200 (5.7 s), with minimal 200 (5.7 s). My probe script ran the 2nd and 3rd candidate after the 429 instead of stopping; no Gemini bake-off was run. Gemini adapter and defaults unchanged.
+- Default provider order is now Groq, Gemini (src/extension/settings.ts, SPEC 7). Pipeline harness pins Gemini-first so the fallback tests are unchanged; new test for the default order; options reorder test flipped.
+- Timeouts stay 40 s / 60 s: the Gemini condition for shrinking them was not met.

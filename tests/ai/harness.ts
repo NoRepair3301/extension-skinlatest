@@ -69,7 +69,7 @@ export function harness(opts: {
     gemini: createMock(opts.gemini ?? [{ type: "ok", json: goodPlan() }], "gemini"),
     groq: createMock(opts.groq ?? [{ type: "ok", json: goodPlan() }], "groq"),
   };
-  const settings: Settings = { ...defaultSettings(), consent: { version: 1, acceptedAt: "2026-10-01T00:00:00.000Z" }, ...opts.settings };
+  const settings: Settings = { ...defaultSettings(), order: ["gemini", "groq"], consent: { version: 1, acceptedAt: "2026-10-01T00:00:00.000Z" }, ...opts.settings };
   const saved: Settings[] = [];
   const steps: string[] = [];
   const page = fakePage(opts.analysis ?? okAnalysis());

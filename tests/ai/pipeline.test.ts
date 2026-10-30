@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { transform } from "../../src/ai/pipeline.ts";
 import { MSG } from "../../src/ai/messages.ts";
 import { buildUserMessage } from "../../src/ai/prompt.ts";
+import { defaultSettings } from "../../src/extension/settings.ts";
 import { sampleSummary } from "../plan/helpers.ts";
 import { badPlan, goodPlan, harness, lowContrastPlan, okAnalysis, T0, URL_OK } from "./harness.ts";
 
@@ -96,6 +97,12 @@ describe("transform: provider errors", () => {
     const out = await transform(URL_OK, h.deps);
     expect(out).toMatchObject({ kind: "preview", providerId: "groq" });
     expect(h.mocks.gemini.calls).toHaveLength(0);
+  });
+
+  it("defaults to Groq first, then Gemini", async () => {
+    const h = harness({ settings: { order: defaultSettings().order } });
+    expect(defaultSettings().order).toEqual(["groq", "gemini"]);
+    expect(await transform(URL_OK, h.deps)).toMatchObject({ providerId: "groq" });
   });
 
   it("follows the configured provider order", async () => {

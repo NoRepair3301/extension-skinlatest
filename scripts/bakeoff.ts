@@ -29,7 +29,8 @@ async function main(): Promise<void> {
   const env = readEnv(".env.local");
   const keys: Partial<Record<ProviderId, string>> = {};
   for (const id of PROVIDER_IDS) if (env[ENV_NAMES[id]]) keys[id] = env[ENV_NAMES[id]]!;
-  const ids = PROVIDER_IDS.filter((id) => keys[id] !== undefined);
+  const only = process.argv[2];
+  const ids = PROVIDER_IDS.filter((id) => keys[id] !== undefined && (only === undefined || only === id));
   if (ids.length === 0) {
     process.stdout.write("bakeoff: no keys in .env.local, nothing to run\n");
     return;

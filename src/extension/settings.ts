@@ -38,7 +38,7 @@ const DAY = /^\d{4}-\d{2}-\d{2}$/;
 export const defaultSettings = (): Settings => ({
   theme: DEFAULT_THEME_ID,
   blocklist: [],
-  order: [...PROVIDER_IDS],
+  order: ["groq", "gemini"], // Groq first: faster and valid in the 2026-10-30 bake-off (docs/HUMAN_CHECKS.md)
   models: { ...DEFAULT_MODELS },
   aiCallsToday: { date: "", count: 0 },
   consent: null,
