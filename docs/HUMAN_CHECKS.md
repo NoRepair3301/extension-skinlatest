@@ -92,3 +92,11 @@ Items are added per step; the full list is printed at the end of the final repor
 
 ### J. Theme failure message
 - [ ] On a legacy portal (e.g. the ERP) click Change my page. If the theme is rolled back the popup says the reason in plain words (no page text). Record which reason you saw.
+
+## Phase 10 (v0.2.0-rc1)
+- [ ] `npm run preview`, open private/preview.html: every scene at 900, 1280 and 1920 px looks good (shaded, not flat circles), art stays outside the grey column, motion is smooth. Pets look cute in all 8 poses. Write feedback lines in docs/BUGS.md.
+- [ ] On Wikipedia, a govt site, Hacker News and a full-width site: art only in empty gutters, never over text, links, buttons or images; the full-width site shows no art and the popup says why.
+- [ ] Pet: still by default, no visible close button, hover/focus shows it, Escape and Alt+Shift+P hide it, all walking modes work, reduced motion makes it static.
+- [ ] Upload a PNG, a GIF and a short video in My assets; an oversized video and an SVG are rejected with a clear message; Restore removes everything.
+- [ ] Store: the field scene has weapon props (ARMY_WEAPON_PROPS in src/config.ts). Decide before submission; set to false to remove them.
+- [ ] Copy theme code, import it on another page: it applies readably; a garbage code is refused.
