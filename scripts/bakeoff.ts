@@ -47,6 +47,7 @@ async function main(): Promise<void> {
     let runs = 0;
     const latencies: number[] = [];
     const errors: Record<string, number> = {};
+    let stopped = "";
     for (const file of fixtures) {
       const doc = new JSDOM(readFileSync(`${dir}/${file}`, "utf8")).window.document;
       const deps: SummaryDeps = {
@@ -65,6 +66,10 @@ async function main(): Promise<void> {
       latencies.push(Date.now() - t0);
       if (!r.ok) {
         errors[r.error.kind] = (errors[r.error.kind] ?? 0) + 1;
+        if (r.error.kind === "auth" || r.error.kind === "quota" || r.error.kind === "rate") {
+          stopped = r.error.kind; // do not hammer a provider that refuses us
+          break;
+        }
       } else {
         jsonOk++;
         const v = validatePlan(r.json, a.summary);
@@ -76,7 +81,7 @@ async function main(): Promise<void> {
       await sleep(MIN_CALL_GAP_MS);
     }
     const pct = (n: number) => (runs === 0 ? 0 : Math.round((n / runs) * 100));
-    rows.push({ provider: id, model: DEFAULT_MODELS[id], runs, "valid JSON %": pct(jsonOk), "valid plan %": pct(planOk), "contrast ok %": pct(contrastOk), "median ms": median(latencies), errors: JSON.stringify(errors) });
+    rows.push({ provider: id, model: DEFAULT_MODELS[id], runs, "valid JSON %": pct(jsonOk), "valid plan %": pct(planOk), "contrast ok %": pct(contrastOk), "median ms": median(latencies), errors: JSON.stringify(errors), stopped });
   }
 
   process.stdout.write(`bakeoff (prompt v${PROMPT_VERSION}, ${fixtures.length} fixtures)\n`);

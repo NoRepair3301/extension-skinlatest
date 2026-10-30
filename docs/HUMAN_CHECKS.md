@@ -14,9 +14,19 @@
 - [ ] Judge whether `!important` colour overrides make some sites look worse than intended (dark theme on pages with many explicit light backgrounds).
 
 ## Phase 3
-- [ ] UNVERIFIED: Gemini raw response shape. `extractGeminiText` (src/providers/gemini.ts) guesses `output_text` / a `model_output` step; the docs fetched only show SDK accessors. Confirm against the Interactions API reference and fix the function.
-- [ ] UNVERIFIED: Gemini error bodies and retry-after (not documented in the fetched pages); Groq data-retention terms; CORS from the service worker (docs silent; the Test key button checks it).
-- [ ] Bake-off ran once with the Gemini key found in `.env.local` (no Groq key was present, so Groq was skipped): gemini-3.8-flash gave 14 of 15 timeouts at 15 s and 1 valid plan (7%), median 15010 ms. Check the model id and whether the request shape (system_instruction + response_format schema) is accepted, then rerun `npm run bakeoff`. Add `GROQ_API_KEY` to `.env.local` to include Groq. Results are in private/bakeoff.json (gitignored).
+- [x] Gemini raw response shape: VERIFIED 2026-10-30 (steps[] with a model_output step, content[].text). `extractGeminiText` fixed, tests use sanitized copies.
+- [x] Gemini 503 body and retry-after: VERIFIED 2026-10-30. Groq 401 body: VERIFIED. STILL UNVERIFIED: Gemini 401/403/429 bodies, any Groq success response, Groq data-retention terms, CORS from the service worker (the Test key button checks it).
+- [ ] **Groq key in .env.local is rejected (HTTP 401 invalid_api_key).** Create a new key, put it in `.env.local`, run `node scripts/probe.ts groq` then `npm run bakeoff`.
+- [ ] **Gemini full-plan calls did not finish.** See the bake-off table below. Wait for the free-tier limit to reset, then run `node scripts/probe.ts` and `npm run bakeoff` once. If 40 s still times out, the model's thinking time is the problem and a documented way to lower it must be added to docs/providers/gemini.md (none is documented, so none was guessed).
+
+### Bake-off (2026-10-30, prompt v1, fixtures/web, 3 s gap, no retries, timeout 40 s)
+| provider | model | calls made | success rate | median latency | valid StylePlan rate | notes |
+|---|---|---|---|---|---|---|
+| gemini | gemini-3.8-flash | 5 of 15 (stopped on 429) | 0 % (0/5) | 40010 ms (all timeouts) | 0 % (no answers to judge) | 4 timeouts, then HTTP 429 |
+| groq | openai/gpt-oss-120b | 1 of 15 (stopped on 401) | 0 % | 189 ms | 0 % | invalid API key, nothing to measure |
+
+Prompt not tuned: there were no answers, so no evidence about prompt quality (PROMPT_VERSION stays "1"). The earlier run (15 s timeout) had 14 timeouts and 1 valid plan.
+Why it timed out: requests are small (system 1.7k chars, schema 1.2k, user 0.9k to 8.9k chars), so size is not the cause. A trivial probe (5 output tokens) took 8.9 s because the model spent 81 thought tokens first, and a probe a minute earlier got 503 "high demand" with retry-after 30. Full plans need more thinking plus output, so 15 s was too short, and at 40 s the service still stalled before returning 429.
 - [ ] Create keys (restrict the Gemini key to the Gemini API), keep them in `.env.local` only.
 - [ ] In the options page click Test key for each provider: it succeeds, and the browser's permission prompt names only that provider's host.
 
@@ -45,7 +55,7 @@
 - [ ] On a real page pick three elements, turn Share mode on, take a safe screenshot and read the PNG yourself: the picked parts are unreadable. Try a page where you did not pick something sensitive and confirm it is visible (the tool only blurs what you pick).
 - [ ] Sort and filter a real table, then press Restore order and Restore original: the page is exactly as before.
 - [ ] Pick mode: on a page with links and buttons, clicks only toggle the blur while pick mode is on; after Escape the page behaves normally. The popup closes when you click the page, so reopen it to see counts, Save picks and Safe screenshot.
-- [ ] Decision to confirm: Share mode off removes the blur entirely (there is no reveal-on-hover state), and saved picks are not auto-applied by the always-on script.
+- [x] Decisions ACCEPTED (2026-10-30): Share mode off removes the blur entirely (no reveal-on-hover state), and saved blur picks are not auto-applied by the always-on script.
 
 ## Phase 9
 - [ ] Choose the final name and check it for trademark conflicts. Host docs/store/privacy.md at a public URL and add a contact address.

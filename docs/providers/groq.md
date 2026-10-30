@@ -32,6 +32,9 @@ The page shows the answer read as `response.choices[0].message.content` (a JSON 
 `openai/gpt-oss-120b` is listed for structured outputs (strict and best-effort). Default: `openai/gpt-oss-120b`, configurable. `llama-3.3-70b-versatile` is used in the JSON-mode example.
 
 ## 6. Errors (errors page)
+VERIFIED 2026-10-30 (scripts/probe.ts): a rejected key returns HTTP 401 with body `{ "error": { "message": string, "type": "invalid_request_error", "code": "invalid_api_key" } }`; header names seen: alt-svc, cache-control, cf-cache-status, cf-ray, connection, content-length, content-type, date, server, set-cookie, strict-transport-security, vary, via, x-groq-region, x-request-id. No retry-after on 401.
+The Groq key in .env.local was rejected, so the success response, model id acceptance and latency are still UNVERIFIED.
+
 Body: `{ "error": { "message": "...", "type": "invalid_request_error" } }`.
 400 malformed, 401 bad credentials, 403 permissions, 404, 413 too large, 422 invalid, 424 dependency failed, 429 too many requests, 498 flex tier at capacity, 499 caller cancelled, 500, 502, 503. 5xx are not charged.
 Rate limits page: `retry-after` (seconds) is set only on a 429. Other headers: `x-ratelimit-limit-requests`, `x-ratelimit-limit-tokens`, `x-ratelimit-remaining-requests`, `x-ratelimit-remaining-tokens`, `x-ratelimit-reset-requests`, `x-ratelimit-reset-tokens`.

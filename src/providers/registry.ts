@@ -2,7 +2,7 @@ import type { ProviderId } from "../config.ts";
 import type { ErrorKind, GenerateRequest, Provider, Result, Usage } from "./types.ts";
 import { RETRYABLE_KINDS } from "./types.ts";
 
-export const PIPELINE_BUDGET_MS = 20_000;
+export const PIPELINE_BUDGET_MS = 60_000;
 
 export interface ProviderEntry {
   provider: Provider;

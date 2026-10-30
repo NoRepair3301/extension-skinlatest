@@ -99,7 +99,7 @@ Method: a fresh `git clone` into a temp folder, `npm ci`, `npm run check`, `npm 
 - [ ] On a real page pick three elements, turn Share mode on, take a safe screenshot and read the PNG yourself: the picked parts are unreadable. Try a page where you did not pick something sensitive and confirm it is visible (the tool only blurs what you pick).
 - [ ] Sort and filter a real table, then press Restore order and Restore original: the page is exactly as before.
 - [ ] Pick mode: on a page with links and buttons, clicks only toggle the blur while pick mode is on; after Escape the page behaves normally. The popup closes when you click the page, so reopen it to see counts, Save picks and Safe screenshot.
-- [ ] Decision to confirm: Share mode off removes the blur entirely (there is no reveal-on-hover state), and saved picks are not auto-applied by the always-on script.
+- [x] Decisions ACCEPTED (2026-10-30): Share mode off removes the blur entirely, and saved blur picks are not auto-applied by the always-on script.
 
 ## Phase 9
 - [ ] Choose the final name and check it for trademark conflicts. Host docs/store/privacy.md at a public URL and add a contact address.

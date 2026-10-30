@@ -105,11 +105,11 @@ describe("budget and abort", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("gives up with timeout when the 20 s budget runs out", async () => {
-    const a = entry([{ type: "delay", ms: 18_000, then: { type: "rate" } }]);
-    const b = entry([{ type: "delay", ms: 18_000, then: ok }], "groq");
+  it("gives up with timeout when the 60 s budget runs out", async () => {
+    const a = entry([{ type: "delay", ms: 58_000, then: { type: "rate" } }]);
+    const b = entry([{ type: "delay", ms: 58_000, then: ok }], "groq");
     const p = generate(REQ, [a.entry, b.entry]);
-    await vi.advanceTimersByTimeAsync(20_001);
+    await vi.advanceTimersByTimeAsync(60_001);
     expect(await p).toMatchObject({ ok: false, error: { kind: "timeout" }, tried: ["gemini", "groq"] });
   });
 
