@@ -234,3 +234,13 @@ Full task text is in prompt-launch.txt (the starting message was cut off inside 
 - Stage results: A1 PASS, A2 PASS, A3 PASS, A4 PASS. UNVERIFIED (no browser here): the real Edge prompt closing the popup, onAdded timing in a real service worker, runtime.getContexts in Edge, print preview, the look of the paused popup.
 - This entry is written last on fix/launch-1; the branch is then merged into main with --no-ff and the merge is tagged v0.2.1-rc1 (no direct commit on main).
 PART A COMPLETE
+
+## feat/plus (v0.3.0-rc1)
+Branch cut from main after the v0.2.1-rc1 merge.
+
+### B1: spec and rules (done)
+- docs/PLUS_SPEC.md (plans, flows, data held, billing, honesty about gating, build config, company placeholder), docs/SECURITY_BACKEND.md (forged webhook, replay, out-of-order, token theft, spoofing, RLS bypass, service role leak, abuse, CORS, PII in logs, deletion, test billing in production).
+- CLAUDE.md rules 6, 9, architecture and git updated; SPEC 1, 12 and new 18; AUDIT C6, C9 and new C15.
+- Scanner (scripts/rules.ts): fetch allowed in src/providers/ and src/backend/; storage keys `auth` and `entitlement`; secret patterns (sk_live_/rk_live_, rzp_live/test_, whsec_, JWT-like, private keys) in every scanned file and in dist (validate-dist imports the same list); `service_role` refused in src/ and dist; the real-tree scan includes backend/. Page scripts may not import src/backend/ (tests/auto.test.ts). Tests: tests/rules.test.ts, tests/build.test.ts.
+- Decision: tier logic stays in src/core/entitlements.ts (CLAUDE.md names that file and it exists); the prompt's "src/plan/entitlements.ts" is read as that file.
+- .gitignore keeps `.env.example` files.

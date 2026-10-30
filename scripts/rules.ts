@@ -11,6 +11,8 @@ export interface Violation {
 const API_FILE = "src/extension/api.ts";
 const CONFIG_FILE = "src/config.ts";
 const PROVIDERS_DIR = "src/providers/";
+/** The Plus client (v0.3.0): auth and entitlement calls to the Supabase project from the build env. */
+const BACKEND_CLIENT_DIR = "src/backend/";
 /** CSS blur is the privacy feature only: the picked-element template (apply.ts) and the whole-page veil (page.ts). */
 const BLUR_DIR = "src/features/blur/";
 const BLUR_RE = /\b(?:-webkit-)?backdrop-filter\b|\bblur\s*\(\s*\d/;
@@ -18,9 +20,10 @@ const BLUR_RE = /\b(?:-webkit-)?backdrop-filter\b|\bblur\s*\(\s*\d/;
 /**
  * Every storage.local key the extension uses, and nothing else: keys (provider keys, src/extension/keys.ts), settings, sites
  * (origin-keyed site records), assets (the user's own pictures) and diag (src/extension/diagStore.ts: the last page snapshot,
- * the last 20 caught errors as short kinds and the last provider result kind; never text, URLs, origins or keys).
+ * the last 20 caught errors as short kinds and the last provider result kind; never text, URLs, origins or keys), intent (the pending
+ * keep, 5 minutes), schema (storage version), auth (the Plus session) and entitlement (the signed Plus token cache).
  */
-export const STORAGE_KEYS = ["keys", "settings", "sites", "assets", "diag", "intent", "schema"] as const;
+export const STORAGE_KEYS = ["keys", "settings", "sites", "assets", "diag", "intent", "schema", "auth", "entitlement"] as const;
 /** A storage key constant (`KEY = "x"`, `SITES_KEY = "x"`) or a literal key passed to storageGet/storageSet. */
 const STORAGE_KEY_RE = /\b[A-Z_]*KEY\s*=\s*["'`]([^"'`]*)["'`]|\bstorage(?:Get|Set)\s*(?:<[^>]*>)?\(\s*["'`]([^"'`]*)["'`]/g;
 
@@ -54,13 +57,22 @@ const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   ["HTML parsing (CSP)", /\bnew\s+DOMParser\b|\bcreateContextualFragment\b/],
 ];
 
-/** Forbidden in every scanned text file. */
-const KEY_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
+/** Forbidden in every scanned text file (src, scripts, tests, docs, backend) and in dist (scripts/validate-dist.ts). */
+export const KEY_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ["key-like string (AIza)", /AIza[0-9A-Za-z_-]{20,}/],
   ["key-like string (gsk_)", /gsk_[A-Za-z0-9]{20,}/],
   ["key-like string (xai-)", /xai-[A-Za-z0-9]{20,}/],
   ["key-like string (sk-)", /sk-[A-Za-z0-9]{20,}/],
+  // Backend secrets (v0.3.0): payment provider keys, webhook secrets, JWTs (a service role key is one) and private keys.
+  ["secret-like string (sk_live_/rk_live_)", /\b[rs]k_live_[A-Za-z0-9]{10,}/],
+  ["secret-like string (rzp_)", /\brzp_(?:live|test)_[A-Za-z0-9]{8,}/],
+  ["secret-like string (whsec_)", /\bwhsec_[A-Za-z0-9+/=]{10,}/],
+  ["JWT-like string", /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/],
+  ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
 ];
+
+/** The extension never names the service role (it must never hold that key). Checked in src/ and in dist. */
+export const SERVICE_ROLE_RE = /service_role/i;
 
 const URL_RE = /https?:\/\/([^\s/"'`)<>\\:?#]+)/gi;
 
@@ -76,8 +88,9 @@ export function scanSource(path: string, text: string, allowedHosts: readonly st
     for (const [rule, re] of KEY_PATTERNS) if (re.test(line)) add(rule);
     if (!inSrc) return;
     for (const [rule, re] of FORBIDDEN) if (re.test(line)) add(rule);
+    if (SERVICE_ROLE_RE.test(line)) add("service_role in extension code");
     if (p !== API_FILE && /\b(?:chrome|browser)\s*\.\s*[A-Za-z_$]/.test(line)) add("chrome./browser. outside src/extension/api.ts");
-    if (!p.startsWith(PROVIDERS_DIR) && /\bfetch\s*\(/.test(line)) add("fetch( outside src/providers/");
+    if (!p.startsWith(PROVIDERS_DIR) && !p.startsWith(BACKEND_CLIENT_DIR) && /\bfetch\s*\(/.test(line)) add("fetch( outside src/providers/ and src/backend/");
     if (!p.startsWith(BLUR_DIR) && BLUR_RE.test(line)) add("CSS blur outside src/features/blur/");
     for (const m of line.matchAll(STORAGE_KEY_RE)) {
       const key = m[1] ?? m[2] ?? "";

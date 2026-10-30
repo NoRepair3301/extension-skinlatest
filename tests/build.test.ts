@@ -76,3 +76,11 @@ describe("validateDist", () => {
     expect(validateDist("node_modules/.skinly-no-such-dist")).toEqual(["dist/manifest.json is missing"]);
   });
 });
+
+describe("scanBuiltJs secrets (B1)", () => {
+  it("flags backend secrets and the service role name in built files", () => {
+    expect(scanBuiltJs(`const r = "${["service", "role"].join("_")}"`, [])).toContain("service_role");
+    expect(scanBuiltJs(`const w = "${["whsec", "MfKQ9r8GKYqrTwjUPD8ILPZ"].join("_")}"`, [])).toContain("secret-like string (whsec_)");
+    expect(scanBuiltJs(`const k = "${["-----BEGIN", "PRIVATE", "KEY-----"].join(" ")}"`, [])).toContain("private key");
+  });
+});

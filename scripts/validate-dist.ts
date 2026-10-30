@@ -2,19 +2,13 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { gzipSync } from "node:zlib";
 import { ALLOWED_URL_HOSTS } from "../src/config.ts";
+import { KEY_PATTERNS, SERVICE_ROLE_RE } from "./rules.ts";
 
 const PERMISSIONS = ["activeTab", "scripting", "storage"];
 const OPTIONAL_HOSTS = ["https://*/*", "http://*/*"];
 
 /** XML namespace identifiers that appear in bundled libraries but are never fetched. */
 const NAMESPACE_URL = /^https?:\/\/www\.w3\.org\//i;
-
-const KEY_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
-  ["key-like string (AIza)", /AIza[0-9A-Za-z_-]{20,}/],
-  ["key-like string (gsk_)", /gsk_[A-Za-z0-9]{20,}/],
-  ["key-like string (xai-)", /xai-[A-Za-z0-9]{20,}/],
-  ["key-like string (sk-)", /sk-[A-Za-z0-9]{20,}/],
-];
 
 /** Chromium refuses to load an extension with more suggested shortcuts than this. */
 export const MAX_SUGGESTED_KEYS = 4;
@@ -45,6 +39,7 @@ export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLO
   if (/[A-Za-z]:\\(?:Users|Downloads)\\|\/(?:Users|home)\/[A-Za-z0-9._-]+\//.test(text)) out.push("developer machine path");
   if (/\/\/# sourceMappingURL=/.test(text)) out.push("source map reference");
   for (const [rule, re] of KEY_PATTERNS) if (re.test(text)) out.push(rule);
+  if (SERVICE_ROLE_RE.test(text)) out.push("service_role");
   for (const m of text.matchAll(/https?:\/\/([^\s/"'`)<>\\:?#]+)[^\s"'`)<>\\]*/gi)) {
     if (NAMESPACE_URL.test(m[0])) continue;
     const host = (m[1] ?? "").toLowerCase();

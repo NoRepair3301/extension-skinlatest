@@ -257,11 +257,11 @@ describe("auto path import graph", () => {
     expect(files).not.toContain("src/extension/flow.ts");
   });
 
-  it("no page script (applier, auto, scene, palette) can reach the keys, the intent or the keeper (A3 pass 2)", () => {
+  it("no page script (applier, auto, scene, palette) can reach the keys, the intent, the keeper or the Plus session client (A3 pass 2, B1)", () => {
     for (const entry of ["applier.ts", "applier-auto.ts", "scene.ts", "palette.ts"]) {
       const files = [...graph(`src/extension/${entry}`)];
       for (const f of ["src/extension/keys.ts", "src/extension/intent.ts", "src/extension/keeper.ts", "src/extension/popup/Popup.tsx"]) expect(files, `${entry} -> ${f}`).not.toContain(f);
-      for (const f of files) expect(f, f).not.toMatch(/src\/(providers|ai)\//);
+      for (const f of files) expect(f, f).not.toMatch(/src\/(providers|ai|backend)\//);
     }
   });
 });
