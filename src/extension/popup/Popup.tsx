@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { applyUiTheme } from "../../ui/theme.ts";
 import { Button, Spinner, Toggle } from "../../ui/components.tsx";
+import { S } from "../../ui/strings.ts";
 import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
@@ -22,14 +23,7 @@ import { decodeThemeCode, encodeThemeCode } from "../themeCode.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
-const STEP_TEXT: Record<Step, string> = {
-  checking: "Checking this page…",
-  baseline: "Applying the built-in theme…",
-  analysing: "Reading the page layout…",
-  consent: "Waiting for your answer…",
-  asking: "Asking the AI for a better theme…",
-  applying: "Applying…",
-};
+const STEP_TEXT: Record<Step, string> = S.steps;
 
 export type View =
   | { state: "idle"; note?: string }
@@ -278,15 +272,15 @@ export function Popup() {
 
       {view.state !== "consent" && (
         <div class="primary-actions">
-          <Button kind="primary" onClick={() => void start()} disabled={busy}>Change my page</Button>
-          <Button onClick={() => void restore()} disabled={busy}>Restore original</Button>
-          {view.state === "working" && <Button kind="quiet" onClick={cancel}>Cancel</Button>}
+          <Button kind="primary" onClick={() => void start()} disabled={busy}>{S.popup.change}</Button>
+          <Button onClick={() => void restore()} disabled={busy}>{S.popup.restore}</Button>
+          {view.state === "working" && <Button kind="quiet" onClick={cancel}>{S.popup.cancel}</Button>}
         </div>
       )}
       {view.state === "working" && <Spinner label="Working" />}
 
       <fieldset class="themes">
-        <legend>Theme</legend>
+        <legend>{S.popup.themeLegend}</legend>
         <div class="theme-grid">
           {THEMES.map((t) => (
             <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}`}>
@@ -302,14 +296,14 @@ export function Popup() {
           <label class={`theme-card${settings.theme === "auto" ? " on" : ""}`}>
             <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
             <span class="mini auto" aria-hidden="true" />
-            <span class="theme-name">Auto (light by day, dark when your browser is dark)</span>
+            <span class="theme-name">{S.popup.autoTheme}</span>
           </label>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Pet</legend>
-        <Toggle label="Show a small pet on pages I change" checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
+        <legend>{S.popup.petLegend}</legend>
+        <Toggle label={S.popup.petToggle} checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
         {site && settings.pet.enabled && (
           <label>
             <input
@@ -400,10 +394,10 @@ export function Popup() {
         <p class="note">To set or change a key, open {page} in the address bar.</p>
       </section>
       <details class="sent">
-        <summary>What gets sent</summary>
-        <p class="note">Only after you agree and click: a small description of the page's layout (shapes, sizes and colours). Never text, links, images or forms. Before each send, "Show what will be sent" shows the exact message. Built-in themes send nothing.</p>
+        <summary>{S.popup.sentSummary}</summary>
+        <p class="note">{S.popup.sentBody}</p>
       </details>
-      <footer>Skinly AI is not affiliated with any website.</footer>
+      <footer>{S.app.notAffiliated}</footer>
     </main>
   );
 }
@@ -427,9 +421,9 @@ function toView(o: Outcome, tabId: number): View {
 
 /** One plain line for the header when nothing else needs saying. */
 function pageLine(site: { origin: string; record: SiteRecord | undefined } | undefined, settings: Settings): string {
-  if (!site) return "Ready. Open a web page to change it.";
-  if (site.record) return site.record.mode === "auto" ? "This site changes automatically." : "This site is remembered.";
-  return settings.theme === "auto" ? "Ready. Auto theme follows your browser." : "Ready to change this page.";
+  if (!site) return S.popup.readyNoPage;
+  if (site.record) return site.record.mode === "auto" ? S.popup.siteAuto : S.popup.siteSaved;
+  return settings.theme === "auto" ? S.popup.readyAuto : S.popup.ready;
 }
 
 function statusText(v: View): string {

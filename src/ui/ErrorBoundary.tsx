@@ -1,5 +1,6 @@
 import { Component, type ComponentChildren } from "preact";
 import { Banner, Button } from "./components.tsx";
+import { S } from "./strings.ts";
 
 interface Props {
   children?: ComponentChildren;
@@ -25,9 +26,9 @@ export class ErrorBoundary extends Component<Props, State> {
   private restore = async () => {
     try {
       await this.props.onRestore?.();
-      this.setState({ note: "This page was restored." });
+      this.setState({ note: S.boundary.restored });
     } catch {
-      this.setState({ note: "Couldn't restore this page. Reload it to get the original back." });
+      this.setState({ note: S.boundary.restoreFailed });
     }
   };
 
@@ -37,10 +38,10 @@ export class ErrorBoundary extends Component<Props, State> {
     if (!this.state.failed) return this.props.children;
     return (
       <div class="ui-boundary" role="alert">
-        <Banner tone="error">Something went wrong in Skinly AI. Your page has not been changed by this.</Banner>
+        <Banner tone="error">{S.boundary.message}</Banner>
         <div class="ui-row">
-          {this.props.onRestore && <Button kind="primary" onClick={() => void this.restore()}>Restore this page</Button>}
-          <Button onClick={this.reload}>Reload this panel</Button>
+          {this.props.onRestore && <Button kind="primary" onClick={() => void this.restore()}>{S.boundary.restore}</Button>}
+          <Button onClick={this.reload}>{S.boundary.reload}</Button>
         </div>
         <p role="status">{this.state.note}</p>
       </div>

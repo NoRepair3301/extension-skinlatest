@@ -2,6 +2,7 @@ import { useEffect, useState } from "preact/hooks";
 import type { ComponentChildren } from "preact";
 import { applyUiTheme } from "../../ui/theme.ts";
 import { Button, Card, Dialog, EmptyState, TabPanel, Tabs } from "../../ui/components.tsx";
+import { S } from "../../ui/strings.ts";
 import { browserHints, extensionVersion, getCommands } from "../api.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { THEMES } from "../../themes/index.ts";
@@ -18,18 +19,8 @@ import { loadSites, type Sites } from "../sites.ts";
 
 const NAMES: Record<ProviderId, string> = { gemini: "Gemini (Google AI Studio)", groq: "Groq" };
 const HOST = /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/;
-const TABS = [
-  { id: "general", label: "General" },
-  { id: "themes", label: "Themes" },
-  { id: "scenes", label: "Scenes and pets" },
-  { id: "assets", label: "My assets" },
-  { id: "providers", label: "AI providers" },
-  { id: "sites", label: "Sites" },
-  { id: "shortcuts", label: "Shortcuts" },
-  { id: "privacy", label: "Privacy" },
-  { id: "about", label: "About" },
-];
-const RECEIVES = "Receives only a small description of a page's layout (shapes, sizes and colours, no text, links, images or forms), and only after you agree and click. Their terms apply and they may keep it.";
+const TABS = (Object.keys(S.options.tabs) as Array<keyof typeof S.options.tabs>).map((id) => ({ id, label: S.options.tabs[id] }));
+const RECEIVES = S.options.receives;
 const tabFromHash = (): string => (TABS.some((t) => "#" + t.id === location.hash) ? location.hash.slice(1) : "general");
 const safe = <T,>(fn: () => T, fallback: T): T => {
   try {
@@ -86,7 +77,7 @@ export function Options() {
       setSaved({ gemini: false, groq: false });
       setSites({});
     }
-    setEraseNote(r.ok ? "All Skinly data was erased." : "Couldn't erase everything. Try again.");
+    setEraseNote(r.ok ? S.options.erased : S.options.eraseFailed);
   };
 
   useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
@@ -149,14 +140,14 @@ export function Options() {
     setDrafts((d) => ({ ...d, [id]: "" }));
     if (r.ok) {
       setSaved((s) => ({ ...s, [id]: true }));
-      note(id, "Key saved.");
-    } else note(id, r.reason === "permission" ? "Permission for this provider was not granted, so the key was not saved." : "That does not look like a key.");
+      note(id, S.keys.saved);
+    } else note(id, r.reason === "permission" ? S.keys.noPermission : S.keys.badKey);
   };
 
   const remove = async (id: ProviderId) => {
     await deleteKey(id);
     setSaved((s) => ({ ...s, [id]: false }));
-    note(id, "Key removed.");
+    note(id, S.keys.removed);
   };
 
   const test = async (id: ProviderId) => {
@@ -177,10 +168,10 @@ export function Options() {
   return (
     <main>
       <h1>
-        <Logo size={32} /> Skinly AI settings
+        <Logo size={32} /> {S.options.title}
       </h1>
-      <p class="note">Skinly AI is not affiliated with any website.</p>
-      <Tabs label="Settings sections" tabs={TABS} selected={tab} onSelect={selectTab} />
+      <p class="note">{S.app.notAffiliated}</p>
+      <Tabs label={S.options.tabsLabel} tabs={TABS} selected={tab} onSelect={selectTab} />
 
       {panel(
         "general",
@@ -299,7 +290,7 @@ export function Options() {
                 <input type="search" value={siteQuery} onInput={(e) => setSiteQuery((e.currentTarget as HTMLInputElement).value)} />
               </label>
             )}
-            {Object.keys(sites).length === 0 && <EmptyState title="No sites saved.">Sites you remember from the popup show up here.</EmptyState>}
+            {Object.keys(sites).length === 0 && <EmptyState title={S.options.noSites}>{S.options.noSitesHint}</EmptyState>}
             {Object.keys(sites).length > 0 && shownSites.length === 0 && <p class="note">No saved site matches that search.</p>}
             {shownSites.map(([origin, rec]) => (
               <div class="row" key={origin}>
@@ -333,7 +324,7 @@ export function Options() {
         "shortcuts",
         <Card title="Keyboard shortcuts">
           {commands.length === 0 ? (
-            <p class="note">No shortcuts to show.</p>
+            <p class="note">{S.options.noShortcuts}</p>
           ) : (
             <ul>
               {commands.map((c) => (
@@ -355,9 +346,9 @@ export function Options() {
             <p class="note">Sent only after you agree, and only when you click: a small description of a page's layout (shapes, sizes and colours, no text, links, images or forms) to the provider you chose.</p>
           </section>
           <section>
-            <h2>Erase all Skinly data</h2>
+            <h2>{S.options.eraseTitle}</h2>
             <p class="note">Removes every setting, key, saved site, asset and permission this extension holds. Pages you changed return to normal when you reload them.</p>
-            <button type="button" onClick={() => setEraseOpen(true)}>Erase all Skinly data</button>
+            <button type="button" onClick={() => setEraseOpen(true)}>{S.options.eraseTitle}</button>
             {eraseNote && <p role="status">{eraseNote}</p>}
           </section>
         </>,
@@ -369,7 +360,7 @@ export function Options() {
           <p>Version {version}</p>
           <p class="note">Skinly AI is free and is not affiliated with any website. Its art is original and drawn in code; fonts are your system fonts. See assets/LICENSES.md in the source for the list of assets.</p>
           <p class="note">What leaves your browser: nothing, unless you click Change my page with an AI provider and agree. The privacy text ships with the extension in docs/store/privacy.md.</p>
-          <button type="button" onClick={() => setWelcomeOpen(true)}>Show the welcome again</button>
+          <button type="button" onClick={() => setWelcomeOpen(true)}>{S.options.showWelcome}</button>
         </Card>,
       )}
 
@@ -377,11 +368,11 @@ export function Options() {
       {welcomeOpen && <Welcome settings={settings} onChange={update} onClose={closeWelcome} />}
 
       {eraseOpen && (
-        <Dialog title="Erase all Skinly data?" onClose={() => setEraseOpen(false)}>
-          <p>This removes your settings, keys, saved sites and assets from this device. It cannot be undone.</p>
+        <Dialog title={S.options.eraseDialog} onClose={() => setEraseOpen(false)}>
+          <p>{S.options.eraseBody}</p>
           <div class="ui-row">
-            <Button onClick={() => setEraseOpen(false)}>Cancel</Button>
-            <Button kind="primary" onClick={() => void erase()}>Erase everything</Button>
+            <Button onClick={() => setEraseOpen(false)}>{S.popup.cancel}</Button>
+            <Button kind="primary" onClick={() => void erase()}>{S.options.eraseConfirm}</Button>
           </div>
         </Dialog>
       )}
