@@ -1,4 +1,5 @@
 import { useEffect, useState } from "preact/hooks";
+import { applyUiTheme } from "../../ui/theme.ts";
 import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
 import { Logo } from "../Logo.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
@@ -35,6 +36,7 @@ export function Options() {
   const [blockNote, setBlockNote] = useState("");
   const [notes, setNotes] = useState<Record<ProviderId, string>>({ gemini: "", groq: "" });
 
+  useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
   useEffect(() => {
     void loadSettings().then(setSettings);
     void keyStatus().then(setSaved);

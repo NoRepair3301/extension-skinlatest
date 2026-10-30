@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "preact/hooks";
+import { applyUiTheme } from "../../ui/theme.ts";
 import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
@@ -68,6 +69,7 @@ export function Popup() {
     }
   };
 
+  useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
   useEffect(() => {
     void loadSettings().then(setSettings);
     void refreshSite();
