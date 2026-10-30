@@ -46,6 +46,10 @@ export function applyFailureReason(r: ApplyFailure): string {
       if (r.detail?.[0] === "contrast") return "The theme's colours were too hard to read here";
       if (r.detail?.[0] === "region missing on page") return "The page changed while it was being read";
       return "That style wasn't safe to apply";
+    case "visual":
+      if (r.detail?.[0] === "media") return "The theme would have hidden pictures on this page";
+      if (r.detail?.[0] === "editable" || r.detail?.[0] === "caret") return "The theme would have made typing hard to see on this page";
+      return "The theme would have made text hard to read on this page";
     case "too-large":
       return "This page is too large to restyle safely";
     case "bad-theme":

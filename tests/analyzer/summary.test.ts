@@ -31,10 +31,23 @@ describe("buildSummary", () => {
   const s = summaryOf('<nav class="top-bar"><a href="/p">x</a></nav><main><h1 id="t">Title</h1></main>');
 
   it("has the SPEC 4.1 shape", () => {
-    expect(Object.keys(s).sort()).toEqual(["counts", "fonts", "palette", "regions", "risk", "v", "viewport"]);
+    expect(Object.keys(s).sort()).toEqual(["counts", "fonts", "page", "palette", "regions", "risk", "v", "viewport"]);
     expect(s.v).toBe(1);
     expect(s.viewport).toEqual({ w: 1024, h: 768 });
     expect(Object.keys(s.regions[0]!).sort()).toEqual(["childCount", "classes", "depth", "id", "linkCount", "rect", "role", "style", "tag"]);
+  });
+  it("reports page facts as tone and counts only, never an image address", () => {
+    const d = dom('<div id="hero"></div><img src="https://example.com/secret.png"><p>x</p>');
+    const base = fakeDeps();
+    const deps = {
+      ...base,
+      getStyle: (el: Element) => ({ ...base.getStyle(el), backgroundColor: el.localName === "body" ? "rgb(10, 10, 10)" : "rgba(0, 0, 0, 0)", backgroundImage: el.id === "hero" ? 'url("https://example.com/secret.png")' : "none" }),
+      getRect: (el: Element) => (el.id === "hero" || el.localName === "img" ? { x: 0, y: 0, w: 1000, h: 500 } : { x: 0, y: 0, w: 50, h: 20 }),
+    };
+    const a = analyze(d, deps);
+    if (a.status !== "ok") throw new Error("too large");
+    expect(a.summary.page).toEqual({ tone: "dark", bgImages: 1, largeMedia: 1, hasHeroMedia: true });
+    expect(JSON.stringify(a.summary)).not.toContain("secret");
   });
   it("rounds rects to multiples of 10", () => {
     for (const r of s.regions) for (const v of Object.values(r.rect)) expect(v % 10).toBe(0);

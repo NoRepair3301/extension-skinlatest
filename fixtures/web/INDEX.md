@@ -22,3 +22,6 @@ dark-aware.html | dark-mode aware | ~40 | color-scheme meta, prefers-color-schem
 legacy-portal-tables.html | legacy portal | ~75 | nested layout tables, bgcolor, background and font attributes, a border/cellpadding data table
 legacy-portal-fonts.html | legacy portal | ~45 | font-tag soup, center, inline backgrounds, body background attribute
 legacy-portal-frames.html | legacy portal login | ~35 | table-layout sign-in (password and one-time-code inputs), two same-origin iframes
+claude-like.html | dark app | ~30 | class-styled buttons with spans, sidebar items, card, contenteditable editor (real-browser breakage)
+hero-bg.html | hero image | ~25 | body background image, z-index -1 image, background-image header and tile
+light-article.html | light article | ~35 | plain light page, infobox table, link list

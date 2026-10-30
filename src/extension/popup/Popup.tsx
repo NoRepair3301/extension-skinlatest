@@ -139,6 +139,8 @@ export function Popup() {
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
       tabUrl.current = tab.url;
       abort.current = new AbortController();
+      setPetNote("");
+      setSceneNote("");
       setShowPayload(false);
       setView({ state: "working", step: "checking" });
       const outcome = await runTransform(
@@ -161,9 +163,21 @@ export function Popup() {
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
-      // The flow itself threw (usually: the browser refused to inject into this page). The page was not touched.
-      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
+      // The flow itself threw. If a theme is already on the page the apply worked, so no error is shown for it (a stale error
+      // next to a themed page was a real-browser bug); otherwise the page was not touched.
+      const themed = await pageIsThemed();
+      setView(themed ? { state: "idle", note: S.popup.appliedWithGap } : { state: "error", kind: "error", message: applyFailureMessage(undefined) });
       void showPetHere();
+    }
+  };
+
+  /** True when the active tab has a live theme (asked of the page script, never inferred from the popup's own state). */
+  const pageIsThemed = async (): Promise<boolean> => {
+    try {
+      const tab = await queryActiveTab();
+      return tab ? (await runInPage<boolean>(tab.id, "isActive")) === true : false;
+    } catch {
+      return false;
     }
   };
 

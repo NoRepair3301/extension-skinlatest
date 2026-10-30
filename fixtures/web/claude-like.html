@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture app</title>
+<style>
+html, body { background: #1f1e1d; color: #ece9e2; }
+.app { display: flex; min-height: 100vh; }
+.side { width: 240px; background: #262624; }
+.side-item { display: block; width: 100%; background: transparent; color: #ece9e2; border: 0; padding: 8px; text-align: left; }
+.side-item.active { background: #3a3835; }
+.card { background: #30302e; color: #ece9e2; border-radius: 12px; padding: 16px; }
+.send { background: #d97757; color: #ffffff; border: 0; border-radius: 8px; padding: 8px 12px; }
+.editor { background: #30302e; color: #ece9e2; min-height: 60px; padding: 8px; }
+</style></head>
+<body>
+<div class="app">
+  <aside class="side">
+    <button class="side-item active" type="button"><span>New chat</span></button>
+    <button class="side-item" type="button"><span>Recent topic one</span></button>
+    <button class="side-item" type="button"><div><span>Recent topic two</span></div></button>
+    <a class="side-item" href="/settings"><span>Settings</span></a>
+  </aside>
+  <main>
+    <h1>Welcome back</h1>
+    <div class="card"><p>This is a card with a paragraph of ordinary text inside it.</p><span>Small label</span></div>
+    <div class="editor" contenteditable="true" role="textbox"></div>
+    <button class="send" type="button"><span>Send</span></button>
+  </main>
+</div>
+</body></html>

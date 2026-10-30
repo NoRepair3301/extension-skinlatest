@@ -1,5 +1,6 @@
 import { checkUrl } from "../analyzer/eligibility.ts";
-import { injectFile, queryActiveTab, runInPage } from "./api.ts";
+import { queryActiveTab, runInPage } from "./api.ts";
+import { ensureApplier } from "./inject.ts";
 import { originOf } from "./origin.ts";
 import { loadSettings, petConfig } from "./settings.ts";
 
@@ -30,7 +31,7 @@ export async function showPetHere(): Promise<PetShowResult> {
     const origin = originOf(tab.url);
     if (origin !== undefined && settings.pet.disabledOrigins.includes(origin)) return { ok: false, why: PET_WHY.siteOff };
     try {
-      await injectFile(tab.id, "applier.js");
+      await ensureApplier(tab.id);
     } catch {
       return { ok: false, why: PET_WHY.denied };
     }

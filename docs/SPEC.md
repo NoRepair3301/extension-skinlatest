@@ -27,6 +27,10 @@ analyzer (DOM to regions, summary, risk, fingerprint) | plan (schema, validator,
   fonts:[ up to 3 family names ],
   counts:{nodes,links,forms,tables,images,headings,iframes},
   risk:[ "password"|"payment"|"file"|"editable"|"big-table"|"iframes"|"shadow" ],
+  page:{ tone:"light"|"dark",           // luminance of the page background
+         bgImages:0..999,              // scanned elements with a CSS background-image (count only)
+         largeMedia:0..99,             // img/video/canvas/picture covering a large part of the viewport (count only)
+         hasHeroMedia:boolean },       // a big media or background-image element
   regions:[ up to 40 of
     { id:"r1",                              // r + number, document order
       role:"header"|"nav"|"main"|"aside"|"footer"|"section"|"card-list"|"link-list"|"table"|"form"|"button-group"|"heading"|"other",
@@ -35,7 +39,7 @@ analyzer (DOM to regions, summary, risk, fingerprint) | plan (schema, validator,
       rect:{x,y,w,h},                       // rounded to multiples of 10
       style:{color,bg,fontSize,fontWeight,radius} } ] }
 ```
-Never included: text, hrefs, ids, alt, title, aria-label, data-* values, form values, URLs, origin, page title, images. Total JSON at most 20 KB (drop lowest-priority regions until it fits).
+Never included: image addresses, text, hrefs, ids, alt, title, aria-label, data-* values, form values, URLs, origin, page title, images. Total JSON at most 20 KB (drop lowest-priority regions until it fits).
 ### 4.2 StylePlan v1 (what the AI returns; unknown keys are rejected)
 ```
 { v:1,
@@ -46,8 +50,11 @@ Never included: text, hrefs, ids, alt, title, aria-label, data-* values, form va
   regionRules:[ up to 40 of { region:"rN", layout:"none"|"link-grid"|"nav-wrap"|"center-column"|"card-grid"|"stack"|"table-clean",
                               surface:"none"|"flat"|"card", spacing:0..4 (int) } ],
   reasons:[ up to 5 of "repeated-links"|"clear-nav"|"dense-text"|"low-contrast-source"|"dark-source"|"form-heavy"|"unsure" ],
-  sceneId?:"none"|"paper"|"space"|"ocean"|"midnight-stars"|"calm"|"field"  /* optional, default "none"; PROMPT_VERSION 3 */ }
+  sceneId?:"none"|"paper"|"space"|"ocean"|"midnight-stars"|"calm"|"field",  /* optional, default "none"; PROMPT_VERSION 3 */
+  strategy?:"full"|"safe"|"text-only",   /* optional, default "safe"; PROMPT_VERSION 4 */
+  protectBackgrounds?:boolean }           /* optional, default true */
 ```
+Strategy ladder (the compiler and the visual guard, docs/ARCHITECTURE.md): full = element surfaces too (buttons, fields, tables, legacy colour attributes, region surfaces and layouts); safe = page background on html, text, link and heading colours, accent only on focus and borders; text-only = text colours fitted to the page's own tone, no backgrounds. protectBackgrounds=true never paints wrapper boxes. The compiler never emits the `background` shorthand, `background-image`, a body background, or anything for media; every background colour is paired with a text colour; site classes win wherever they set their own colours (`:where` selectors, no `!important`, except the page root and legacy colour attributes). After applying, the guard checks text contrast (3), typing fields (4.5, caret visible) and media state, steps down one strategy and re-checks once, then rolls back.
 Font stacks are fixed in code (system-ui, Georgia/serif, ui-monospace, etc.); the AI never names fonts. Layouts are fixed CSS templates over the existing children and never change DOM order. Eligibility (validator and compiler both check it; PROMPT_VERSION 2 tells the model):
 | layout | roles | other |
 |---|---|---|

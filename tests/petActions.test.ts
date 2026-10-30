@@ -48,6 +48,7 @@ describe("showPetHere", () => {
     expect(await showPetHere()).toEqual({ ok: false, why: PET_WHY.noTab });
     api.queryActiveTab.mockResolvedValue({ id: 4, url: "https://example.org/a" });
     api.injectFile.mockRejectedValue(new Error("no"));
+    api.runInPage.mockResolvedValue(undefined); // no applier in the tab either
     expect(await showPetHere()).toEqual({ ok: false, why: PET_WHY.denied });
     api.injectFile.mockResolvedValue(undefined);
     api.runInPage.mockResolvedValue(false);

@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Fixture hero</title>
+<style>
+body { background: #ffffff url(hero-body.jpg) no-repeat top; color: #222222; margin: 0; }
+.backdrop { position: fixed; inset: 0; z-index: -1; width: 100%; height: 100%; }
+.hero { height: 400px; background-image: url(hero.jpg); background-size: cover; color: #ffffff; }
+.tile { height: 120px; background-image: url(tile.jpg); color: #ffffff; }
+</style></head>
+<body>
+<img class="backdrop" src="backdrop.jpg" alt="">
+<header class="hero"><h1>Big headline over a picture</h1><p>Short line over the picture.</p></header>
+<main>
+  <section class="tile"><h2>Tile heading</h2></section>
+  <article><h2>Story</h2><p>Plain paragraph below the picture.</p><img src="photo.jpg" alt=""></article>
+  <form action="/go"><input type="text" name="q"><button type="submit"><span>Go</span></button></form>
+</main>
+</body></html>

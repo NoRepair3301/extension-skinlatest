@@ -32,11 +32,11 @@ export const fakePage = (analysis: PageAnalysis | (() => PageAnalysis)) => {
     },
     applyTheme: async (id) => {
       calls.push(`applyTheme:${id}`);
-      return { ok: true, themeId: id, regions: 0 };
+      return { ok: true, themeId: id, regions: 0, strategy: "safe" as const, steppedDown: false };
     },
     applyPlan: async (plan) => {
       calls.push(`applyPlan:${plan.themeId}`);
-      return { ok: true, themeId: plan.themeId, regions: plan.regionRules.length };
+      return { ok: true, themeId: plan.themeId, regions: plan.regionRules.length, strategy: "safe" as const, steppedDown: false };
     },
     restore: async () => {
       calls.push("restore");

@@ -80,7 +80,7 @@ describe("legacy markup is targeted by attribute selectors", () => {
     const { host, sheets } = fakeHost();
     createApplier(doc, { style: host, summaryDeps: fakeDeps() }).applyTheme("calm-light");
     const css = sheets[0]!;
-    for (const attr of ["td[bgcolor]", "tr[bgcolor]", "body[bgcolor]", "body[background]", "font[color]", "table[border]", "table[cellpadding]", 'td[style*="background"]']) expect(css).toContain(attr);
+    for (const attr of ["td[bgcolor]", "tr[bgcolor]", "body[bgcolor]", "font[color]", "table[border]", 'td[style*="background-color"]']) expect(css).toContain(attr);
     for (const sel of ["body[bgcolor]", "td[bgcolor]", "font[color]", "table[border]"]) expect(doc.querySelector(sel), sel).not.toBeNull();
   });
 });

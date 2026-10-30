@@ -64,6 +64,6 @@ describe("payload", () => {
   });
 
   it("the payload has exactly the SPEC 4.1 keys", () => {
-    expect(Object.keys(JSON.parse(buildUserMessage(sampleSummary()))).sort()).toEqual(["counts", "fonts", "palette", "regions", "risk", "v", "viewport"]);
+    expect(Object.keys(JSON.parse(buildUserMessage(sampleSummary()))).sort()).toEqual(["counts", "fonts", "page", "palette", "regions", "risk", "v", "viewport"]);
   });
 });

@@ -18,6 +18,7 @@ const summary = (risk: StructuralSummary["risk"] = []): StructuralSummary => ({
   v: 1,
   viewport: { w: 1000, h: 800 },
   palette: [],
+  page: { tone: "light", bgImages: 0, largeMedia: 0, hasHeroMedia: false },
   fonts: [],
   counts: { nodes: 10, links: 10, forms: 0, tables: 0, images: 0, headings: 0, iframes: 0 },
   risk,

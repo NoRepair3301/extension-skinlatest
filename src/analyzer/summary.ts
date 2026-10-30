@@ -1,4 +1,4 @@
-import type { Rect, Region, RegionStyle, RiskMarker, StructuralSummary, SummaryCounts } from "../core/types.ts";
+import type { PageFacts, Rect, Region, RegionStyle, RiskMarker, StructuralSummary, SummaryCounts } from "../core/types.ts";
 import type { RegionNode } from "./regions.ts";
 
 export const SUMMARY_MAX_BYTES = 20 * 1024;
@@ -10,6 +10,8 @@ export interface RawStyle {
   fontWeight: string;
   borderRadius: string;
   fontFamily: string;
+  /** Computed background-image; only whether it is not "none" is ever used. */
+  backgroundImage?: string;
 }
 
 /** Real code reads computed style and layout; tests inject fakes because jsdom has no layout. */
@@ -32,6 +34,7 @@ export function defaultDeps(doc: Document): SummaryDeps {
         fontWeight: s.fontWeight,
         borderRadius: s.borderTopLeftRadius,
         fontFamily: s.fontFamily,
+        backgroundImage: s.backgroundImage,
       };
     },
     getRect: (el) => {
@@ -111,7 +114,42 @@ function topByCount(values: string[], max: number): string[] {
   return [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, max).map(([v]) => v);
 }
 
-export function buildSummary(nodes: RegionNode[], counts: SummaryCounts, risk: RiskMarker[], deps: SummaryDeps): StructuralSummary {
+const MEDIA_TAGS = new Set(["img", "video", "canvas", "picture"]);
+const BG_SAMPLE_CAP = 1500;
+const luma = (hex: string): number => {
+  const n = parseInt(hex.slice(1), 16);
+  const ch = (v: number): number => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4);
+  return 0.2126 * ch((n >> 16) & 255) + 0.7152 * ch((n >> 8) & 255) + 0.0722 * ch(n & 255);
+};
+
+/** Tone of the page background plus counts of background images and large media. Reads computed style only; no URLs, no text. */
+export function pageFacts(doc: Document, elements: Element[], deps: SummaryDeps): PageFacts {
+  let bg = "#ffffff";
+  for (const el of [doc.body, doc.documentElement]) {
+    const c = el ? parseColor(deps.getStyle(el).backgroundColor) : null;
+    if (c && c.alpha > 0.5) {
+      bg = c.hex;
+      break;
+    }
+  }
+  const vw = Math.max(1, deps.viewport.w);
+  const vh = Math.max(1, deps.viewport.h);
+  let bgImages = 0;
+  let largeMedia = 0;
+  let hero = false;
+  elements.slice(0, BG_SAMPLE_CAP).forEach((el) => {
+    const hasBg = (deps.getStyle(el).backgroundImage ?? "none") !== "none";
+    const media = MEDIA_TAGS.has(el.localName);
+    if (!hasBg && !media) return;
+    const r = deps.getRect(el);
+    if (hasBg) bgImages++;
+    if (media && r.w * r.h >= vw * vh * 0.1) largeMedia++;
+    if (r.w >= vw * 0.5 && r.h >= vh * 0.25) hero = true;
+  });
+  return { tone: luma(bg) < 0.18 ? "dark" : "light", bgImages: Math.min(bgImages, 999), largeMedia: Math.min(largeMedia, 99), hasHeroMedia: hero };
+}
+
+export function buildSummary(nodes: RegionNode[], counts: SummaryCounts, risk: RiskMarker[], deps: SummaryDeps, page: PageFacts): StructuralSummary {
   const built = nodes.map((n) => {
     const { style, family } = styleOf(n.el, deps);
     const r = deps.getRect(n.el);
@@ -136,6 +174,7 @@ export function buildSummary(nodes: RegionNode[], counts: SummaryCounts, risk: R
     fonts: topByCount(list.map((b) => b.family).filter((f) => FONT_NAME.test(f)), 3),
     counts,
     risk,
+    page,
     regions: list.map((b) => b.region),
   });
 

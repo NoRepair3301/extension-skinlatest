@@ -1,6 +1,7 @@
 import { FREESPACE_WHY } from "../features/freespace/index.ts";
 import { ASSET_WHY } from "../features/assets/render.ts";
-import { injectFile, runScene } from "./api.ts";
+import { runScene } from "./api.ts";
+import { ensureScene } from "./inject.ts";
 import type { SceneStatusReport } from "./scene.ts";
 import { sceneRequest, type SceneSource } from "./sceneConfig.ts";
 import type { Settings } from "./settings.ts";
@@ -28,7 +29,7 @@ export async function showArtHere(tabId: number, settings: Settings, source: Sce
       // Nothing to show now; clear anything an earlier choice left, if the script is there.
       return await runScene<SceneStatusReport>(tabId, "sync", null);
     }
-    await injectFile(tabId, "scene.js");
+    await ensureScene(tabId);
     return await runScene<SceneStatusReport>(tabId, "sync", req);
   } catch {
     return undefined;

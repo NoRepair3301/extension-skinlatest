@@ -20,6 +20,7 @@ export const en = {
     ready: "Ready to change this page.",
     readyAuto: "Ready. Auto theme follows your browser.",
     readyNoPage: "Ready. Open a web page to change it.",
+    appliedWithGap: "The theme is on. Something after it could not finish, so the page was left as it is now.",
     siteAuto: "This site changes automatically.",
     siteSaved: "This site is remembered.",
   },

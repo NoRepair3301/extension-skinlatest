@@ -65,7 +65,7 @@ describe("validator and compiler agree on layouts", () => {
     const s = summary();
     const v = validatePlan(plan([{ region: "r4", layout: "card-grid" }, { region: "r1", layout: "stack" }, { region: "r3", layout: "center-column" }, { region: "r5", layout: "table-clean" }]), s);
     if (!v.ok) throw new Error(v.errors.join());
-    const css = compileCss(v.plan, s);
+    const css = compileCss({ ...v.plan, strategy: "full" }, s);
     expect(css).toContain("grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr))");
     expect(css).toContain("flex-direction: column");
     expect(css).toContain("max-width: 72rem");
@@ -110,8 +110,8 @@ describe("layouts never change DOM order", () => {
 });
 
 describe("prompt v2", () => {
-  it("is version 3 and guides the model per region", () => {
-    expect(PROMPT_VERSION).toBe("3");
+  it("is version 4 and guides the model per region", () => {
+    expect(PROMPT_VERSION).toBe("4");
     for (const l of LAYOUTS.filter((x) => x !== "none")) expect(SYSTEM_PROMPT).toContain(`"${l}"`);
     expect(SYSTEM_PROMPT).toContain("per region");
     expect(SYSTEM_PROMPT).toContain("order never changes");
