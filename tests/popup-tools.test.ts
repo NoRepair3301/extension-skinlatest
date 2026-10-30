@@ -20,9 +20,11 @@ const api = vi.hoisted(() => ({
   browserHints: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
-vi.mock("../src/extension/flow.ts", () => ({ runTransform: vi.fn(), createPageClient: () => ({ applyTheme: vi.fn() }) }));
+const flow = vi.hoisted(() => ({ runTransform: vi.fn() }));
+vi.mock("../src/extension/flow.ts", () => ({ runTransform: flow.runTransform, createPageClient: () => ({ applyTheme: vi.fn() }) }));
 
 import { Popup } from "../src/extension/popup/Popup.tsx";
+import { PET_WHY } from "../src/extension/petActions.ts";
 
 const TAB = { id: 7, url: "https://example.org/a" };
 const mount = async () => {
@@ -38,6 +40,7 @@ const labelled = (root: HTMLElement, text: string) => Array.from(root.querySelec
 beforeEach(() => {
   document.body.innerHTML = "";
   Object.values(api).forEach((f) => f.mockReset());
+  flow.runTransform.mockReset();
   store.clear();
   api.storageGet.mockImplementation(async (k: string) => store.get(k));
   api.storageSet.mockImplementation(async (k: string, v: unknown) => void store.set(k, v));
@@ -110,5 +113,101 @@ describe("popup shortcut list (H)", () => {
     api.getCommands.mockResolvedValue([cmds[1]!]);
     const root = await mount();
     expect(root.textContent).toContain("Not set - open chrome://extensions/shortcuts");
+  });
+});
+
+describe("popup pet button (I)", () => {
+  const petOn = (over: Record<string, unknown> = {}) =>
+    store.set("settings", { theme: "calm-light", blocklist: [], pet: { enabled: true, kind: "pebble", size: "medium", corner: "bottom-right", disabledOrigins: [], ...over } });
+  const button = (root: HTMLElement) => Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Show pet on this page")!;
+  const petNote = (root: HTMLElement) => root.querySelector('fieldset [aria-live="polite"]')!.textContent;
+  const click = async (b: HTMLElement) => {
+    await act(() => b.click());
+    await flush();
+  };
+
+  it("has a Show pet on this page button and injects nothing until it is clicked", async () => {
+    petOn();
+    const root = await mount();
+    expect(button(root)).toBeDefined();
+    expect(api.injectFile).not.toHaveBeenCalled();
+    expect(api.runInPage).not.toHaveBeenCalled();
+  });
+
+  it("shows the pet after the click: injects the page script and asks it to show the pet", async () => {
+    petOn();
+    api.runInPage.mockResolvedValue(true);
+    const root = await mount();
+    await click(button(root));
+    expect(api.injectFile).toHaveBeenCalledWith(7, "applier.js");
+    expect(api.runInPage).toHaveBeenCalledWith(7, "syncPet", expect.objectContaining({ enabled: true }));
+    expect(petNote(root)).toContain("The pet is on this page");
+  });
+
+  it("when the pet is off it says so in one line and injects nothing", async () => {
+    const root = await mount();
+    await click(button(root));
+    expect(petNote(root)).toBe(PET_WHY.off);
+    expect(api.injectFile).not.toHaveBeenCalled();
+  });
+
+  it("on a page it cannot use, the one line says why", async () => {
+    petOn();
+    api.queryActiveTab.mockResolvedValue({ id: 7, url: "https://chromewebstore.google.com/x" });
+    const root = await mount();
+    await click(button(root));
+    expect(petNote(root)).toBe(PET_WHY.blocked);
+    expect(api.injectFile).not.toHaveBeenCalled();
+  });
+
+  it("when the page script cannot show it, the one line says so", async () => {
+    petOn();
+    api.runInPage.mockResolvedValue(false);
+    const root = await mount();
+    await click(button(root));
+    expect(petNote(root)).toBe(PET_WHY.notShown);
+  });
+
+  it("shows after any tool used on the page (Blur whole page)", async () => {
+    petOn();
+    api.runTool.mockResolvedValue({ share: false, count: 0, missing: 0, images: false, picked: [], picking: false, page: true });
+    api.runInPage.mockResolvedValue(true);
+    const root = await mount();
+    await act(() => labelled(root, "Blur whole page")!.querySelector("input")!.click());
+    await flush();
+    expect(api.runInPage).toHaveBeenCalledWith(7, "syncPet", expect.objectContaining({ enabled: true }));
+  });
+
+  it("does not depend on the theme: a theme that failed to apply still gets the pet", async () => {
+    petOn();
+    api.runInPage.mockResolvedValue(true);
+    flow.runTransform.mockResolvedValue({ kind: "error", errorKind: "baseline", message: "The theme's colours were too hard to read here, so the page was left as it was.", themeId: "calm-light" });
+    const root = await mount();
+    await click(Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Change my page")!);
+    expect(root.querySelector('[role="status"]')!.textContent).toContain("too hard to read");
+    expect(api.runInPage).toHaveBeenCalledWith(7, "syncPet", expect.objectContaining({ enabled: true }));
+  });
+
+  it("never on a blocked outcome", async () => {
+    petOn();
+    flow.runTransform.mockResolvedValue({ kind: "blocked", reason: "internal", message: "Skinly can't change this kind of page" });
+    const root = await mount();
+    await click(Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Change my page")!);
+    expect(api.runInPage).not.toHaveBeenCalled();
+  });
+
+  it("changing a pet setting only updates a pet already on the page, and never injects", async () => {
+    petOn();
+    const root = await mount();
+    await act(() => root.querySelector<HTMLInputElement>('fieldset input[type="checkbox"]')!.click());
+    await flush();
+    expect(api.runInPage).toHaveBeenCalledWith(7, "updatePet", expect.objectContaining({ enabled: false }));
+    expect(api.runInPage).not.toHaveBeenCalledWith(7, "syncPet", expect.anything());
+    expect(api.injectFile).not.toHaveBeenCalled();
+  });
+
+  it("the pet is off by default", async () => {
+    const root = await mount();
+    expect(root.querySelector<HTMLInputElement>('fieldset input[type="checkbox"]')!.checked).toBe(false);
   });
 });

@@ -84,3 +84,11 @@ Items are added per step; the full list is printed at the end of the final repor
 - [ ] On a public page press each assigned key: a 2 s toast appears bottom-centre ("Skinly: theme applied", "restored", "blur on"/"blur off", "palette open"). If a key does nothing and no toast shows, tell me which key, the browser version and the page type (docs/BUGS.md).
 - [ ] The browser used to pass the tab without a URL in some cases; the code now asks the page. If Alt+Shift+S still only puts a "!" badge on a normal page, hover the toolbar icon and read the tooltip, and record it.
 - [ ] On edge://extensions or a web store page the keys only set the "!" badge and the tooltip; no toast is possible there (we never inject into those pages).
+
+### I. Pet
+- [ ] Turn the pet on, open a page, click "Show pet on this page": the pet appears. Click Restore original: it disappears. It is off by default and does not appear until you click (or use another tool).
+- [ ] On a page where Change my page reports a rolled-back theme, the pet still shows and the popup says why in plain words.
+- [ ] On edge://extensions the button's one-line message says Skinly can't put the pet there.
+
+### J. Theme failure message
+- [ ] On a legacy portal (e.g. the ERP) click Change my page. If the theme is rolled back the popup says the reason in plain words (no page text). Record which reason you saw.

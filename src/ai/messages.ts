@@ -28,28 +28,36 @@ export const TOAST = {
   failed: "Skinly: couldn't change this page",
 } as const;
 
+type ApplyFailure = { reason?: string; detail?: readonly string[] } | undefined;
+
 /**
- * Why an apply was rolled back, in plain words. Built from the reason code only (and two fixed detail codes); never from page
- * content, plan values or invariant details. `undefined` means the page script never answered.
+ * Why an apply was rolled back, as a sentence fragment in plain words. Built from the reason code only (and two fixed detail
+ * codes); never from page content, plan values or invariant details. `undefined` means the page script never answered.
  */
-export function applyFailureMessage(r: { reason?: string; detail?: readonly string[] } | undefined): string {
+export function applyFailureReason(r: ApplyFailure): string {
   switch (r?.reason) {
     case undefined:
-      return "Skinly couldn't run on this page (the browser didn't allow it), so the page was left as it was.";
+      return "Skinly couldn't run on this page (the browser didn't allow it)";
     case "invariants":
-      return "Applying the theme would have changed links or form controls on this page, so nothing was changed.";
+      return "Applying the theme would have changed links or form controls on this page";
     case "invalid-plan":
-      if (r.detail?.[0] === "contrast") return "The theme's colours were too hard to read here, so the page was left as it was.";
-      if (r.detail?.[0] === "region missing on page") return "The page changed while it was being read, so the page was left as it was. Try again.";
-      return "That style wasn't safe to apply, so the page was left as it was.";
+      if (r.detail?.[0] === "contrast") return "The theme's colours were too hard to read here";
+      if (r.detail?.[0] === "region missing on page") return "The page changed while it was being read";
+      return "That style wasn't safe to apply";
     case "too-large":
-      return "This page is too large to restyle safely, so the page was left as it was.";
+      return "This page is too large to restyle safely";
     case "bad-theme":
-      return "That theme isn't available, so the page was left as it was.";
+      return "That theme isn't available";
     default:
-      return "Something went wrong while applying the theme, so the page was left as it was.";
+      return "Something went wrong while applying the theme";
   }
 }
+
+/** Theme could not be applied and the page was left as it was. */
+export const applyFailureMessage = (r: ApplyFailure): string => `${applyFailureReason(r)}, so the page was left as it was.`;
+
+/** An AI style was rolled back and the built-in theme stays. */
+export const aiApplyFailureMessage = (r: ApplyFailure): string => `${applyFailureReason(r)}, so the AI style was not used. The built-in theme is kept.`;
 
 export const busy = (from: string, next: string): string => `${from} is busy; trying ${next}`;
 export const authFailed = (provider: string): string => `${provider} rejected the key. Check it in Settings. The built-in theme is kept`;

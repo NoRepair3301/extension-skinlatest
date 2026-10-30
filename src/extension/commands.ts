@@ -67,7 +67,10 @@ export async function handleCommand(deps: CommandDeps, command: CommandName, tab
       if (state === undefined) {
         await deps.setTitle(tab.id, applyFailureMessage(undefined));
         await say(TOAST.failed);
-      } else await say(state.page ? TOAST.blurOn : TOAST.blurOff);
+      } else {
+        await deps.runApplier(tab.id, "syncPet", settings.pet); // the pet also shows after a tool (when it is enabled)
+        await say(state.page ? TOAST.blurOn : TOAST.blurOff);
+      }
       return;
     }
     const r = (await deps.runApplier(tab.id, "applyTheme", settings.theme)) as { ok?: boolean; reason?: string; detail?: string[] } | undefined;

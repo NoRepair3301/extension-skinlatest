@@ -10,10 +10,12 @@ interface Props {
   origin: string;
   record: SiteRecord | undefined;
   onSaved(): void;
+  /** Called after any tool ran on the page; the popup uses it to show the pet there (when it is enabled). */
+  onToolUsed?(): void;
 }
 
 /** Blur, safe screenshot and table tools. The first use injects the page script (activeTab, from the user's click). */
-export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
+export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Props) {
   const [state, setState] = useState<ToolState | undefined>(undefined);
   const [images, setImages] = useState(record?.blurImages ?? false);
   const [note, setNote] = useState("");
@@ -48,7 +50,10 @@ export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
 
   const guard = async (run: () => Promise<void>) => {
     try {
-      if (await ready()) await run();
+      if (await ready()) {
+        await run();
+        onToolUsed?.();
+      }
     } catch {
       setNote("That didn't work; the page was left as it was.");
     }

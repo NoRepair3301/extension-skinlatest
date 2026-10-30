@@ -13,7 +13,7 @@ import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
 import type { ErrorKind, Provider } from "../providers/types.ts";
 import type { BuiltinThemeId } from "../themes/index.ts";
-import { authFailed, blockedMessage, busy, MSG } from "./messages.ts";
+import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG } from "./messages.ts";
 import { buildUserMessage, SYSTEM_PROMPT } from "./prompt.ts";
 
 /** The page side, reached through scripting. Implemented in src/extension/flow.ts; faked in tests. */
@@ -104,7 +104,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
 
   step("baseline");
   const applied = await deps.page.applyTheme(baselineId);
-  if (!applied?.ok) return { kind: "error", errorKind: "baseline", message: MSG.baselineFailed, themeId: baselineId };
+  if (!applied?.ok) return { kind: "error", errorKind: "baseline", message: applyFailureMessage(applied), themeId: baselineId };
   if (signal?.aborted) return { kind: "cancelled", themeId: baselineId };
 
   step("analysing");
@@ -168,7 +168,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       step("applying");
       const id = nearestTheme(summary, rejectedBg);
       const r = await deps.page.applyTheme(id);
-      if (!r?.ok) return baseline("apply-failed", MSG.applyFailed);
+      if (!r?.ok) return baseline("apply-failed", aiApplyFailureMessage(r));
       return { kind: "preview", source: "fallback", plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };
     }
     return baseline("ai-unavailable", MSG.allFailed);
@@ -179,7 +179,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   const shown = await deps.page.applyPlan(validPlan);
   if (!shown?.ok) {
     await deps.page.applyTheme(baselineId);
-    return baseline("apply-failed", MSG.applyFailed);
+    return baseline("apply-failed", aiApplyFailureMessage(shown));
   }
   return { kind: "preview", source: "ai", plan: validPlan, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model, ...(coloursAdjusted ? { message: MSG.coloursAdjusted } : {}) };
 }

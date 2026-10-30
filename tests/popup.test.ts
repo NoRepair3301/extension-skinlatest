@@ -28,7 +28,7 @@ vi.mock("../src/extension/flow.ts", () => ({
   createPageClient: () => ({ applyTheme: flow.applyTheme }),
 }));
 
-import { MSG } from "../src/ai/messages.ts";
+import { MSG, applyFailureMessage } from "../src/ai/messages.ts";
 import { planFor } from "./plan/helpers.ts";
 import { BLOCKED_MESSAGE, Popup } from "../src/extension/popup/Popup.tsx";
 
@@ -263,7 +263,8 @@ describe("popup", () => {
       flow.runTransform.mockRejectedValue(new Error("secret detail"));
       const root = await mount();
       await click(root, "Change my page");
-      expect(status(root)).toBe(MSG.baselineFailed);
+      expect(status(root)).toBe(applyFailureMessage(undefined));
+      expect(status(root)).toContain("the browser didn't allow it");
       expect(root.textContent).not.toContain("secret detail");
     });
   });

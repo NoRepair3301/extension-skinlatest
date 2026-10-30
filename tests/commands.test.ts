@@ -76,7 +76,7 @@ describe("commands", () => {
   it("toggle-blur-page toggles the whole-page blur and toasts 'blur on' or 'blur off'", async () => {
     const on = make({ blurState: { page: true } });
     await handleCommand(on.d, "toggle-blur-page", tab(OK));
-    expect(on.calls).toEqual(["title:Skinly AI", "inject:applier.js", "tool:blurPage", "toast:Skinly: blur on"]);
+    expect(on.calls).toEqual(["title:Skinly AI", "inject:applier.js", "tool:blurPage", "run:syncPet", "toast:Skinly: blur on"]);
     const off = make({ blurState: { page: false } });
     await handleCommand(off.d, "toggle-blur-page", tab(OK));
     expect(off.calls.at(-1)).toBe("toast:Skinly: blur off");

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { contrastFailures } from "../../src/plan/contrast.ts";
 import { transform } from "../../src/ai/pipeline.ts";
-import { MSG } from "../../src/ai/messages.ts";
+import { aiApplyFailureMessage, applyFailureMessage, MSG } from "../../src/ai/messages.ts";
 import { buildUserMessage } from "../../src/ai/prompt.ts";
 import { defaultSettings } from "../../src/extension/settings.ts";
 import { sampleSummary } from "../plan/helpers.ts";
@@ -77,7 +77,8 @@ describe("transform: invalid output", () => {
     const h = harness();
     h.page.page.applyPlan = async () => ({ ok: false, reason: "invariants" });
     const out = await transform(URL_OK, h.deps);
-    expect(out).toMatchObject({ kind: "baseline", why: "apply-failed", message: MSG.applyFailed });
+    expect(out).toMatchObject({ kind: "baseline", why: "apply-failed", message: aiApplyFailureMessage({ reason: "invariants" }) });
+    if (out.kind === "baseline") expect(out.message).toContain("links or form controls");
     expect(h.page.calls.at(-1)).toBe("applyTheme:calm-light");
   });
 });
@@ -103,6 +104,46 @@ describe("transform: per-provider time limits", () => {
     expect(h.mocks.gemini.calls).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(1_500);
     expect(await p).toMatchObject({ kind: "baseline", why: "ai-unavailable" });
+  });
+});
+
+describe("transform: why an apply was rolled back (J)", () => {
+  const reasons: Array<[Record<string, unknown>, string]> = [
+    [{ ok: false, reason: "invariants", detail: ["a[href] changed", "SECRET-PAGE-TEXT"] }, "links or form controls"],
+    [{ ok: false, reason: "invalid-plan", detail: ["contrast"] }, "colours were too hard to read"],
+    [{ ok: false, reason: "invalid-plan", detail: ["region missing on page"] }, "page changed while it was being read"],
+    [{ ok: false, reason: "invalid-plan", detail: ["tokens.bg: SECRET-PAGE-TEXT"] }, "wasn't safe to apply"],
+    [{ ok: false, reason: "too-large" }, "too large"],
+    [{ ok: false, reason: "error" }, "Something went wrong"],
+  ];
+
+  it.each(reasons)("the baseline theme failing with %j says why in plain words", async (result, words) => {
+    const h = harness();
+    h.page.page.applyTheme = async () => result as never;
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "error", errorKind: "baseline" });
+    if (out.kind !== "error") return;
+    expect(out.message).toContain(words);
+    expect(out.message).toContain("page was left as it was");
+    expect(out.message).not.toContain("SECRET");
+    expect(out.message).not.toContain("a[href]");
+  });
+
+  it("the page script not answering at all is reported as the browser not allowing it", async () => {
+    const h = harness();
+    h.page.page.applyTheme = async () => undefined;
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "error", errorKind: "baseline", message: applyFailureMessage(undefined) });
+    expect(out.kind === "error" && out.message).toContain("the browser didn't allow it");
+  });
+
+  it("an AI plan that is rolled back keeps the built-in theme and says why", async () => {
+    const h = harness();
+    h.page.page.applyPlan = async () => ({ ok: false, reason: "invalid-plan", detail: ["contrast"] });
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "baseline", why: "apply-failed" });
+    expect(out.kind === "baseline" && out.message).toContain("colours were too hard to read");
+    expect(out.kind === "baseline" && out.message).toContain("built-in theme is kept");
   });
 });
 

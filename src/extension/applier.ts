@@ -21,7 +21,12 @@ const adoptedSheetHost = (doc: Document): StyleHost => ({
   },
 });
 
-export type PageApplier = Applier & { syncPet(cfg: PetConfig): void };
+export type PageApplier = Applier & {
+  /** Shows, updates or removes the pet. True when the pet is on screen afterwards. */
+  syncPet(cfg: PetConfig): boolean;
+  /** Like syncPet, but never brings a hidden pet back (used when only a setting changed). */
+  updatePet(cfg: PetConfig): boolean;
+};
 
 const slot = globalThis as unknown as {
   skinlyApplier?: PageApplier;
@@ -33,8 +38,19 @@ function withPet(applier: Applier): PageApplier {
   const pet = createPetController(browserEnv(window));
   applier.onRestore(() => pet.destroy());
   return Object.assign(applier, {
-    /** Shows or removes the pet for this page. Only the pet settings arrive here, never page data. */
-    syncPet: (cfg: PetConfig): void => pet.sync(cfg, originOf(location.href), applier.isActive()),
+    /**
+     * Shows or removes the pet for this page. Only the pet settings arrive here, never page data.
+     * The pet does not depend on a theme: it shows on a page whose theme failed or was never applied (rc4).
+     * The caller (popup button, command, auto script) is responsible for only asking on allowed pages.
+     */
+    syncPet: (cfg: PetConfig): boolean => {
+      pet.sync(cfg, originOf(location.href), true);
+      return pet.mounted();
+    },
+    updatePet: (cfg: PetConfig): boolean => {
+      if (!cfg.enabled || pet.mounted()) pet.sync(cfg, originOf(location.href), true);
+      return pet.mounted();
+    },
   });
 }
 
@@ -51,6 +67,6 @@ if (!slot.skinlyApplier) {
     slot.skinlyApplier = applier;
     slot.skinlyToast ??= createToaster(browserToasterEnv(window)).show;
   } else if (role === "same-origin-frame") {
-    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): void => undefined });
+    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): boolean => false, updatePet: (): boolean => false });
   }
 }
