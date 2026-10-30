@@ -32,3 +32,13 @@ Status: every row is covered by a unit test (there is no browser here). Rows mar
 | E4 | Two prompts, theme not kept by default | Permission asked late, behind Keep | Permission requested first inside the click; stored plan and repair rules applied before first paint on every page | tests/popup.test.ts "the permission request is made before the flow does anything else", "one click asks for this origin only", tests/auto.test.ts "stored repair rules" |
 | E5 | Restore could do nothing after navigation or with a fresh script | Rollback needed the in-memory ledger | Marker-based cleanup; Restore pauses the site | tests/restore-markers.test.ts, tests/popup.test.ts "Restore pauses the site until the user applies again" |
 | E6 | Space showed neither stars nor planets at low density | Actor order | Stars and planets first | tests/features/scenes-art.test.ts "Space shows stars and planets" |
+
+## fix/final-1
+
+| # | Symptom | Cause | Fix | Test |
+|---|---|---|---|---|
+| F1 | Art not back after a reload; never any art with an AI theme | An AI plan has themeId "custom", so no scene was chosen and no scene id was saved; the auto registration added scene.js only for a saved scene id | Scene follows the stored plan (custom follows its own page colour), the look saves `art: true`, scene.js is registered for every kept site, an update re-registers | tests/scene-flow.test.ts "auto path after a reload", tests/scene-config.test.ts "art follows the stored plan" |
+| F2 | Scene host and pet host kept re-appending each other | Each insisted on being the last child of html | Only a page element after a host counts | tests/features/mount.test.ts "two of our own hosts never trade places" |
+| F3 | Art measured on an unstyled page stayed in the corner | Gutters were measured once at DOM ready, then only on resize and DOM changes | Re-measure on load, 1 s, 3 s; corner strip at once at document_start | tests/features/freespace.test.ts "watchGutters timing", tests/scene-flow.test.ts "timing" |
+| F4 | Errors in the auto path or scene script could reach the page console | Unguarded promises and callbacks | Every step records a short kind instead | tests/scene-flow.test.ts "every auto step is caught" |
+| F5 | The next art bug needed several round trips | No diagnostics | Copy diagnostics and Why no art? | tests/diag.test.ts |

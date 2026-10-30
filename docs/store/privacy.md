@@ -12,6 +12,7 @@ Skinly AI is not affiliated with any website.
 - Images and videos you add under My assets are checked and re-encoded in your browser and stored here only. They never leave your device and are never sent to an AI provider.
 - Screenshots you take with the safe screenshot tool are made in your browser and are never uploaded.
 - The palette reads link and button labels in memory to let you search them and never stores or sends them.
+- Diagnostics: a short technical note kept on this device (version, theme name, whether the art showed and how much free space there was, short error names, and how the last AI request ended). It never includes page text, addresses, site names, keys or form values. It leaves your device only if you click Copy diagnostics in Settings and paste it somewhere yourself.
 
 ## What can leave your browser
 Optionally, and only after a second agreement per site, for the parts of a page that look hard to read after restyling, the extension also sends their tag names, up to three class names each, their colours and the colour rules of the page's stylesheets (never text, links, ids, form values, addresses or titles; at most 6 KB). "Show what will be sent" shows it first, and you can withdraw the agreement in Settings, Privacy.
