@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { applyUiTheme } from "../../ui/theme.ts";
+import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
@@ -267,30 +268,48 @@ export function Popup() {
   const page = shortcutsPage(hints.userAgent, hints.brave);
 
   return (
-    <main>
-      <h1>
-        <Logo size={24} /> Skinly AI
-      </h1>
-      <fieldset>
+    <main class="popup">
+      <header class="popup-head">
+        <h1>
+          <Logo size={28} /> Skinly AI
+        </h1>
+        <p role="status" class={view.state === "error" || view.state === "blocked" ? "status-bad" : ""}>{statusText(view) || pageLine(site, settings)}</p>
+      </header>
+
+      {view.state !== "consent" && (
+        <div class="primary-actions">
+          <Button kind="primary" onClick={() => void start()} disabled={busy}>Change my page</Button>
+          <Button onClick={() => void restore()} disabled={busy}>Restore original</Button>
+          {view.state === "working" && <Button kind="quiet" onClick={cancel}>Cancel</Button>}
+        </div>
+      )}
+      {view.state === "working" && <Spinner label="Working" />}
+
+      <fieldset class="themes">
         <legend>Theme</legend>
-        {THEMES.map((t) => (
-          <label key={t.id}>
-            <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => pickTheme(t.id)} />
-            {t.name}
+        <div class="theme-grid">
+          {THEMES.map((t) => (
+            <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}`}>
+              <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => pickTheme(t.id)} />
+              <span class="mini" aria-hidden="true" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
+                <i style={{ background: t.tokens.surface }} />
+                <i style={{ background: t.tokens.accent, width: "40%" }} />
+                <i style={{ background: t.tokens.text, width: "60%", height: "3px" }} />
+              </span>
+              <span class="theme-name">{t.name}</span>
+            </label>
+          ))}
+          <label class={`theme-card${settings.theme === "auto" ? " on" : ""}`}>
+            <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
+            <span class="mini auto" aria-hidden="true" />
+            <span class="theme-name">Auto (light by day, dark when your browser is dark)</span>
           </label>
-        ))}
-        <label>
-          <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
-          Auto (light by day, dark when your browser is dark)
-        </label>
+        </div>
       </fieldset>
 
       <fieldset>
         <legend>Pet</legend>
-        <label>
-          <input type="checkbox" checked={settings.pet.enabled} onChange={(e) => updatePet({ ...settings.pet, enabled: (e.currentTarget as HTMLInputElement).checked })} />
-          Show a small pet on pages I change
-        </label>
+        <Toggle label="Show a small pet on pages I change" checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
         {site && settings.pet.enabled && (
           <label>
             <input
@@ -367,13 +386,6 @@ export function Popup() {
         </section>
       )}
 
-      {view.state !== "consent" && (
-        <button type="button" onClick={() => void start()} disabled={busy}>Change my page</button>
-      )}
-      {view.state === "working" && <button type="button" onClick={cancel}>Cancel</button>}
-      <button type="button" onClick={() => void restore()} disabled={busy}>Restore original</button>
-
-      <p role="status">{statusText(view)}</p>
       {site && view.state !== "consent" && <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} onToolUsed={() => void showPetHere()} />}
 
       <section aria-label="Shortcuts">
@@ -387,6 +399,10 @@ export function Popup() {
         )}
         <p class="note">To set or change a key, open {page} in the address bar.</p>
       </section>
+      <details class="sent">
+        <summary>What gets sent</summary>
+        <p class="note">Only after you agree and click: a small description of the page's layout (shapes, sizes and colours). Never text, links, images or forms. Before each send, "Show what will be sent" shows the exact message. Built-in themes send nothing.</p>
+      </details>
       <footer>Skinly AI is not affiliated with any website.</footer>
     </main>
   );
@@ -407,6 +423,13 @@ function toView(o: Outcome, tabId: number): View {
     case "cancelled":
       return { state: "idle", note: "Cancelled." };
   }
+}
+
+/** One plain line for the header when nothing else needs saying. */
+function pageLine(site: { origin: string; record: SiteRecord | undefined } | undefined, settings: Settings): string {
+  if (!site) return "Ready. Open a web page to change it.";
+  if (site.record) return site.record.mode === "auto" ? "This site changes automatically." : "This site is remembered.";
+  return settings.theme === "auto" ? "Ready. Auto theme follows your browser." : "Ready to change this page.";
 }
 
 function statusText(v: View): string {

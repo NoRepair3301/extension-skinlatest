@@ -136,6 +136,15 @@ describe("popup", () => {
     expect(status(root)).toBe("Cancelled.");
   });
 
+  it("layout: status line and the primary action come before the theme cards, and What gets sent is reachable", async () => {
+    const root = await mount();
+    const html = root.innerHTML;
+    expect(html.indexOf('role="status"')).toBeLessThan(html.indexOf("Change my page"));
+    expect(html.indexOf("Change my page")).toBeLessThan(html.indexOf('name="theme"'));
+    expect(root.querySelector("details.sent summary")!.textContent).toBe("What gets sent");
+    expect(root.querySelector("h1")!.textContent).toContain("Skinly AI");
+  });
+
   it("working: shows the provider-busy detail from the pipeline", async () => {
     let hooks: FlowHooks | undefined;
     flow.runTransform.mockImplementation((_t: number, _u: string, h2: FlowHooks) => {
