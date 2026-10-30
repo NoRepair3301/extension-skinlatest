@@ -107,3 +107,8 @@ Method: a fresh `git clone` into a temp folder, `npm ci`, `npm run check`, `npm 
 - [ ] Run docs/QA.md on Edge, Chrome and Brave. Fix any failure with a fix prompt, one test per bug.
 - [ ] Final privacy check: with the Network tab open, use the extension on a page: the only requests from the extension go to the provider you chose and only after consent.
 - [ ] Look at the icon at 16 px in the toolbar on a light and a dark browser theme; replace scripts/icons.ts if you want another design.
+
+## Addendum v0.1.0-rc2 (2026-10-30)
+VERIFIED now: Gemini endpoint + request shape accepted (HTTP 200), Gemini response shape, Gemini 503 error body and retry-after, model id gemini-3.8-flash accepted, Groq 401 error body. Fresh clone: 614 tests, release zip, greps C1/C2/C6/C7/C9/C10/C12 clean.
+STILL UNVERIFIED: any complete StylePlan from a real provider (0 produced), Gemini 401/403/429 bodies, Groq success shape/model id/latency (key rejected), Groq retention terms, CORS from the service worker, everything needing a real browser.
+Decisions accepted: share mode off removes blur; saved blur picks not auto-applied; palette UI plain DOM.
