@@ -180,4 +180,19 @@ describe("options tabs", () => {
     await flush();
     spy.mockRestore();
   });
+  it("Privacy: withdrawing the readability agreement clears it for every site and saves (audit C3 withdraw path)", async () => {
+    const saved: unknown[] = [];
+    api.storageGet.mockImplementation(async (k: string) => (k === "settings" ? { welcomeDone: true, repairConsent: { "https://a.example": { version: 1, acceptedAt: "2026-10-30T10:00:00.000Z" }, "https://b.example": { version: 1, acceptedAt: "2026-10-30T10:00:00.000Z" } } } : undefined));
+    api.storageSet.mockImplementation(async (k: string, v: unknown) => void (k === "settings" && saved.push(v)));
+    const root = await mount();
+    await flush();
+    const button = Array.from(panelOf(root, "privacy").querySelectorAll("button")).find((b) => (b.textContent ?? "").startsWith("Withdraw the readability agreement"))!;
+    expect(button.textContent).toContain("(2)");
+    expect(button.disabled).toBe(false);
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect((saved.at(-1) as { repairConsent: Record<string, unknown> }).repairConsent).toEqual({});
+    expect(button.textContent).toContain("(0)");
+    expect(button.disabled).toBe(true);
+  });
 });
