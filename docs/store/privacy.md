@@ -1,6 +1,6 @@
 # Privacy policy (draft; the human hosts it at a public URL)
 
-Version: 0.1.0
+Version: 0.2.0
 Permissions: activeTab, scripting, storage
 Provider hosts: generativelanguage.googleapis.com, api.groq.com
 
@@ -9,6 +9,7 @@ Skinly AI is not affiliated with any website.
 ## What stays on your computer
 - Your settings, the AI keys you paste, and the themes you choose to remember, stored in your browser profile (extension storage). Keys are not encrypted by the browser; anyone with access to your profile can read them.
 - Remembered themes are saved by site origin (for example https://example.org) and never include page text, titles, full addresses or query strings.
+- Images and videos you add under My assets are checked and re-encoded in your browser and stored here only. They never leave your device and are never sent to an AI provider.
 - Screenshots you take with the safe screenshot tool are made in your browser and are never uploaded.
 - The palette reads link and button labels in memory to let you search them and never stores or sends them.
 
@@ -26,7 +27,7 @@ No analytics, telemetry, accounts, ads, remote code or remote configuration. The
 - Optional host access: the provider host when you save a key, and one site's origin only if you choose "Always on this site". You can remove them with "Forget this site" or in your browser's extension settings.
 
 ## Your choices
-Remove a key, forget a site or forget all sites in the options page, or uninstall the extension to delete everything it stored.
+Remove a key, forget a site or forget all sites in the options page, use "Erase all Skinly data" under Privacy to wipe everything, or uninstall the extension to delete everything it stored.
 
 ## Contact
 To be added by the publisher.

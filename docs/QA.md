@@ -1,7 +1,7 @@
 # Manual QA matrix
 
 Fill the result columns yourself. Use public pages only; never a page where you are signed in to something important. Write failures as one line in docs/BUGS.md (page type, what you saw).
-Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.1.0.zip) on each browser.
+Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each browser.
 
 | # | Check | Steps | Edge | Chrome | Brave |
 |---|---|---|---|---|---|
