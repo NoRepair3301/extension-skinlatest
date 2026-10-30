@@ -83,7 +83,7 @@ export function placeActors(actors: readonly Actor[], laneW: number, laneH: numb
   return [...backs, ...out];
 }
 
-function sheet(doc: Document, root: ShadowRoot, css: string): void {
+export function sheet(doc: Document, root: ShadowRoot, css: string): void {
   const win = doc.defaultView as (Window & { CSSStyleSheet?: typeof CSSStyleSheet }) | null;
   try {
     if (win?.CSSStyleSheet && "adoptedStyleSheets" in root) {

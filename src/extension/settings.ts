@@ -1,4 +1,5 @@
 import { DEFAULT_MODELS, PROVIDER_IDS, type ProviderId } from "../config.ts";
+import { ASSET_ID, ASSET_SIZES, ASSET_SPEEDS, PLACEMENTS, PRESETS, defaultPlacement, type AssetPlacement } from "../features/assets/types.ts";
 import { isDensity, isLaneChoice, isSceneId, type Density, type LaneChoice, type SceneId } from "../features/scenes/types.ts";
 import { DEFAULT_THEME_ID, getTheme, isThemeChoice, resolveTheme, type ThemeChoice } from "../themes/index.ts";
 import { storageGet, storageSet } from "./api.ts";
@@ -56,6 +57,8 @@ export interface Settings {
   consent: { version: number; acceptedAt: string } | null;
   pet: PetSettings;
   scene: SceneSettings;
+  /** Which saved picture or video to show, and how (Phase 10). Only an id: the file lives under the `assets` key. */
+  asset: AssetPlacement;
 }
 
 const KEY = "settings";
@@ -71,6 +74,7 @@ export const defaultSettings = (): Settings => ({
   consent: null,
   pet: { enabled: false, kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, disabledOrigins: [] },
   scene: { enabled: true, choice: "theme", density: "normal", lane: "both" },
+  asset: defaultPlacement(),
 });
 
 const isProviderId = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDER_IDS as readonly string[]).includes(v);
@@ -135,6 +139,23 @@ export function parseSettings(raw: unknown): Settings {
     if (isDensity(sc["density"])) out.scene.density = sc["density"];
     if (isLaneChoice(sc["lane"])) out.scene.lane = sc["lane"];
   }
+  out.asset = parsePlacement(r["asset"]);
+  return out;
+}
+
+/** A placement read from storage or from a site record; anything unknown falls back to the default (no asset). */
+export function parsePlacement(raw: unknown): AssetPlacement {
+  const out = defaultPlacement();
+  if (typeof raw !== "object" || raw === null) return out;
+  const a = raw as Record<string, unknown>;
+  if (typeof a["assetId"] === "string" && ASSET_ID.test(a["assetId"])) out.assetId = a["assetId"];
+  const pick = <T extends string>(list: readonly T[], v: unknown): T | undefined => list.find((x) => x === v);
+  out.mode = pick(PLACEMENTS, a["mode"]) ?? out.mode;
+  out.size = pick(ASSET_SIZES, a["size"]) ?? out.size;
+  out.speed = pick(ASSET_SPEEDS, a["speed"]) ?? out.speed;
+  out.preset = pick(PRESETS, a["preset"]) ?? out.preset;
+  const o = a["opacity"];
+  if (typeof o === "number" && Number.isInteger(o) && o >= 10 && o <= 100) out.opacity = o;
   return out;
 }
 
