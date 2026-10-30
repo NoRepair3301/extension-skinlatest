@@ -161,7 +161,8 @@ export const en = {
   steps: {
     checking: "Checking this page…",
     baseline: "Applying the built-in theme…",
-    analysing: "Reading the page layout…",
+    analysing: "Reading the page…",
+    repairing: "Checking readability…",
     consent: "Waiting for your answer…",
     asking: "Asking the AI for a better theme…",
     applying: "Applying…",
@@ -191,6 +192,8 @@ export const en = {
     eraseConfirm: "Erase everything",
     erased: "All Skinly data was erased.",
     eraseFailed: "Couldn't erase everything. Try again.",
+    repairNote: "Optional second agreement, asked once per site: for parts of a page that look hard to read after restyling, their tag names, up to three class names, colours and the colour rules of the page's stylesheets. Never text, links, ids, form values or addresses.",
+    repairWithdraw: "Withdraw the readability agreement for all sites",
     showWelcome: "Show the welcome again",
   },
   welcome: {

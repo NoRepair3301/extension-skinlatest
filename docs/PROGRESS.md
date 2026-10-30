@@ -142,3 +142,12 @@ Real Edge feedback: themes broke claude.ai-style apps (accent blocks with invisi
 - Docs: docs/BUGS.md (new), docs/QA.md, CHANGELOG.md, docs/ARCHITECTURE.md (strategy ladder and visual guard).
 - Final: `npm run check` green (73 files, 1101 tests). Budgets (gz): popup 14 + shared 27 + 9, applier 25/50, auto 5/20, scene 21/150.
 - UNVERIFIED (no browser here): that the stale error is gone, the exact look of every themed site, scene art on real pages, the Navigation API re-apply, the permission prompt flow.
+
+## fix/real-browser-2 (v0.2.0-rc5)
+Owner decisions overrule CLAUDE.md (edited: rules 2, 3, 5; SPEC 17; AUDIT C3; docs/store/privacy.md and data-use.md).
+
+### Stage 1: always-apply readability pipeline (done)
+- Apply is never refused or rolled back for readability (also not for plan contrast: tokens are nudged, the rest is repaired page-side). Rollback only for a throwing apply or a failed structural invariant. Media that changed still steps the strategy down, never refuses.
+- src/plan/guard.ts (readings: backdrop, media check), src/plan/readability.ts (snapshot, audit, colour pick, structural paths, grouped colour-only CSS capped at 30 KB, RepairPlan validator + compile), applier-core runs snapshot, apply, repair pass, bounded re-passes (10 free, then once per 5 s). Text over an image or gradient gets its recorded original colours back. `transparent` is the one non-hex value (restoring a transparent original).
+- AI repair: src/features/repair/payload.ts (the one sanitiser, 40 elements, 6 KB), src/ai/repair.ts (prompt, schema), second consent per origin (`repairConsent`, revocable in Settings, Privacy), one attempt, deterministic result kept on any failure.
+- Tests: tests/guard.test.ts, tests/repair.test.ts (markers, class tokens, url() stripping, caps, validation, consent, flow).

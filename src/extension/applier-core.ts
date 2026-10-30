@@ -3,9 +3,12 @@ import type { SummaryDeps } from "../analyzer/summary.ts";
 import { NEUTRAL_PAGE, type Fingerprint, type RiskMarker, type StructuralSummary } from "../core/types.ts";
 import { compileCss } from "../plan/compile.ts";
 import { contrastFailures } from "../plan/contrast.ts";
+import { repairTokens } from "../plan/repair.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
-import { captureMedia, checkVisual, type GuardCode, type GuardProvider } from "../plan/guard.ts";
-import { stepDown, validatePlan, type Strategy, type StylePlan } from "../plan/schema.ts";
+import { captureMedia, mediaIntact, type GuardProvider } from "../plan/guard.ts";
+import { addFailures, audit, compileRepair, repairCss, snapshotText, validateRepair, type Failure, type RuleBook, type Snapshot, type ValidRepairPlan } from "../plan/readability.ts";
+import { buildRepairPayload, type RepairPayload } from "../features/repair/payload.ts";
+import { stepDown, validatePlan, type Strategy, type StylePlan, type Tokens } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { isThemeChoice, resolveTheme } from "../themes/index.ts";
 import { createBoundedObserver, type BoundedObserver, type ObserverOptions } from "./observer.ts";
@@ -29,17 +32,19 @@ export interface ApplierOptions {
    * page's regions, so the top page's plan can only carry colours, fonts and sizes into it.
    */
   tokensOnly?: boolean;
-  /** Visual guard: reads computed style after the theme is on, steps down the strategy ladder on a failure, then rolls back. */
+  /**
+   * Readability pipeline: reads computed style before and after the theme goes on and repairs unreadable text with colour-only rules.
+   * It never refuses or rolls back a theme; only media that changed steps the strategy down.
+   */
   guard?: GuardProvider;
   /** Test hook, runs just before the invariants are checked. */
   beforeInvariants?: () => void;
 }
 
 export type ApplyResult =
-  | { ok: true; themeId: string; regions: number; strategy: Strategy; steppedDown: boolean }
-  | { ok: false; reason: "invalid-plan" | "too-large" | "invariants" | "bad-theme" | "visual" | "error"; detail?: string[] };
+  | { ok: true; themeId: string; regions: number; strategy: Strategy; steppedDown: boolean; repairs: number; samples: number }
+  | { ok: false; reason: "invalid-plan" | "too-large" | "invariants" | "bad-theme" | "error"; detail?: string[] };
 
-export type VisualCode = GuardCode;
 
 /** What the page tells the extension about itself: the summary and risk, nothing else. */
 export type PageAnalysis = { status: "ok"; risk: RiskMarker[]; summary: StructuralSummary; fingerprint: Fingerprint } | { status: "too-large"; risk: RiskMarker[] };
@@ -50,6 +55,33 @@ interface Ledger {
   sheet: StyleHandle;
   css: string;
   observer: BoundedObserver | undefined;
+  /** Readability state: originals, cumulative repair rules and their sheet. */
+  snap: Snapshot | undefined;
+  tokens: Tokens | undefined;
+  book: RuleBook;
+  repairSheet: StyleHandle | undefined;
+  repairCss: string;
+  passes: number;
+  lastPass: number;
+  /** First pass numbers, for the success line and the AI repair threshold. */
+  checked: number;
+  failing: Failure[];
+  /** The elements of the last repair payload, by index. */
+  targets: Element[];
+  targetBgs: string[];
+}
+
+/** After this many repair passes in one page load, a pass runs at most once every REPAIR_GAP_MS. */
+export const REPAIR_PASSES_FREE = 10;
+export const REPAIR_GAP_MS = 5000;
+
+export interface RepairStats {
+  /** Text elements that were sampled. */
+  samples: number;
+  /** Rules in the repair sheet. */
+  repairs: number;
+  /** Elements that needed repair on the first pass. */
+  failing: number;
 }
 
 const EMPTY_SUMMARY: StructuralSummary = {
@@ -79,6 +111,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     if (!l) return { ok: true };
     l.observer?.disconnect();
     l.sheet.remove();
+    l.repairSheet?.remove();
     for (const { el, previous } of l.tags) {
       if (previous === null) el.removeAttribute("data-skinly-r");
       else el.setAttribute("data-skinly-r", previous);
@@ -96,6 +129,35 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     l.tags = l.tags.filter(({ el }) => el.isConnected);
     for (const { el, id } of l.tags) if (el.getAttribute("data-skinly-r") !== id) el.setAttribute("data-skinly-r", id);
     if (!l.sheet.isAttached()) l.sheet = opts.style.add(l.css);
+    if (l.repairSheet && !l.repairSheet.isAttached()) l.repairSheet = opts.style.add(l.repairCss);
+    // The page re-rendered: look again, at most REPAIR_PASSES_FREE times, then once per REPAIR_GAP_MS.
+    const t = Date.now();
+    if (l.passes < REPAIR_PASSES_FREE || t - l.lastPass >= REPAIR_GAP_MS) repairPass(l);
+  }
+
+  /** Sets the repair sheet to the current rule book (adds, replaces or removes it). */
+  function syncRepairSheet(l: Ledger): void {
+    const css = repairCss(l.book);
+    if (css === l.repairCss && (css === "" || l.repairSheet?.isAttached())) return;
+    l.repairSheet?.remove();
+    l.repairSheet = css === "" ? undefined : opts.style.add(css);
+    l.repairCss = css;
+  }
+
+  /** One look at the page: every sampled text pair under 4.5 gets a colour-only rule (or its original colours back). */
+  function repairPass(l: Ledger): void {
+    if (!opts.guard || !l.snap || !l.tokens) return;
+    l.passes++;
+    l.lastPass = Date.now();
+    const a = audit(opts.guard, l.snap, l.tokens);
+    if (l.passes === 1) {
+      l.checked = a.checked;
+      l.failing = a.failures;
+    }
+    if (a.failures.length > 0) {
+      addFailures(l.book, a.failures);
+      syncRepairSheet(l);
+    }
   }
 
   /** `tokensOnly` skips the page analysis (used at document_start, before the body exists) and applies no region rules. */
@@ -103,7 +165,9 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     restore();
     try {
       const before = snapshot(doc);
-      const media = opts.guard && !tokensOnly && doc.body ? captureMedia(opts.guard) : undefined;
+      const checking = opts.guard && !tokensOnly && doc.body ? opts.guard : undefined;
+      const media = checking ? captureMedia(checking) : undefined;
+      const snap = checking ? snapshotText(checking) : undefined;
       const analysis = tokensOnly ? undefined : analyze(doc, opts.summaryDeps);
       const summary = analysis?.status === "ok" ? analysis.summary : undefined;
       const chosen = typeof source === "function" ? source(summary) : source;
@@ -114,7 +178,11 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       const checked = validatePlan(plan, summary ?? EMPTY_SUMMARY);
       if (!checked.ok) return { ok: false, reason: "invalid-plan", detail: checked.errors };
 
-      if (contrastFailures(checked.plan.themeId, checked.plan.tokens).length > 0) return { ok: false, reason: "invalid-plan", detail: ["contrast"] };
+      // Colours that miss the contrast targets are nudged; if that is not enough the theme still goes on and the readability pass repairs the text.
+      if (contrastFailures(checked.plan.themeId, checked.plan.tokens).length > 0) {
+        const fixed = repairTokens(checked.plan.themeId, checked.plan.tokens);
+        if (fixed) checked.plan = { ...checked.plan, tokens: fixed };
+      }
 
       const css = compileCss(checked.plan, summary ?? EMPTY_SUMMARY);
       const next: Ledger = {
@@ -123,6 +191,17 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
         sheet: { remove() {}, isAttached: () => false },
         css,
         observer: undefined,
+        snap,
+        tokens: undefined,
+        book: new Map(),
+        repairSheet: undefined,
+        repairCss: "",
+        passes: 0,
+        lastPass: 0,
+        checked: 0,
+        failing: [],
+        targets: [],
+        targetBgs: [],
       };
       ledger = next;
 
@@ -150,25 +229,22 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
 
       let strategy: Strategy = checked.plan.strategy ?? "full";
       let steppedDown = false;
-      if (opts.guard && media) {
-        let seen = checkVisual(opts.guard, media);
-        const lower = seen.ok ? undefined : stepDown(strategy);
-        if (!seen.ok && lower) {
+      if (checking && media) {
+        // Pictures first: a theme that changed how media shows steps down the ladder (never a refusal).
+        for (let lower = stepDown(strategy); !mediaIntact(checking, media) && lower; lower = stepDown(strategy)) {
           next.sheet.remove();
           strategy = lower;
           steppedDown = true;
           next.css = compileCss({ ...checked.plan, strategy }, summary ?? EMPTY_SUMMARY);
           next.sheet = opts.style.add(next.css);
-          seen = checkVisual(opts.guard, media);
         }
-        if (!seen.ok) {
-          restore();
-          return { ok: false, reason: "visual", detail: [seen.code] };
-        }
+        // Then text: whatever does not read gets a colour-only repair. The theme stays.
+        next.tokens = checked.plan.tokens;
+        repairPass(next);
       }
 
       if (doc.body) next.observer = createBoundedObserver(doc, doc.body, recheck, opts.observer);
-      return { ok: true, themeId: checked.plan.themeId, regions: next.tags.length, strategy, steppedDown };
+      return { ok: true, themeId: checked.plan.themeId, regions: next.tags.length, strategy, steppedDown, repairs: next.book.size, samples: next.checked };
     } catch {
       restore();
       return { ok: false, reason: "error" };
@@ -196,6 +272,30 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     },
     restore,
     isActive: (): boolean => ledger !== undefined,
+    /** Numbers for the success line and the AI repair threshold. */
+    repairStats: (): RepairStats => ({ samples: ledger?.checked ?? 0, repairs: ledger?.book.size ?? 0, failing: ledger?.failing.length ?? 0 }),
+    /**
+     * The sanitised description of the parts that needed repair (see src/features/repair/payload.ts). Colours, class tokens and
+     * colour declarations only. It remembers which element is which so a RepairPlan can name them by index.
+     */
+    repairPayload(): RepairPayload | undefined {
+      const l = ledger;
+      if (!l || !opts.guard || l.failing.length === 0) return undefined;
+      const built = buildRepairPayload(doc, l.failing);
+      l.targets = built.targets;
+      l.targetBgs = built.payload.elements.map((e) => e.bg);
+      return built.payload;
+    },
+    /** Applies the AI's repair answer after validating it again against the elements of the last payload. */
+    applyRepair(input: unknown): { ok: boolean; applied: number } {
+      const l = ledger;
+      if (!l || l.targets.length === 0) return { ok: false, applied: 0 };
+      const v = validateRepair(input, l.targetBgs);
+      if (!v.ok) return { ok: false, applied: 0 };
+      const applied = compileRepair(v.plan as ValidRepairPlan, l.targets, l.book);
+      syncRepairSheet(l);
+      return { ok: true, applied };
+    },
   };
 }
 

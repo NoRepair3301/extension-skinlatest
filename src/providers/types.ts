@@ -5,6 +5,8 @@ export type ErrorKind = "auth" | "rate" | "quota" | "network" | "timeout" | "blo
 export interface GenerateRequest {
   system: string;
   user: string;
+  /** Response schema for providers that take one; defaults to the StylePlan schema. */
+  schema?: object;
   model: string;
   signal?: AbortSignal;
 }

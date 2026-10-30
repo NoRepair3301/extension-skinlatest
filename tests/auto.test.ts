@@ -146,11 +146,14 @@ describe("applier-auto", () => {
     expect(t.applied).not.toHaveBeenCalled();
   });
 
-  it("a stored plan that fails contrast applies nothing", async () => {
+  it("a stored plan that misses the contrast targets is still applied (colours are nudged)", async () => {
     const base = setup().site.plan;
     const t = setup({ site: { plan: { ...base, themeId: "custom", tokens: { ...base.tokens, text: "#d0d8dc" } } } });
-    expect(await runAuto(t.deps)).toBe("invalid");
-    expect(t.sheets).toHaveLength(0);
+    const done = runAuto(t.deps);
+    await tick();
+    t.fire();
+    expect(await done).not.toBe("invalid");
+    expect(t.sheets.length).toBeGreaterThan(0);
   });
 
   it("does nothing in ask mode, with no record, or on a blocked site", async () => {

@@ -1,10 +1,9 @@
 import { parseColor } from "../analyzer/summary.ts";
-import { contrastRatio } from "./contrast.ts";
 
 /**
- * The visual guard (pure). After a theme is applied it looks at what the page now shows, through computed style only, and says
- * whether text, typing and pictures are still visible. It never writes to the page. The style provider is injected so the logic is
- * unit-tested without a layout engine; src/extension/guard-dom.ts is the real one.
+ * The page reader behind the readability pipeline (pure). It looks at what the page shows through computed style only, and never
+ * writes to the page. The style provider is injected so the logic is unit-tested without a layout engine; src/extension/guard-dom.ts
+ * is the real one. What to do about unreadable parts lives in readability.ts; here are the readings and the media check.
  */
 export interface GuardStyle {
   color: string;
@@ -29,11 +28,8 @@ export interface GuardProvider {
 }
 
 export const GUARD_LIMITS = { text: 300, media: 30, editables: 30 } as const;
-export const MIN_TEXT_CONTRAST = 3;
-export const MIN_EDITABLE_CONTRAST = 4.5;
-
-export type GuardCode = "text" | "editable" | "caret" | "media";
-export type GuardResult = { ok: true } | { ok: false; code: GuardCode };
+/** Every sampled text pair must reach this after the repair pass. */
+export const READABLE = 4.5;
 
 type MediaState = Pick<GuardStyle, "display" | "visibility" | "opacity" | "filter" | "backgroundImage">;
 export type MediaBefore = Map<Element, MediaState>;
@@ -47,17 +43,33 @@ export function captureMedia(p: GuardProvider): MediaBefore {
   return before;
 }
 
-const none = (v: string): boolean => v === "" || v === "none";
+export const none = (v: string): boolean => v === "" || v === "none";
+
+export interface Backdrop {
+  /** The colour behind, blended; "#ffffff" when nothing paints. */
+  hex: string;
+  /** A background image or gradient lies in the ancestor chain, so the colour behind is not known. */
+  image: boolean;
+}
+
+export function blend(top: string, under: string, alpha: number): string {
+  const a = parseInt(top.slice(1), 16);
+  const b = parseInt(under.slice(1), 16);
+  const ch = (shift: number): string => Math.round(((a >> shift) & 255) * alpha + ((b >> shift) & 255) * (1 - alpha)).toString(16).padStart(2, "0");
+  return `#${ch(16)}${ch(8)}${ch(0)}`;
+}
 
 /**
- * The colour behind an element, found by walking its ancestors. null means unknown: a background image is somewhere in the chain,
- * or a colour could not be read. Translucent layers are blended over what lies beneath them; a page with no colour at all is white.
+ * The colour behind an element, found by walking its ancestors. `image` is true when a background image or gradient is somewhere in
+ * the chain (up to the first opaque colour layer above it). Translucent layers are blended over what lies beneath them; a page
+ * with no colour at all is white. null means a colour could not be read.
  */
-export function effectiveBackground(p: GuardProvider, el: Element): string | null {
+export function backdrop(p: GuardProvider, el: Element): Backdrop | null {
   const layers: Array<{ hex: string; alpha: number }> = [];
+  let image = false;
   for (let cur: Element | null = el; cur; cur = p.parentOf(cur)) {
     const s = p.style(cur);
-    if (!none(s.backgroundImage)) return null;
+    if (!none(s.backgroundImage)) image = true;
     const c = parseColor(s.backgroundColor);
     if (!c) return null;
     if (c.alpha > 0) {
@@ -67,49 +79,28 @@ export function effectiveBackground(p: GuardProvider, el: Element): string | nul
   }
   let base = "#ffffff";
   for (let i = layers.length - 1; i >= 0; i--) base = blend(layers[i]!.hex, base, layers[i]!.alpha);
-  return base;
+  return { hex: base, image };
 }
 
-function blend(top: string, under: string, alpha: number): string {
-  const a = parseInt(top.slice(1), 16);
-  const b = parseInt(under.slice(1), 16);
-  const ch = (shift: number): string => Math.round(((a >> shift) & 255) * alpha + ((b >> shift) & 255) * (1 - alpha)).toString(16).padStart(2, "0");
-  return `#${ch(16)}${ch(8)}${ch(0)}`;
+/** The colour behind an element, or null when unknown (image in the chain, or unreadable). */
+export function effectiveBackground(p: GuardProvider, el: Element): string | null {
+  const b = backdrop(p, el);
+  return b === null || b.image ? null : b.hex;
 }
 
-/** Contrast of an element's own text colour against what is behind it, or null when that cannot be known. */
-function textContrast(p: GuardProvider, el: Element): number | null {
-  const bg = effectiveBackground(p, el);
+/** Text colour of an element blended over what is behind it (a translucent colour counts as it looks). */
+export function textColor(p: GuardProvider, el: Element, bg: string): string | null {
   const fg = parseColor(p.style(el).color);
-  if (bg === null || !fg) return null;
-  return contrastRatio(fg.alpha < 1 ? blend(fg.hex, bg, fg.alpha) : fg.hex, bg);
+  if (!fg) return null;
+  return fg.alpha < 1 ? blend(fg.hex, bg, fg.alpha) : fg.hex;
 }
 
-/** One text element in 40 may miss the target on a big page (a site's own faint captions); a small page gets no allowance. */
-const allowance = (checked: number): number => Math.floor(checked / 40);
-
-export function checkVisual(p: GuardProvider, before: MediaBefore): GuardResult {
-  for (const el of p.editables(GUARD_LIMITS.editables)) {
-    const c = textContrast(p, el);
-    if (c !== null && c < MIN_EDITABLE_CONTRAST) return { ok: false, code: "editable" };
-    const caret = parseColor(p.style(el).caretColor);
-    const bg = effectiveBackground(p, el);
-    if (caret && bg !== null && caret.alpha > 0 && contrastRatio(caret.hex, bg) < MIN_TEXT_CONTRAST) return { ok: false, code: "caret" };
-    if (caret && caret.alpha === 0) return { ok: false, code: "caret" };
-  }
-
-  const parents = p.textParents(GUARD_LIMITS.text);
-  let bad = 0;
-  for (const el of parents) {
-    const c = textContrast(p, el);
-    if (c !== null && c < MIN_TEXT_CONTRAST) bad++;
-  }
-  if (bad > allowance(parents.length)) return { ok: false, code: "text" };
-
+/** True when the media the page showed before still shows the same way. Media is never repaired, only checked. */
+export function mediaIntact(p: GuardProvider, before: MediaBefore): boolean {
   for (const [el, was] of before) {
     const now = mediaState(p.style(el));
-    if (now.display !== was.display || now.visibility !== was.visibility || now.opacity !== was.opacity || now.filter !== was.filter) return { ok: false, code: "media" };
-    if (!none(was.backgroundImage) && none(now.backgroundImage)) return { ok: false, code: "media" };
+    if (now.display !== was.display || now.visibility !== was.visibility || now.opacity !== was.opacity || now.filter !== was.filter) return false;
+    if (!none(was.backgroundImage) && none(now.backgroundImage)) return false;
   }
-  return { ok: true };
+  return true;
 }

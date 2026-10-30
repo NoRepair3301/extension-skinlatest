@@ -1,8 +1,12 @@
 import { checkUrl } from "../analyzer/eligibility.ts";
 import { decideGate } from "../analyzer/gate.ts";
-import { CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, PROVIDER_TIMEOUTS, type ProviderId } from "../config.ts";
+import { CONSENT_VERSION, REPAIR_CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, PROVIDER_TIMEOUTS, type ProviderId } from "../config.ts";
 import type { BlockReason, Fingerprint, StructuralSummary } from "../core/types.ts";
 import { debug } from "../core/log.ts";
+import type { RepairPayload } from "../features/repair/payload.ts";
+import { originOf } from "../extension/origin.ts";
+import { validateRepair } from "../plan/readability.ts";
+import { buildRepairMessage, REPAIR_SCHEMA, REPAIR_SYSTEM } from "./repair.ts";
 import type { ApplyResult, PageAnalysis } from "../extension/applier-core.ts";
 import { callsOn, type Settings } from "../extension/settings.ts";
 import { contrastFailures } from "../plan/contrast.ts";
@@ -22,11 +26,16 @@ export interface PageClient {
   applyTheme(id: BuiltinThemeId): Promise<ApplyResult | undefined>;
   applyPlan(plan: StylePlan): Promise<ApplyResult | undefined>;
   restore(): Promise<void>;
+  /** Optional: the sanitised description of the parts that needed repair, and the way to apply the AI's answer. */
+  repairPayload?(): Promise<RepairPayload | undefined>;
+  applyRepair?(json: unknown): Promise<{ ok: boolean; applied: number } | undefined>;
 }
 
-export type Step = "checking" | "baseline" | "analysing" | "consent" | "asking" | "applying";
+export type Step = "checking" | "baseline" | "analysing" | "consent" | "asking" | "applying" | "repairing";
 
 export interface ConsentRequest {
+  /** layout: the page summary (default). repair: colour details of unreadable parts. */
+  purpose?: "layout" | "repair";
   providerNames: string[];
   /** The exact JSON that would be sent. Shown read-only. */
   payload: string;
@@ -44,6 +53,8 @@ export interface PipelineDeps {
   saveSettings(s: Settings): Promise<void>;
   keyStatus(): Promise<Record<ProviderId, boolean>>;
   askConsent(req: ConsentRequest): Promise<boolean>;
+  /** Second consent, asked once per site (REPAIR_CONSENT_VERSION). Without it no repair request is made. */
+  askRepairConsent?(req: ConsentRequest): Promise<boolean>;
   clock: CallClock;
   /** For the "auto" theme: does the browser prefer a dark colour scheme? Default no. */
   prefersDark?(): boolean;
@@ -57,8 +68,8 @@ export type BaselineWhy = "no-ai-page" | "too-large" | "no-key" | "consent-decli
 
 export type Outcome =
   | { kind: "blocked"; reason: BlockReason; message: string }
-  | { kind: "baseline"; themeId: BuiltinThemeId; why: BaselineWhy; message: string; plan?: StylePlan; fingerprint?: Fingerprint }
-  | { kind: "preview"; source: "ai" | "fallback"; plan: StylePlan; baselineThemeId: BuiltinThemeId; fingerprint: Fingerprint; providerId?: ProviderId; model?: string; message?: string }
+  | { kind: "baseline"; themeId: BuiltinThemeId; why: BaselineWhy; message: string; plan?: StylePlan; fingerprint?: Fingerprint; fixes?: number }
+  | { kind: "preview"; source: "ai" | "fallback"; plan: StylePlan; baselineThemeId: BuiltinThemeId; fingerprint: Fingerprint; providerId?: ProviderId; model?: string; message?: string; fixes?: number }
   | { kind: "error"; errorKind: ErrorKind | "baseline"; message: string; themeId: BuiltinThemeId }
   | { kind: "cancelled"; themeId: BuiltinThemeId };
 
@@ -76,11 +87,8 @@ export function checkPlan(json: unknown, summary: StructuralSummary): PlanCheck 
   if (bad.length === 0) return { ok: true, plan: v.plan, repaired: false };
   const fixed = repairTokens(v.plan.themeId, v.plan.tokens);
   if (fixed) return { ok: true, plan: { ...v.plan, tokens: fixed }, repaired: true };
-  const codes = bad.map((f) => {
-    const m = /(\w+)\/(\w+)/.exec(f);
-    return m ? `contrast.${m[1]}.${m[2]}` : "contrast";
-  });
-  return { ok: false, codes };
+  // Never refused for readability: the theme goes on and the page-side readability pass repairs the text.
+  return { ok: true, plan: v.plan, repaired: false };
 }
 
 /**
@@ -104,10 +112,12 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   const baselineId = resolveTheme(settings.theme, deps.prefersDark?.() ?? false);
   /** Set once the page was analysed: the built-in theme as a plan, so the popup can offer to keep it. */
   const known: { plan?: StylePlan; fingerprint?: Fingerprint } = {};
-  const baseline = (why: BaselineWhy, message: string): Outcome => ({ kind: "baseline", themeId: baselineId, why, message, ...known });
+  let fixCount = 0;
+  const baseline = (why: BaselineWhy, message: string): Outcome => ({ kind: "baseline", themeId: baselineId, why, message, ...known, ...(fixCount > 0 ? { fixes: fixCount } : {}) });
 
   step("baseline");
   const applied = await deps.page.applyTheme(baselineId);
+  if (applied?.ok) fixCount = applied.repairs;
   if (!applied?.ok) return { kind: "error", errorKind: "baseline", message: applyFailureMessage(applied), themeId: baselineId };
   if (signal?.aborted) return { kind: "cancelled", themeId: baselineId };
 
@@ -165,6 +175,47 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
     },
   });
 
+  /**
+   * Optional second pass: when the deterministic repair touched more than a quarter of the sampled text, the AI may suggest colours
+   * for those parts (after its own consent, once per site). Any problem keeps the deterministic result. One attempt only.
+   */
+  const aiRepair = async (stats: { repairs: number; samples: number }): Promise<number> => {
+    const page = deps.page;
+    if (!page.repairPayload || !page.applyRepair || stats.samples === 0 || stats.repairs / stats.samples <= 0.25 || signal?.aborted) return 0;
+    try {
+      const payload = await page.repairPayload();
+      const origin = originOf(url);
+      if (!payload || payload.elements.length === 0 || !origin) return 0;
+      const text = buildRepairMessage(payload);
+      if (current.repairConsent[origin]?.version !== REPAIR_CONSENT_VERSION) {
+        if (!deps.askRepairConsent) return 0;
+        step("consent");
+        const ok = await deps.askRepairConsent({ purpose: "repair", providerNames: order.map((id) => PROVIDER_NAMES[id]), payload: text });
+        if (!ok) return 0;
+        current = { ...current, repairConsent: { ...current.repairConsent, [origin]: { version: REPAIR_CONSENT_VERSION, acceptedAt: new Date(now()).toISOString() } } };
+        await deps.saveSettings(current);
+      }
+      if (signal?.aborted) return 0;
+      const day = today();
+      current = { ...current, aiCallsToday: { date: day, count: callsOn(current, day) + 1 } };
+      await deps.saveSettings(current);
+      step("repairing");
+      const bgs = payload.elements.map((e) => e.bg);
+      const fixed = await generate({ system: REPAIR_SYSTEM, user: text, schema: REPAIR_SCHEMA }, entries, {
+        budgetMs: Math.max(1000, (deps.budgetMs ?? PIPELINE_BUDGET_MS) - (now() - started)),
+        ...(signal ? { signal } : {}),
+        validate: (json) => {
+          const v = validateRepair(json, bgs);
+          return v.ok ? null : v.errors.slice(0, 10).map((e) => e.split(":")[0] ?? "plan");
+        },
+      });
+      if (!fixed.ok) return 0;
+      return (await page.applyRepair(fixed.json))?.applied ?? 0;
+    } catch {
+      return 0;
+    }
+  };
+
   if (!result.ok) {
     const kind = result.error.kind;
     if (kind === "aborted") return { kind: "cancelled", themeId: baselineId };
@@ -174,7 +225,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       const id = nearestTheme(summary, rejectedBg);
       const r = await deps.page.applyTheme(id);
       if (!r?.ok) return baseline("apply-failed", aiApplyFailureMessage(r));
-      return { kind: "preview", source: "fallback", plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };
+      return { kind: "preview", source: "fallback", fixes: r.repairs, plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };
     }
     if ((kind === "rate" || kind === "quota") && result.retryAfterMs !== undefined) return baseline("ai-unavailable", rateLimited(result.retryAfterMs));
     return baseline("ai-unavailable", MSG.allFailed);
@@ -187,5 +238,6 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
     await deps.page.applyTheme(baselineId);
     return baseline("apply-failed", aiApplyFailureMessage(shown));
   }
-  return { kind: "preview", source: "ai", plan: validPlan, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model, ...(coloursAdjusted ? { message: MSG.coloursAdjusted } : {}) };
+  const extra = await aiRepair(shown);
+  return { kind: "preview", source: "ai", plan: validPlan, fixes: shown.repairs + extra, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model, ...(coloursAdjusted ? { message: MSG.coloursAdjusted } : {}) };
 }

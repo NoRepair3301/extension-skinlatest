@@ -345,6 +345,8 @@ export function Options() {
             <p class="note">Keys are stored unencrypted in this browser profile (extension storage). Anyone with access to this profile can read them. A saved key is never shown again and never leaves this device except to its own provider.</p>
             <p class="note">Stays on this device: your settings, keys, saved sites (by site address only), pet and scene choices, and the images and videos you add under My assets.</p>
             <p class="note">Sent only after you agree, and only when you click: a small description of a page's layout (shapes, sizes and colours, no text, links, images or forms) to the provider you chose.</p>
+            <p class="note">{S.options.repairNote}</p>
+            <button type="button" disabled={Object.keys(settings.repairConsent).length === 0} onClick={() => update({ ...settings, repairConsent: {} })}>{S.options.repairWithdraw} ({Object.keys(settings.repairConsent).length})</button>
           </section>
           <section>
             <h2>{S.options.eraseTitle}</h2>

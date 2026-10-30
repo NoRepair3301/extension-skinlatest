@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { applyUiTheme } from "../../ui/theme.ts";
 import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { S } from "../../ui/strings.ts";
-import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
+import { MSG, applyFailureMessage, consentText, repairConsentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
@@ -371,7 +371,7 @@ export function Popup() {
 
       {view.state === "consent" && (
         <section aria-label="Consent">
-          <p>{consentText(view.req.providerNames.join(" or "))}</p>
+          <p>{(view.req.purpose === "repair" ? repairConsentText : consentText)(view.req.providerNames.join(" or "))}</p>
           <button type="button" onClick={() => answer(true)}>Send</button>
           <button type="button" onClick={cancel}>Cancel</button>
           <button type="button" onClick={() => setShowPayload(!showPayload)}>Show what will be sent</button>

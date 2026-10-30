@@ -65,12 +65,12 @@ describe("transform: invalid output", () => {
     expect(out.plan.tokens.bg).toBe(lowContrastPlan().tokens.bg); // backgrounds are never changed
   });
 
-  it("treats a contrast target that nudging cannot reach like invalid output, using the rejected bg as the hint", async () => {
+  it("never refuses a plan for contrast: it goes on and the page-side readability pass repairs the text", async () => {
     const h = harness({ gemini: [{ type: "ok", json: unfixablePlan() }], groq: [{ type: "ok", json: unfixablePlan() }] });
     const out = await transform(URL_OK, h.deps);
-    expect(out).toMatchObject({ kind: "preview", source: "fallback" });
-    expect(h.mocks.gemini.calls[1]!.user).toMatch(/Reason codes: contrast\.text\./);
-    expect(h.page.calls.at(-1)).toMatch(/^applyTheme:/);
+    expect(out).toMatchObject({ kind: "preview", source: "ai" });
+    expect(h.mocks.gemini.calls).toHaveLength(1);
+    expect(h.page.calls.at(-1)).toBe("applyPlan:high-contrast");
   });
 
   it("keeps the baseline when the validated plan cannot be applied", async () => {
