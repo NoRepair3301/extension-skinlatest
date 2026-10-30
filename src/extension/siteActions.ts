@@ -7,6 +7,8 @@ import { clearAllStorage, registerAutoScript, removeAllOrigins, removeOrigins, r
 import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
 
 export const AUTO_SCRIPT_FILE = "applier-auto.js";
+/** The applier itself; the auto script needs it loaded first. */
+export const APPLIER_SCRIPT_FILE = "applier.js";
 /** Registered after the auto script, only for a site that has a saved scene or asset, so the document_start script stays small. */
 export const SCENE_SCRIPT_FILE = "scene.js";
 
@@ -64,7 +66,7 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
     else if (previous) await saveSite(o, { ...previous, mode: "auto" });
     else return { ok: false, reason: "no-record" };
     const saved = await getSite(o);
-    await registerAutoScript(scriptId(o), matchFor(o), hasArt(saved?.look) ? [AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE] : AUTO_SCRIPT_FILE);
+    await registerAutoScript(scriptId(o), matchFor(o), hasArt(saved?.look) ? [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE] : [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
     if (tabId !== undefined) await setBadge(tabId, "ON");
     return { ok: true };
   } catch {

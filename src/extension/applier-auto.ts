@@ -2,14 +2,14 @@ import { checkUrl } from "../analyzer/eligibility.ts";
 import type { PageApplier } from "./applier.ts";
 import type { PetConfig } from "../features/pet/pet.ts";
 import type { SiteRecord } from "./sites.ts";
-import "./applier.ts";
 import { sendMessage } from "./api.ts";
 import { runAuto } from "./auto-core.ts";
 import { BADGE_MESSAGE } from "./messages.ts";
 import { loadSettings, petConfig } from "./settings.ts";
 import { getSite, originOf } from "./sites.ts";
 
-// Registered per origin by siteActions.ts; runs at document_start. Reads storage only, never calls a provider.
+// Registered per origin by siteActions.ts after applier.js (same isolated world, so the applier is already on globalThis); runs at document_start.
+// Reads storage only, never calls a provider. Keeping the applier in its own file keeps this glue under its size budget.
 const applier = (globalThis as unknown as { skinlyApplier?: PageApplier }).skinlyApplier;
 const origin = originOf(location.href);
 

@@ -105,7 +105,7 @@ describe("popup: scene art after Change my page", () => {
     await click(root, "Always on this site");
     const sites = store.get("sites") as Record<string, { look?: { scene?: { id: string } } }>;
     expect(sites["https://example.org"]!.look!.scene!.id).toBe("space");
-    expect(api.registerAutoScript).toHaveBeenCalledWith(expect.any(String), ["https://example.org/*"], ["applier-auto.js", "scene.js"]);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(expect.any(String), ["https://example.org/*"], ["applier.js", "applier-auto.js", "scene.js"]);
   });
 
   it("changing the scene in the popup updates art that is already showing, and Restore forgets it", async () => {

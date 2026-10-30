@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { gzipSync } from "node:zlib";
 import { ALLOWED_URL_HOSTS } from "../src/config.ts";
 
 const PERMISSIONS = ["activeTab", "scripting", "storage"];
@@ -50,6 +51,41 @@ export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLO
 /** Phase 10: all scene code, minified, stays under this. */
 export const SCENE_MAX_BYTES = 150 * 1024;
 
+/** Phase 11 budgets (docs/PERF.md). Popup, applier and auto script are gzip sizes; the scene script is minified size. */
+export const BUDGETS = { popupGzip: 60 * 1024, applierGzip: 50 * 1024, autoGzip: 20 * 1024, sceneMin: SCENE_MAX_BYTES } as const;
+
+export interface Sizes {
+  popupGzip: number;
+  applierGzip: number;
+  autoGzip: number;
+  sceneMin: number;
+}
+
+/** Pure check so a test can feed sizes. */
+export function budgetProblems(s: Sizes): string[] {
+  const kb = (n: number) => `${(n / 1024).toFixed(1)} KB`;
+  const out: string[] = [];
+  if (s.popupGzip > BUDGETS.popupGzip) out.push(`popup bundle is ${kb(s.popupGzip)} gzip, budget ${kb(BUDGETS.popupGzip)}`);
+  if (s.applierGzip > BUDGETS.applierGzip) out.push(`applier.js is ${kb(s.applierGzip)} gzip, budget ${kb(BUDGETS.applierGzip)}`);
+  if (s.autoGzip > BUDGETS.autoGzip) out.push(`applier-auto.js is ${kb(s.autoGzip)} gzip, budget ${kb(BUDGETS.autoGzip)}`);
+  if (s.sceneMin > BUDGETS.sceneMin) out.push(`scene.js is ${kb(s.sceneMin)} minified, budget ${kb(BUDGETS.sceneMin)}`);
+  return out;
+}
+
+const gz = (file: string): number => (existsSync(file) ? gzipSync(readFileSync(file), { level: 9 }).length : 0);
+
+/** The popup bundle is popup.js plus every shared chunk (an upper bound: options shares them). */
+export function measureDist(dist: string): Sizes {
+  const chunks = existsSync(join(dist, "assets")) ? jsFiles(join(dist, "assets")) : [];
+  const scene = join(dist, "scene.js");
+  return {
+    popupGzip: gz(join(dist, "popup.js")) + chunks.reduce((n, f) => n + gz(f), 0),
+    applierGzip: gz(join(dist, "applier.js")),
+    autoGzip: gz(join(dist, "applier-auto.js")),
+    sceneMin: existsSync(scene) ? statSync(scene).size : 0,
+  };
+}
+
 const allFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
@@ -76,6 +112,7 @@ export function validateDist(dist: string): string[] {
   if (shipped.join() !== wanted.join()) out.push(`dist/icons must hold exactly ${wanted.join(", ")}, found: ${shipped.join(", ") || "nothing"}`);
   const scene = join(dist, "scene.js");
   if (existsSync(scene) && statSync(scene).size > SCENE_MAX_BYTES) out.push(`scene.js is over ${SCENE_MAX_BYTES / 1024} KB`);
+  out.push(...budgetProblems(measureDist(dist)));
   if (allFiles(dist).some((f) => f.endsWith(".map"))) out.push("source map files must not ship");
   for (const file of jsFiles(dist)) {
     for (const rule of scanBuiltJs(readFileSync(file, "utf8"))) out.push(`${file}: ${rule}`);
