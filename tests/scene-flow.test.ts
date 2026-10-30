@@ -222,6 +222,35 @@ describe("auto path after a reload: art follows the stored plan's theme, not a s
     expect(document.documentElement.lastElementChild).toBe(hosts()[0]);
   });
 
+  it("every auto step is caught: a storage failure, a throwing art hook and a throwing pet are recorded, never thrown into the page", async () => {
+    api.storageGet.mockRejectedValueOnce(new Error("storage"));
+    await load("wiki-like");
+    const diag = await import("../src/core/diag.ts");
+    expect(diag.diagErrors()).toContain("auto-run");
+    expect(hosts()).toHaveLength(0);
+
+    // next load: storage works, but the art hook and the pet throw; the theme still goes on
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    await keep(themeToPlan("ocean"), { art: true });
+    await reload("wiki-like");
+    const fresh = await import("../src/core/diag.ts");
+    fresh.resetDiag();
+    const live = slot.skinlyApplier as unknown as { syncPet: () => boolean };
+    live.syncPet = () => {
+      throw new Error("pet");
+    };
+    slot.skinlyOnApplied = () => {
+      throw new Error("art");
+    };
+    // what applier-auto runs after the theme went on (a same-document navigation re-runs it the same way)
+    vi.resetModules();
+    document.documentElement.removeAttribute("data-skinly");
+    await import("../src/extension/applier-auto.ts");
+    for (let i = 0; i < 4; i++) await tick();
+    const after = await import("../src/core/diag.ts");
+    expect(after.diagErrors()).toEqual(expect.arrayContaining(["auto-art", "auto-pet"]));
+  });
+
   it("reduced motion (often on in Windows) still shows static art and the pet, only the movement stops", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion"), media: q, addEventListener: () => undefined, removeEventListener: () => undefined }));
     const { themeToPlan } = await import("../src/plan/themeToPlan.ts");

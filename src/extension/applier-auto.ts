@@ -5,6 +5,7 @@ import type { SiteRecord } from "./sites.ts";
 import { sendMessage } from "./api.ts";
 import { runAuto } from "./auto-core.ts";
 import { BADGE_MESSAGE } from "./messages.ts";
+import { recordError } from "../core/diag.ts";
 import { loadSettings, petConfig } from "./settings.ts";
 import { getSite, originOf } from "./sites.ts";
 
@@ -14,7 +15,8 @@ const applier = (globalThis as unknown as { skinlyApplier?: PageApplier }).skinl
 const origin = originOf(location.href);
 
 if (applier && origin) {
-  void runAuto({
+  // Nothing here may throw into the page: every step records its short kind and stops.
+  runAuto({
     doc: document,
     origin,
     applier,
@@ -38,11 +40,17 @@ if (applier && origin) {
     },
     onApplied: (site) => {
       void sendMessage(BADGE_MESSAGE).catch(() => undefined);
-      void loadSettings().then((s) => applier.syncPet(petFor(petConfig(s), site)));
-      // The scene script (scene.js, registered only for a site with saved art) picks the saved look up from here.
-      (globalThis as unknown as { skinlyOnApplied?: (site: SiteRecord) => void }).skinlyOnApplied?.(site);
+      void loadSettings()
+        .then((s) => applier.syncPet(petFor(petConfig(s), site)))
+        .catch(() => recordError("auto-pet"));
+      // The scene script (scene.js, registered with every kept site) shows the art of the stored plan's theme from here.
+      try {
+        (globalThis as unknown as { skinlyOnApplied?: (site: SiteRecord) => void }).skinlyOnApplied?.(site);
+      } catch {
+        recordError("auto-art");
+      }
     },
-  });
+  }).catch(() => recordError("auto-run"));
 }
 
 /** The saved pet look of a site wins over the global one; a saved look means the user wanted the pet there. */
