@@ -16,6 +16,8 @@ import { entryHost } from "../../analyzer/eligibility.ts";
 import { PET_CORNERS, PET_KINDS, PET_SIZES, callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
 import { eraseEverything, forgetAll, forgetSite } from "../siteActions.ts";
 import { loadSites, type Sites } from "../sites.ts";
+import { diagReport } from "../../core/diagReport.ts";
+import { loadDiag } from "../diagStore.ts";
 
 const NAMES: Record<ProviderId, string> = { gemini: "Gemini (Google AI Studio)", groq: "Groq" };
 const HOST = /^[a-z0-9]([a-z0-9.-]{0,251}[a-z0-9])?$/;
@@ -59,11 +61,25 @@ export function Options() {
   const [eraseOpen, setEraseOpen] = useState(false);
   const [eraseNote, setEraseNote] = useState("");
   const [welcomeOpen, setWelcomeOpen] = useState(false);
+  const [diagText, setDiagText] = useState("");
+  const [diagNote, setDiagNote] = useState("");
   const hints = safe(() => browserHints(), { userAgent: "", brave: false });
   const version = safe(() => extensionVersion(), "");
   const selectTab = (id: string) => {
     setTab(id);
     safe(() => history.replaceState(null, "", "#" + id), undefined);
+  };
+  /** Builds the diagnostics from storage (fixed words and numbers only) and puts them on the clipboard; the text stays visible to copy by hand. */
+  const copyDiag = async () => {
+    const online = safe(() => navigator.onLine, true);
+    const text = diagReport(version, await loadDiag().catch(() => ({ v: 1 as const, errors: [] })), { online });
+    setDiagText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+      setDiagNote(S.options.copyDiagDone);
+    } catch {
+      setDiagNote(S.options.copyDiagFailed);
+    }
   };
   const closeWelcome = () => {
     setWelcomeOpen(false);
@@ -364,6 +380,11 @@ export function Options() {
           <p class="note">Skinly AI is free and is not affiliated with any website. Its art is original and drawn in code; fonts are your system fonts. See assets/LICENSES.md in the source for the list of assets.</p>
           <p class="note">What leaves your browser: nothing, unless you click Change my page with an AI provider and agree. The privacy text ships with the extension in docs/store/privacy.md.</p>
           <button type="button" onClick={() => setWelcomeOpen(true)}>{S.options.showWelcome}</button>
+          <h3>{S.options.diagTitle}</h3>
+          <p class="note">{S.options.diagNote}</p>
+          <button type="button" onClick={() => void copyDiag()}>{S.options.copyDiag}</button>
+          {diagNote && <p role="status">{diagNote}</p>}
+          {diagText && <textarea class="diag" readOnly rows={12} aria-label={S.options.diagTitle} value={diagText} />}
         </Card>,
       )}
 

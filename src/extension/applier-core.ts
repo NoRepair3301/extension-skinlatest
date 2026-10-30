@@ -100,6 +100,8 @@ type PlanSource = StylePlan | ((summary: StructuralSummary | undefined) => Style
 
 export function createApplier(doc: Document, opts: ApplierOptions) {
   let ledger: Ledger | undefined;
+  /** The theme and strategy of the last successful apply (for the diagnostics; ids only). Only meaningful while a ledger exists. */
+  let shown: { themeId: string; strategy: Strategy } | undefined;
   const restoreHooks: Array<() => void> = [];
 
   const html = doc.documentElement;
@@ -256,6 +258,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       }
 
       if (doc.body) next.observer = createBoundedObserver(doc, doc.body, recheck, opts.observer);
+      shown = { themeId: checked.plan.themeId, strategy };
       return { ok: true, themeId: checked.plan.themeId, regions: next.tags.length, strategy, steppedDown, repairs: next.book.size, samples: next.checked };
     } catch {
       restore(false);
@@ -286,6 +289,8 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     },
     restore,
     isActive: (): boolean => ledger !== undefined,
+    /** Theme id and strategy now on the page, for the diagnostics. Undefined when no theme is on. */
+    shownTheme: (): { themeId: string; strategy: Strategy } | undefined => (ledger ? shown : undefined),
     /** Numbers for the success line and the AI repair threshold. */
     repairStats: (): RepairStats => ({ samples: ledger?.checked ?? 0, repairs: ledger?.book.size ?? 0, failing: ledger?.failing.length ?? 0 }),
     /**

@@ -251,6 +251,42 @@ describe("auto path after a reload: art follows the stored plan's theme, not a s
     expect(after.diagErrors()).toEqual(expect.arrayContaining(["auto-art", "auto-pet"]));
   });
 
+  it("diagnostics of a real page (stage 2): art state, host, gutters, actors and flags; never text, links, values or the origin", async () => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    await keep(themeToPlan("ocean"), { art: true });
+    const later: Array<{ fn: () => void; ms: number }> = [];
+    const realSet = window.setTimeout.bind(window);
+    vi.spyOn(window, "setTimeout").mockImplementation(((fn: () => void, ms?: number) => {
+      if (ms === 4000) {
+        later.push({ fn, ms });
+        return 0;
+      }
+      return realSet(fn, ms);
+    }) as typeof window.setTimeout);
+    await load("claude-like");
+    const marker = document.createElement("p");
+    marker.textContent = "SECRET-PAGE-TEXT";
+    const link = document.createElement("a");
+    link.href = "https://bank.example/account?id=42";
+    link.textContent = "My Account Title";
+    const field = document.createElement("input");
+    field.value = "hunter2";
+    document.body.append(marker, link, field);
+    const d = (slot.skinlyApplier as unknown as { diag(): { page: Record<string, unknown>; errors: string[] } }).diag();
+    expect(d.page).toMatchObject({ theme: "ocean", art: "ok", host: true, pet: false, mount: "html", htmlEffect: "none" });
+    expect((d.page["actors"] as number) > 0).toBe(true);
+    expect((d.page["left"] as number) + (d.page["right"] as number)).toBeGreaterThan(0);
+    const all = JSON.stringify(d);
+    for (const m of ["SECRET-PAGE-TEXT", "bank.example", "My Account Title", "hunter2", location.host, "Hello", "typing", "New chat"]) expect(all, m).not.toContain(m);
+    // the auto script stores the same snapshot once, 4 s after the theme went on
+    expect(later).toHaveLength(1);
+    later[0]!.fn();
+    for (let i = 0; i < 4; i++) await tick();
+    const stored = store.get("diag") as { page?: { theme: string; art: string } } | undefined;
+    expect(stored?.page).toMatchObject({ theme: "ocean", art: "ok" });
+    expect(JSON.stringify(stored)).not.toContain(location.host);
+  });
+
   it("reduced motion (often on in Windows) still shows static art and the pet, only the movement stops", async () => {
     vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion"), media: q, addEventListener: () => undefined, removeEventListener: () => undefined }));
     const { themeToPlan } = await import("../src/plan/themeToPlan.ts");

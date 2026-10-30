@@ -5,6 +5,8 @@ import { createApplier, type Applier, type StyleHost } from "./applier-core.ts";
 import { frameRole } from "./frames.ts";
 import { domGuardProvider } from "./guard-dom.ts";
 import { originOf } from "./origin.ts";
+import { diagFlags, takeErrors, type DiagKind } from "../core/diag.ts";
+import { joinPageDiag, type PageDiag, type SceneDiagPart } from "../core/diagReport.ts";
 
 /** One constructable stylesheet, adopted by the document. */
 const adoptedSheetHost = (doc: Document): StyleHost => ({
@@ -29,12 +31,15 @@ export type PageApplier = Applier & {
   updatePet(cfg: PetConfig): boolean;
   /** The toggle-pet command: hides the pet when it shows, shows it otherwise. True when it is on screen afterwards. */
   togglePet(cfg: PetConfig): boolean;
+  /** Diagnostics of this page (fixed words and numbers) and the errors caught since the last call, from every page script. */
+  diag(): { page: PageDiag; errors: DiagKind[] };
 };
 
 const slot = globalThis as unknown as {
   skinlyApplier?: PageApplier;
   skinlyTools?: ReturnType<typeof createPageTools>;
   skinlyToast?: (text: string) => void;
+  skinlyScene?: { diag?: () => SceneDiagPart };
 };
 
 function withPet(applier: Applier): PageApplier {
@@ -55,6 +60,17 @@ function withPet(applier: Applier): PageApplier {
       return pet.mounted();
     },
     togglePet: (cfg: PetConfig): boolean => pet.toggle(cfg, originOf(location.href)),
+    diag(): { page: PageDiag; errors: DiagKind[] } {
+      let scene: SceneDiagPart | undefined;
+      try {
+        scene = slot.skinlyScene?.diag?.();
+      } catch {
+        scene = undefined;
+      }
+      const shown = applier.shownTheme();
+      const page = joinPageDiag({ theme: shown?.themeId, strategy: shown?.strategy, pet: pet.mounted(), flags: diagFlags() }, scene);
+      return { page, errors: [...takeErrors(), ...(scene?.errors ?? [])] };
+    },
   });
 }
 
@@ -71,6 +87,6 @@ if (!slot.skinlyApplier) {
     slot.skinlyApplier = applier;
     slot.skinlyToast ??= createToaster(browserToasterEnv(window)).show;
   } else if (role === "same-origin-frame") {
-    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): boolean => false, updatePet: (): boolean => false, togglePet: (): boolean => false });
+    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): boolean => false, updatePet: (): boolean => false, togglePet: (): boolean => false, diag: () => ({ page: joinPageDiag({ pet: false, flags: diagFlags() }, undefined), errors: takeErrors() }) });
   }
 }

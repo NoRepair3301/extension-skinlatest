@@ -137,7 +137,7 @@ export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ..
 /** PNG data URL of the visible area of the tab's window. Needs the activeTab grant from the user's click. */
 export const captureVisible = (): Promise<string> => chrome.tabs.captureVisibleTab({ format: "png" });
 
-export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet" | "togglePet" | "isActive" | "repairPayload" | "applyRepair" | "repairRules";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet" | "togglePet" | "isActive" | "repairPayload" | "applyRepair" | "repairRules" | "diag";
 
 const callApplier = (m: string, a?: unknown): unknown => {
   const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;

@@ -135,4 +135,33 @@ describe("options tabs", () => {
     expect(api.clearAllStorage).toHaveBeenCalledTimes(1);
     expect(panelOf(root, "privacy").textContent).toContain("All Skinly data was erased.");
   });
+  it("About: Copy diagnostics puts the fixed report on the clipboard and shows it; no page data (stage 2)", async () => {
+    const diag = { v: 1, errors: ["scene-mount"], provider: "timeout", origin: "https://bank.example", page: { theme: "midnight", strategy: "safe", art: "narrow", host: false, left: 40, right: 0, actors: 0, pet: true, sheets: "yes", mount: "body", htmlEffect: "transform", reattached: 2, title: "My Account Title" } };
+    api.storageGet.mockImplementation(async (k: string) => (k === "settings" ? { welcomeDone: true } : k === "diag" ? diag : undefined));
+    const writes: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t: string) => void writes.push(t) } });
+    const root = await mount();
+    tabs(root).find((t) => t.textContent === "About")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    const button = Array.from(panelOf(root, "about").querySelectorAll("button")).find((b) => b.textContent === "Copy diagnostics")!;
+    expect(button).toBeDefined();
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect(writes).toHaveLength(1);
+    const text = writes[0]!;
+    for (const line of ["version: 0.2.0", "theme: midnight", "strategy: safe", "art: narrow", "host present: no", "gutters: left 40 px, right 0 px", "actors: 0", "mount: body (html effect: transform)", "re-attached: 2", "last provider result: timeout", "scene-mount"]) expect(text).toContain(line);
+    for (const m of ["bank.example", "My Account Title"]) expect(text).not.toContain(m);
+    expect(panelOf(root, "about").textContent).toContain("Copied.");
+    expect((panelOf(root, "about").querySelector("textarea") as HTMLTextAreaElement).value).toBe(text);
+  });
+
+  it("About: when the clipboard is refused the text stays visible to copy by hand", async () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } });
+    const root = await mount();
+    const button = Array.from(panelOf(root, "about").querySelectorAll("button")).find((b) => b.textContent === "Copy diagnostics")!;
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect(panelOf(root, "about").textContent).toContain("Could not copy");
+    expect((panelOf(root, "about").querySelector("textarea") as HTMLTextAreaElement).value).toContain("version: 0.2.0");
+  });
 });

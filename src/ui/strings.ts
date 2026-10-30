@@ -9,6 +9,7 @@ export const en = {
   popup: {
     change: "Change my page",
     quick: "Quick settings",
+    whyArt: "Why no art?",
     stages: ["Reading the page", "Checking readability", "Applying"],
     applied: (name: string, fixes: number) => `Applied ${name}, ${fixes === 0 ? "no readability fixes needed" : fixes === 1 ? "1 readability fix" : `${fixes} readability fixes`}`,
     restore: "Restore original",
@@ -198,6 +199,11 @@ export const en = {
     repairNote: "Optional second agreement, asked once per site: for parts of a page that look hard to read after restyling, their tag names, up to three class names, colours and the colour rules of the page's stylesheets. Never text, links, ids, form values or addresses.",
     repairWithdraw: "Withdraw the readability agreement for all sites",
     showWelcome: "Show the welcome again",
+    diagTitle: "Diagnostics",
+    diagNote: "If art or a theme does not show, copy this and paste it into your message. It holds the version, the theme, the art state, sizes, short error names and the last provider result. Never page text, addresses, sites, keys or form values.",
+    copyDiag: "Copy diagnostics",
+    copyDiagDone: "Copied.",
+    copyDiagFailed: "Could not copy. Select the text below and copy it.",
   },
   welcome: {
     title: "Welcome to Skinly AI",

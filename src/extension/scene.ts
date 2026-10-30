@@ -2,7 +2,8 @@ import { createAssetRenderer, type AssetRenderer, type AssetStatus } from "../fe
 import { browserAssetEnv } from "../features/assets/media.ts";
 import type { AssetRecord } from "../features/assets/types.ts";
 import { pickCorner, type GutterState, type Gutters } from "../features/freespace/index.ts";
-import { recordError } from "../core/diag.ts";
+import { diagFlags, recordError, takeErrors } from "../core/diag.ts";
+import type { ArtState, SceneDiagPart } from "../core/diagReport.ts";
 import { watchGutters, type GutterWatch } from "../features/freespace/watch.ts";
 import { getScene } from "../features/scenes/index.ts";
 import { createSceneEngine, type SceneEngine } from "../features/scenes/engine.ts";
@@ -25,6 +26,8 @@ export interface PageScene {
   /** Like sync, but does nothing unless art is already showing (used when only a setting changed). */
   update(req: SceneRequest | null): Promise<SceneStatusReport>;
   status(): SceneStatusReport;
+  /** The scene script's part of the diagnostics: fixed words and numbers only. */
+  diag(): SceneDiagPart;
   destroy(): void;
 }
 
@@ -78,6 +81,8 @@ export function createPageScene(win: Window): PageScene {
   let watch: GutterWatch | undefined;
   let req: SceneRequest | null = null;
   let report: SceneStatusReport = { gutters: "none", scene: "none", asset: "none" };
+  /** The gutters of the last drawing, for the diagnostics (widths only). */
+  let lastGutters: Gutters = { state: "none" };
   let cache: AssetRecord | undefined;
   let alive = true;
 
@@ -111,6 +116,7 @@ export function createPageScene(win: Window): PageScene {
 
   const draw = async (g: Gutters, done?: (r: SceneStatusReport) => void): Promise<void> => {
     if (!alive || !req) return;
+    lastGutters = g;
     const now = req;
     let sceneStatus: SceneStatusReport["scene"] = "none";
     if (now.scene) {
@@ -225,6 +231,22 @@ export function createPageScene(win: Window): PageScene {
       return start(next);
     },
     status: () => report,
+    diag(): SceneDiagPart {
+      const host = engine.host();
+      const actors = host?.shadowRoot?.querySelectorAll(".actor").length ?? 0;
+      const art: ArtState = !req
+        ? "off"
+        : report.scene === "shown" || report.asset === "shown"
+          ? "ok"
+          : report.scene === "corner"
+            ? "corner"
+            : report.gutters === "narrow"
+              ? "narrow"
+              : report.scene === "no-gutter"
+                ? "none"
+                : "off";
+      return { art, host: host?.isConnected === true, left: lastGutters.left?.w ?? 0, right: lastGutters.right?.w ?? 0, actors, flags: diagFlags(), errors: takeErrors() };
+    },
     destroy() {
       stop();
       alive = false;

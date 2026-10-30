@@ -6,6 +6,10 @@ import { sendMessage } from "./api.ts";
 import { runAuto } from "./auto-core.ts";
 import { BADGE_MESSAGE } from "./messages.ts";
 import { recordError } from "../core/diag.ts";
+import { savePageDiag } from "./diagStore.ts";
+
+/** The page snapshot is stored once per page load, after the last late re-measure of the art (3 s). */
+export const DIAG_SNAPSHOT_MS = 4000;
 import { loadSettings, petConfig } from "./settings.ts";
 import { getSite, originOf } from "./sites.ts";
 
@@ -49,6 +53,15 @@ if (applier && origin) {
       } catch {
         recordError("auto-art");
       }
+      // For Settings, About, Copy diagnostics: fixed words and numbers of this page only (no origin, no text).
+      window.setTimeout(() => {
+        try {
+          const d = applier.diag();
+          void savePageDiag(d.page, d.errors);
+        } catch {
+          recordError("other");
+        }
+      }, DIAG_SNAPSHOT_MS);
     },
   }).catch(() => recordError("auto-run"));
 }

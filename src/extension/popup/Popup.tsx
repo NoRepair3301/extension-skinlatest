@@ -18,6 +18,9 @@ import { Logo } from "../Logo.tsx";
 import { PetOptions } from "./PetOptions.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
 import { artStatus, showArtHere, updateArtHere } from "../sceneActions.ts";
+import { parsePageDiag, whyNoArt, type PageDiag } from "../../core/diagReport.ts";
+import type { DiagKind } from "../../core/diag.ts";
+import { providerResultOf, recordProviderResult, savePageDiag } from "../diagStore.ts";
 import { lookFor, sceneRequest, sourceForPlan, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
@@ -57,6 +60,7 @@ export function Popup() {
   const tabUrl = useRef<string | undefined>(undefined);
   const [petNote, setPetNote] = useState("");
   const [sceneNote, setSceneNote] = useState("");
+  const [whyArt, setWhyArt] = useState("");
   /** What the page shows now (theme, plan scene, accent), so a changed setting can reach the art that is already there. */
   const artSource = useRef<SceneSource | undefined>(undefined);
   const artTab = useRef<number | undefined>(undefined);
@@ -127,6 +131,20 @@ export function Popup() {
     setSceneNote(artStatus(await showArtHere(tabId, next, source), sceneRequest(next, source) !== null));
   };
 
+  /** Asks the page why there is (no) art, says it in one line, and keeps the snapshot for Copy diagnostics. Fixed words only. */
+  const explainArt = async () => {
+    const nothing = parsePageDiag({ theme: "none", art: "not-loaded" })!;
+    try {
+      const tab = await queryActiveTab();
+      const d = tab ? await runInPage<{ page: PageDiag; errors: DiagKind[] }>(tab.id, "diag") : undefined;
+      const page = parsePageDiag(d?.page) ?? nothing;
+      setWhyArt(whyNoArt(page));
+      if (d) void savePageDiag(page, Array.isArray(d.errors) ? d.errors : []);
+    } catch {
+      setWhyArt(whyNoArt(nothing));
+    }
+  };
+
   const updateScene = (next: Settings) => {
     setSettings(next);
     void saveSettings(next);
@@ -180,6 +198,7 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      void recordProviderResult(providerResultOf(outcome));
       if (outcome.kind === "baseline" || outcome.kind === "preview") setApplied({ name: themeName(outcome.kind === "baseline" ? outcome.themeId : outcome.plan.themeId), fixes: outcome.fixes ?? 0 });
       else setApplied(undefined);
       const k = keepFrom(outcome, tab.id, tab.url);
@@ -392,6 +411,8 @@ export function Popup() {
         <Toggle label={S.popup.petToggle} checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
         <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
         <p class="note" aria-live="polite">{sceneNote}</p>
+        <Button kind="quiet" onClick={() => void explainArt()}>{S.popup.whyArt}</Button>
+        {whyArt && <p class="note" role="status">{whyArt}</p>}
       </section>
 
       <details class="acc" open={settings.pet.enabled}>
