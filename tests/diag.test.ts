@@ -36,6 +36,20 @@ beforeEach(() => {
   resetDiag();
 });
 
+describe("A2: auto state words", () => {
+  it("every state word has one plain line with a next step in strings.ts; an unknown word reads as not-run", async () => {
+    const { AUTO_STATES } = await import("../src/core/diag.ts");
+    const { S } = await import("../src/ui/strings.ts");
+    for (const s of AUTO_STATES) {
+      const line = S.popup.why[s];
+      expect(line, s).toMatch(/\.$/);
+      expect(line.length, s).toBeLessThan(140);
+    }
+    expect(parsePageDiag({ ...page(), auto: "https://bank.example" })!.auto).toBe("not-run");
+    expect(diagReport("0.2.1", { v: 1, errors: [], page: page({ auto: "paused" }) }, {})).toContain("auto: paused");
+  });
+});
+
 describe("diagnostics content (stage 2)", () => {
   it("names the version, theme, strategy, art state, host, gutter widths, actor count, the b and c flags, errors and provider result", () => {
     const text = diagReport("0.2.0", { v: 1, errors: ["scene-render", "auto-art"], page: page({ mount: "body", htmlEffect: "transform" }), provider: "timeout" }, { online: false });
