@@ -33,7 +33,7 @@ The page shows the answer read as `response.choices[0].message.content` (a JSON 
 
 ## 6. Errors (errors page)
 VERIFIED 2026-10-30 (scripts/probe.ts): a rejected key returns HTTP 401 with body `{ "error": { "message": string, "type": "invalid_request_error", "code": "invalid_api_key" } }`; header names seen: alt-svc, cache-control, cf-cache-status, cf-ray, connection, content-length, content-type, date, server, set-cookie, strict-transport-security, vary, via, x-groq-region, x-request-id. No retry-after on 401.
-The Groq key in .env.local was rejected, so the success response, model id acceptance and latency are still UNVERIFIED.
+The earlier key was rejected. With a working key (2026-10-30, bake-off) the answer was read from `choices[0].message.content` and `openai/gpt-oss-120b` was accepted with `response_format: json_object`: VERIFIED. Median latency 2.5 s on real StylePlan prompts. A 429 occurred on the 5th call; its body and retry-after were not inspected, so the limit that was hit (RPM or tokens per minute) is UNVERIFIED.
 
 Body: `{ "error": { "message": "...", "type": "invalid_request_error" } }`.
 400 malformed, 401 bad credentials, 403 permissions, 404, 413 too large, 422 invalid, 424 dependency failed, 429 too many requests, 498 flex tier at capacity, 499 caller cancelled, 500, 502, 503. 5xx are not charged.

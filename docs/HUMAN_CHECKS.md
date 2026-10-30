@@ -16,10 +16,18 @@
 ## Phase 3
 - [x] Gemini raw response shape: VERIFIED 2026-10-30 (steps[] with a model_output step, content[].text). `extractGeminiText` fixed, tests use sanitized copies.
 - [x] Gemini 503 body and retry-after: VERIFIED 2026-10-30. Groq 401 body: VERIFIED. STILL UNVERIFIED: Gemini 401/403/429 bodies, any Groq success response, Groq data-retention terms, CORS from the service worker (the Test key button checks it).
-- [ ] **Groq key in .env.local is rejected (HTTP 401 invalid_api_key).** Create a new key, put it in `.env.local`, run `node scripts/probe.ts groq` then `npm run bakeoff`.
+- [x] Groq key now works (probe HTTP 200). Bake-off below.
 - [ ] **Gemini full-plan calls did not finish.** See the bake-off table below. Wait for the free-tier limit to reset, then run `node scripts/probe.ts` and `npm run bakeoff` once. If 40 s still times out, the model's thinking time is the problem and a documented way to lower it must be added to docs/providers/gemini.md (none is documented, so none was guessed).
 
-### Bake-off (2026-10-30, prompt v1, fixtures/web, 3 s gap, no retries, timeout 40 s)
+### Bake-off 2 (groq only, 2026-10-30, prompt v1, 3 s gap, no retries, 40 s timeout)
+| provider | model | calls made | success rate (valid JSON) | median latency | valid StylePlan rate | notes |
+|---|---|---|---|---|---|---|
+| groq | openai/gpt-oss-120b | 5 of 15 (stopped on 429) | 80 % (4/5) | 2524 ms | 60 % (3/5) | 1 x 429 on call 5; 0 % of valid plans passed the strict contrast check (see below) |
+
+Valid rate is 60 %, so the prompt was not tuned (PROMPT_VERSION stays "1"). Small sample (5): treat as indicative. Observation for a human: the script's "contrast ok" column was 0 %, i.e. the model's colours fail the SPEC 10 targets; the pipeline then repairs once and falls back to a built-in theme (tested). Worth checking in the browser how often users see the fallback, and whether the prompt should give contrast guidance.
+Gemini candidates for lower latency are in docs/providers/gemini.md section 10; no Gemini bake-off was run because a 429 was hit.
+
+### Bake-off 1 (2026-10-30, prompt v1, fixtures/web, 3 s gap, no retries, timeout 40 s)
 | provider | model | calls made | success rate | median latency | valid StylePlan rate | notes |
 |---|---|---|---|---|---|---|
 | gemini | gemini-3.8-flash | 5 of 15 (stopped on 429) | 0 % (0/5) | 40010 ms (all timeouts) | 0 % (no answers to judge) | 4 timeouts, then HTTP 429 |

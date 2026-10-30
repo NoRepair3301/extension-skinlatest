@@ -31,11 +31,11 @@ function shape(v: unknown, depth = 0): string {
   return typeof v;
 }
 
-function request(id: ProviderId, key: string, model: string): { headers: Record<string, string>; body: unknown } {
+function request(id: ProviderId, key: string, model: string, thinking?: string): { headers: Record<string, string>; body: unknown } {
   if (id === "gemini") {
     return {
       headers: { "x-goog-api-key": key, "Content-Type": "application/json" },
-      body: { model, system_instruction: SYSTEM, input: USER, response_format: { type: "text", mime_type: "application/json", schema: SCHEMA } },
+      body: { model, system_instruction: SYSTEM, input: USER, response_format: { type: "text", mime_type: "application/json", schema: SCHEMA }, ...(thinking ? { generation_config: { thinking_level: thinking } } : {}) },
     };
   }
   return {
@@ -56,7 +56,7 @@ async function main(): Promise<void> {
       continue;
     }
     const model = process.argv[3] ?? DEFAULT_MODELS[id];
-    const { headers, body } = request(id, key, model);
+    const { headers, body } = request(id, key, model, process.argv[4]);
     const t0 = Date.now();
     try {
       const res = await fetch(PROVIDER_ENDPOINTS[id], { method: "POST", headers, body: JSON.stringify(body), signal: AbortSignal.timeout(60_000) });
@@ -69,7 +69,7 @@ async function main(): Promise<void> {
       } catch {
         /* keep marker */
       }
-      writeFileSync(`private/probe-${id}.json`, JSON.stringify({ status: res.status, headers: Object.fromEntries(res.headers.entries()), body: text }, null, 2).split(key).join("<key>"));
+      writeFileSync(`private/probe-${id}${process.argv[4] ? "-" + model.replace(/[^a-z0-9.]/gi, "_") + "-" + process.argv[4] : ""}.json`, JSON.stringify({ status: res.status, headers: Object.fromEntries(res.headers.entries()), body: text }, null, 2).split(key).join("<key>"));
       process.stdout.write(`${id} (${model}): HTTP ${res.status} in ${ms} ms\n  header names: ${names.join(", ")}\n  structure: ${structure}\n`);
       if (res.status === 429 || res.status === 401 || res.status === 403) process.stdout.write(`  ${id}: stopped (${res.status}), not retrying\n`);
     } catch (e) {

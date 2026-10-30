@@ -99,7 +99,7 @@ describe("options page", () => {
   it("reorders providers and saves the order", async () => {
     const root = await mount();
     await act(() => btn(root, "Down", 0).click());
-    expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ order: ["groq", "gemini"] }));
+    expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ order: ["gemini", "groq"] }));
   });
 
   describe("saved sites and blocklist", () => {

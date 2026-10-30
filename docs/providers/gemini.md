@@ -51,3 +51,13 @@ Pricing page, Free plan card: "Content used to improve our products" (Free tier:
 
 ## 9. CORS from an extension service worker
 Unclear. Not documented. With the optional host permission for `https://generativelanguage.googleapis.com/*` granted, extension fetches are not subject to page CORS in Chromium; the Test key button in the options page verifies this (human check).
+
+## 10. Thinking control and lighter model (2026-10-30)
+Sources: https://ai.google.dev/gemini-api/docs/thinking and https://ai.google.dev/gemini-api/docs/models
+- Docs: `generation_config.thinking_level` at the top level of the Interactions request body; values `low`, `medium`, `high`, and `minimal` on some models. The page gives no "off" value and no token budget. Its REST example uses `"generation_config": {"thinking_level": "low"}` with `gemini-3.8-flash`.
+- Docs list `gemini-3.5-flash-lite` (Stable) and recommend it or `gemini-3.8-flash` for new projects.
+- Probes with the trivial prompt (one call each, 10 s apart):
+  - `gemini-3.8-flash` + `thinking_level: "low"`: HTTP 429 after 868 ms (same error shape as 503: `{error:{message,code:string}}`, with a retry-after header). VERIFIED that it is rate-limited; UNVERIFIED whether the parameter is accepted (the 429 may have been returned before validation).
+  - `gemini-3.5-flash-lite` (no thinking parameter): HTTP 200 in 5.7 s, `total_thought_tokens: 0` (a thought step with a signature was still present; the extractor skips it).
+  - `gemini-3.5-flash-lite` + `thinking_level: "minimal"`: HTTP 200 in 5.7 s, parameter accepted.
+- Even without thinking tokens a trivial flash-lite call took 5.7 s, so a full plan is unlikely to meet 15 s. No Gemini bake-off was run (a 429 was hit). Defaults in src/config.ts are unchanged.

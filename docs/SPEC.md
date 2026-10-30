@@ -74,7 +74,7 @@ interface Provider { id; defaultModel; generate(req:{system,user,model,signal}):
 Result = {ok:true, json:unknown, usage?} | {ok:false, error:{kind, retryAfterMs?}}
 kind = auth | rate | quota | network | timeout | blocked | bad-output | server | aborted
 ```
-- Default order: Gemini, then Groq. Mock provider for tests. Grok (xAI) is a later optional adapter (no free tier found).
+- Default order: Groq, then Gemini (Groq was faster and produced valid plans in the 2026-10-30 bake-off). Mock provider for tests. Grok (xAI) is a later optional adapter (no free tier found).
 - Timeout 40 s per call, overall pipeline budget 60 s (was 15 s and 20 s; real Gemini calls spend seconds on thinking tokens, see docs/providers/gemini.md). One retry only for 429/5xx when retry-after is 5 s or less.
 - bad-output: one repair retry (send only reason codes), then fall back to the nearest built-in theme.
 - Keys: user pastes their own key in Settings. Stored in storage.local under `keys`. Not encrypted by the browser; the UI says so. Never logged, never in a URL.
