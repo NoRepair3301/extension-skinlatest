@@ -19,8 +19,11 @@ export const ALLOWED_URL_HOSTS: readonly string[] = PROVIDER_IDS.map((id) => new
 /** Optional host permission pattern for one provider. */
 export const providerOrigin = (id: ProviderId): string => new URL(PROVIDER_ENDPOINTS[id]).origin + "/*";
 
-/** Hosts where Skinly never runs. */
-export const BUILTIN_BLOCKLIST: readonly string[] = ["erp.iitkgp.ac.in"];
+/**
+ * Hosts where Skinly never runs, apart from the user's own blocklist (Settings). Empty since rc4: legacy portals such as
+ * erp.iitkgp.ac.in are supported. Pages with password, one-time-code, payment or file inputs still get no AI call (SPEC 6).
+ */
+export const BUILTIN_BLOCKLIST: readonly string[] = [];
 
 /** Schemes that belong to the browser itself. */
 export const INTERNAL_SCHEMES: readonly string[] = [

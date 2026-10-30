@@ -77,8 +77,8 @@ All selectors start with `html[data-skinly="on"]:not(#skinly-force)` (the `:not(
 - Fingerprint = FNV-1a hash plus a role sequence string of the first 40 regions. Two fingerprints are "similar" when the sequence similarity is at least 0.8.
 
 ## 6. Gate
-- Blocked entirely: non-http(s) schemes, browser-internal pages, extension pages, web stores, PDF viewer, the user blocklist, and built-in blocklist entries in src/config.ts (seed: erp.iitkgp.ac.in).
-- No AI call (built-in theme only): password, payment (autocomplete cc-*), or file inputs on the page.
+- Blocked entirely: non-http(s) schemes, browser-internal pages, extension pages, web stores, PDF viewer, the user blocklist, and built-in blocklist entries in src/config.ts (empty since rc4; legacy portals such as erp.iitkgp.ac.in are supported, the user's own blocklist in Settings still applies).
+- No AI call (built-in theme only): password, one-time-code/OTP (autocomplete one-time-code, or an input named otp, totp, mfa, 2fa, passcode, one-time, verification/security code; reported as the `password` marker), payment (autocomplete cc-*), or file inputs on the page. On those pages only built-in themes apply (colours and fonts, no layouts).
 - Layouts disabled (colours only): any risk marker.
 - Page cap: analyser aborts after 15,000 visited nodes and reports "too-large" (built-in theme only).
 

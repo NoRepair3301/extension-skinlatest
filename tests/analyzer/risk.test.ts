@@ -16,6 +16,18 @@ describe("detectRisk", () => {
     expect(risk("<input autocomplete='section-a cc-exp'>")).toEqual(["payment"]);
     expect(risk("<input autocomplete='name'>")).toEqual([]);
   });
+  it("treats one-time-code and OTP inputs like passwords (no AI call)", () => {
+    expect(risk("<input autocomplete='one-time-code'>")).toEqual(["password"]);
+    expect(risk("<input type='text' name='otp'>")).toEqual(["password"]);
+    expect(risk("<input type='tel' id='login-otp-1'>")).toEqual(["password"]);
+    expect(risk("<input name='TOTP_code'>")).toEqual(["password"]);
+    expect(risk("<input name='verification_code'>")).toEqual(["password"]);
+    expect(risk("<input name='passcode'>")).toEqual(["password"]);
+  });
+  it("does not mistake ordinary names for OTP", () => {
+    expect(risk("<input name='footprint'><input name='photo'><input name='hotpotato'><input name='q'>")).toEqual([]);
+    expect(risk("<input type='checkbox' name='otp'>")).toEqual([]);
+  });
   it("flags contenteditable and large textareas", () => {
     expect(risk("<div contenteditable>x</div>")).toEqual(["editable"]);
     expect(risk("<div contenteditable='true'>x</div>")).toEqual(["editable"]);

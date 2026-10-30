@@ -128,7 +128,7 @@ describe("transform: provider errors", () => {
 });
 
 describe("transform: gate", () => {
-  it.each(["chrome://settings", "https://chromewebstore.google.com/x", "https://erp.iitkgp.ac.in/", "file:///a.html", "https://example.org/a.pdf"])("blocks %s without touching the page or any provider", async (url) => {
+  it.each(["chrome://settings", "https://chromewebstore.google.com/x", "file:///a.html", "https://example.org/a.pdf"])("blocks %s without touching the page or any provider", async (url) => {
     const h = harness();
     const out = await transform(url, h.deps);
     expect(out).toMatchObject({ kind: "blocked", message: MSG.blocked });
