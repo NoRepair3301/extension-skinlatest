@@ -43,6 +43,8 @@ describe("forbidden patterns in src/", () => {
     ["<style> element (CSP)", 'doc.createElementNS(ns, "style")'],
     ["style attribute (CSP)", 'host.setAttribute("style", "position:fixed")'],
     ["style attribute (CSP)", "el.setAttribute('style', css)"],
+    ["HTML parsing (CSP)", "new DOMParser().parseFromString(x, 'text/html')"],
+    ["HTML parsing (CSP)", "range.createContextualFragment(x)"],
   ])("flags the CSP-unsafe styling %s: %s", (rule, code) => {
     expect(hits(SRC, code)).toContain(rule);
   });

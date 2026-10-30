@@ -41,6 +41,8 @@ const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   // Strict sites (CSP style-src without 'unsafe-inline') block both: style only through adoptedStyleSheets and element.style (src/features/mount.ts).
   ["<style> element (CSP)", /\bcreateElement(?:NS)?\s*\([^)]*["'`]style["'`]\s*\)/],
   ["style attribute (CSP)", /\.setAttribute(?:NS)?\s*\([^)]*["'`]style["'`]\s*,/],
+  // Parsed markup brings its own <style> elements and style attributes; our DOM is built with createElement and textContent only.
+  ["HTML parsing (CSP)", /\bnew\s+DOMParser\b|\bcreateContextualFragment\b/],
 ];
 
 /** Forbidden in every scanned text file. */

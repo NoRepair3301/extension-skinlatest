@@ -183,6 +183,21 @@ describe("auto path after a reload: art follows the stored plan's theme, not a s
     expect(actors().length).toBeGreaterThan(0);
   });
 
+  it("CSP: mounting the scene and the pet never makes a <style> element or a style attribute through setAttribute", async () => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    const { defaultSettings } = await import("../src/extension/settings.ts");
+    store.set("settings", { ...defaultSettings(), pet: { ...defaultSettings().pet, enabled: true } });
+    await keep(themeToPlan("field"), { art: true });
+    const made = vi.spyOn(Document.prototype, "createElement");
+    const attrs = vi.spyOn(Element.prototype, "setAttribute");
+    await load("wiki-like");
+    expect(hosts()).toHaveLength(1);
+    expect(petHosts()).toHaveLength(1);
+    expect(made.mock.calls.filter(([tag]) => String(tag).toLowerCase() === "style")).toEqual([]);
+    expect(attrs.mock.calls.filter(([name]) => String(name).toLowerCase() === "style")).toEqual([]);
+    for (const h of [...hosts(), ...petHosts()]) expect(h.shadowRoot!.querySelector("style")).toBeNull();
+  });
+
   it("the host is the last child of the html element after the page finished parsing", async () => {
     const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
     await keep(themeToPlan("ocean"), { art: true });
