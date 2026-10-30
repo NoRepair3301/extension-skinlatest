@@ -222,6 +222,27 @@ describe("auto path after a reload: art follows the stored plan's theme, not a s
     expect(document.documentElement.lastElementChild).toBe(hosts()[0]);
   });
 
+  it("reduced motion (often on in Windows) still shows static art and the pet, only the movement stops", async () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion"), media: q, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    const { defaultSettings } = await import("../src/extension/settings.ts");
+    store.set("settings", { ...defaultSettings(), pet: { ...defaultSettings().pet, enabled: true, motion: "horizontal" } });
+    await keep(themeToPlan("midnight"), { art: true });
+    await load("claude-like");
+    expect(hosts()).toHaveLength(1);
+    expect(actors().length).toBeGreaterThan(0);
+    const root = hosts()[0]!.shadowRoot!.querySelector(".root")!;
+    expect(root.classList.contains("still")).toBe(true);
+    expect(petHosts()).toHaveLength(1);
+    expect(petHosts()[0]!.shadowRoot!.querySelector("svg")).not.toBeNull();
+    expect((petHosts()[0] as HTMLElement).style.getPropertyValue("display")).toBe("block");
+    // the reduced-motion rules only stop animation: nothing in them hides, fades or shrinks the art
+    const { SCENE_CSS } = await import("../src/features/scenes/css.ts");
+    const still = SCENE_CSS.split("}").filter((r) => r.includes(".still"));
+    expect(still.length).toBeGreaterThan(0);
+    for (const rule of still) expect(rule).not.toMatch(/display|visibility|opacity|transform|width|height/);
+  });
+
   it("the host is the last child of the html element after the page finished parsing", async () => {
     const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
     await keep(themeToPlan("ocean"), { art: true });
