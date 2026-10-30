@@ -70,7 +70,7 @@ Why it timed out: requests are small (system 1.7k chars, schema 1.2k, user 0.9k 
 - [ ] Re-read the current Chrome Web Store policies and the extension review requirements before you submit; policies changed in 2026 and the details could not be verified here. Fill the data-use form accurately (docs/store/data-use.md is a draft).
 - [ ] Run docs/QA.md on Edge, Chrome and Brave. Fix any failure with a fix prompt, one test per bug.
 - [ ] Final privacy check: with the Network tab open, use the extension on a page: the only requests from the extension go to the provider you chose and only after consent.
-- [ ] Look at the icon at 16 px in the toolbar on a light and a dark browser theme; replace scripts/icons.ts if you want another design.
+- [ ] Look at the icon at 16 px in the toolbar on a light and a dark browser theme; the art is assets/icons/*.png (source assets/skinly-icon.svg).
 
 ## fix/quality-blur-pet-shortcuts (v0.1.0-rc4)
 Items are added per step; the full list is printed at the end of the final report.

@@ -2,7 +2,6 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { ALLOWED_URL_HOSTS } from "../src/config.ts";
 import { SUMMARY_MAX_BYTES } from "../src/analyzer/summary.ts";
-import { ICON_SIZES, renderIcon } from "../scripts/icons.ts";
 import { buildRelease, checkEntries, collectDist, verifyRelease } from "../scripts/release.ts";
 import { makeZip, readZip } from "../scripts/zip.ts";
 
@@ -25,14 +24,15 @@ describe("version", () => {
 });
 
 describe("icons", () => {
-  it("renders valid, deterministic PNGs at the four sizes", () => {
-    for (const size of ICON_SIZES) {
-      const a = renderIcon(size);
-      expect(Array.from(a.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  it("ships the four PNGs from assets/icons at their stated sizes, and the manifest points at them", () => {
+    for (const size of [16, 32, 48, 128]) {
+      const a = readFileSync(`assets/icons/icon-${size}.png`);
       const v = new DataView(a.buffer, a.byteOffset);
+      expect(Array.from(a.subarray(0, 8))).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
       expect(v.getUint32(16)).toBe(size);
       expect(v.getUint32(20)).toBe(size);
-      expect(Array.from(renderIcon(size))).toEqual(Array.from(a));
+      expect((manifest["icons"] as Record<string, string>)[String(size)]).toBe(`icons/icon-${size}.png`);
+      expect((manifest["action"] as { default_icon: Record<string, string> }).default_icon[String(size)]).toBe(`icons/icon-${size}.png`);
     }
   });
 });

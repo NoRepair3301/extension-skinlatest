@@ -34,17 +34,27 @@ describe("validateDist", () => {
     action: { default_popup: "popup/index.html" },
     options_page: "options/index.html",
   };
-  const write = (m: unknown, js: string) => {
-    mkdirSync(`${dir}/popup`, { recursive: true });
-    mkdirSync(`${dir}/options`, { recursive: true });
-    writeFileSync(`${dir}/manifest.json`, JSON.stringify(m));
-    for (const f of ["popup/index.html", "options/index.html", "applier.js", "palette.js"]) writeFileSync(`${dir}/${f}`, "x");
-    writeFileSync(`${dir}/background.js`, js);
+  const ICONS = ["icon-16.png", "icon-32.png", "icon-48.png", "icon-128.png"];
+  const write = (m: unknown, js: string, icons: string[] = ICONS, d = dir) => {
+    mkdirSync(`${d}/popup`, { recursive: true });
+    mkdirSync(`${d}/options`, { recursive: true });
+    mkdirSync(`${d}/icons`, { recursive: true });
+    for (const n of icons) writeFileSync(`${d}/icons/${n}`, "png");
+    writeFileSync(`${d}/manifest.json`, JSON.stringify(m));
+    for (const f of ["popup/index.html", "options/index.html", "applier.js", "palette.js"]) writeFileSync(`${d}/${f}`, "x");
+    writeFileSync(`${d}/background.js`, js);
   };
 
   it("accepts a clean build", () => {
     write(manifest, "console.log(1)");
     expect(validateDist(dir)).toEqual([]);
+  });
+
+  it("rejects a missing or extra icon file", () => {
+    write(manifest, "console.log(1)", [...ICONS, "icon-64.png"]);
+    expect(validateDist(dir).join()).toContain("dist/icons must hold exactly");
+    write(manifest, "console.log(1)", ICONS.slice(1));
+    expect(validateDist(dir).join()).toContain("dist/icons must hold exactly");
   });
 
   it("rejects an unexpected permission and dangerous built code", () => {
