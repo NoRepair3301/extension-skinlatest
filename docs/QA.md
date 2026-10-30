@@ -17,7 +17,7 @@ Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each 
 | 10 | Always | Always on this site: permission prompt names only this origin; reopen the browser, the site is themed | | | |
 | 11 | Forget | Forget this site: next visit is original; no site access remains in the extension details | | | |
 | 12 | Pet | Turn the pet on: it appears in a corner, hides with the x button and with Escape, moves away from form fields, is static with reduced motion | | | |
-| 13 | Palette | Alt+Shift+K, type, Enter, then Enter on the focused link: it opens normally | | | |
+| 13 | Palette | Assign a key to "Find a link or button" at the browser shortcuts page (no default key: browsers allow only 4), press it, type, Enter, then Enter on the focused link: it opens normally | | | |
 | 14 | Blur and screenshot | Pick three elements, Share mode on, Safe screenshot: picked parts unreadable in the PNG | | | |
 | 15 | Table tools | Sort and filter a public data table, Restore order, Restore original: page identical | | | |
 | 16 | Element theming (rc4) | Open a public article page and a site with many buttons, forms and a data table; Change my page: links (hover, visited), buttons, inputs, selects, textareas, tables (header and zebra rows), code and selection colour all follow the theme; images keep their colours | | | |
