@@ -1,5 +1,6 @@
 import type { PaletteItem } from "./index-items.ts";
 import { rank } from "./score.ts";
+import { adoptCss } from "../mount.ts";
 
 export const MAX_SHOWN = 50;
 export const OUTLINE_MS = 2000;
@@ -38,8 +39,6 @@ export function openPalette(deps: PaletteDeps, items: readonly PaletteItem[]): P
   const host = doc.createElement("div");
   host.setAttribute("data-skinly-ui", "palette");
   const root = host.attachShadow({ mode: "open" });
-  const style = doc.createElement("style");
-  style.textContent = CSS;
   const box = doc.createElement("div");
   box.className = "box";
   const input = doc.createElement("input");
@@ -55,7 +54,8 @@ export function openPalette(deps: PaletteDeps, items: readonly PaletteItem[]): P
   list.setAttribute("role", "listbox");
   list.setAttribute("aria-label", "Matches");
   box.append(input, list);
-  root.append(style, box);
+  adoptCss(doc, root, CSS);
+  root.append(box);
 
   let shown: PaletteItem[] = [];
   let selected = 0;

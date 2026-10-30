@@ -1,3 +1,4 @@
+import { adoptCss } from "../mount.ts";
 export const TOAST_MS = 2000;
 export const TOAST_HOST = "toast";
 /** Below the pet and the page-blur veil, above ordinary page content. */
@@ -47,14 +48,13 @@ export function createToaster(env: ToasterEnv): Toaster {
       el.style.setProperty("pointer-events", "none");
       el.style.setProperty("z-index", String(Z));
       const root = el.attachShadow({ mode: "open" });
-      const style = doc.createElement("style");
-      style.textContent = CSS;
       const box = doc.createElement("div");
       box.className = "t";
       box.setAttribute("role", "status");
       box.setAttribute("aria-live", "polite");
       box.textContent = text.slice(0, 80);
-      root.append(style, box);
+      adoptCss(doc, root, CSS);
+      root.append(box);
       doc.documentElement.appendChild(el);
       host = el;
       timer = env.setTimeout(hide, TOAST_MS);

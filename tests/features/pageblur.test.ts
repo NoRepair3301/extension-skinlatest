@@ -2,14 +2,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createPageBlur, PAGE_BLUR_HOST, PAGE_BLUR_Z } from "../../src/features/blur/page.ts";
 import { safeScreenshot } from "../../src/features/blur/screenshot.ts";
 import { createPageTools } from "../../src/extension/pageTools.ts";
+import { adoptedCss, installSheets } from "../helpers/sheets.ts";
 
 const PNG = "data:image/png;base64,iVBORw0KGgo=";
 const hostOf = () => document.querySelector<HTMLElement>(`[data-skinly-ui="${PAGE_BLUR_HOST}"]`);
 
+let uninstall: () => void = () => undefined;
 beforeEach(() => {
+  uninstall = installSheets();
   document.body.innerHTML = '<main><a href="/x">x</a><button>b</button></main>';
 });
 afterEach(() => {
+  uninstall();
   hostOf()?.remove();
   vi.useRealTimers();
 });
@@ -27,7 +31,7 @@ describe("whole-page blur overlay", () => {
     expect(host.style.getPropertyValue("z-index")).toBe(String(PAGE_BLUR_Z));
     expect(PAGE_BLUR_Z).toBe(2147483647);
     expect(host.style.getPropertyValue("pointer-events")).toBe("none");
-    const css = host.shadowRoot!.querySelector("style")!.textContent!;
+    const css = adoptedCss(host.shadowRoot);
     expect(css).toContain("backdrop-filter:blur(12px)");
     expect(css).toMatch(/\.veil\{[^}]*pointer-events:none/);
     b.off();
@@ -45,7 +49,7 @@ describe("whole-page blur overlay", () => {
     expect(button.getAttribute("aria-label")).toBeTruthy();
     expect(button.disabled).toBe(false);
     expect(button.tabIndex).toBeGreaterThanOrEqual(0);
-    expect(root.querySelector("style")!.textContent).toMatch(/button\{[^}]*pointer-events:auto/);
+    expect(adoptedCss(root)).toMatch(/button\{[^}]*pointer-events:auto/);
     button.dispatchEvent(new MouseEvent("click"));
     expect(hostOf()).toBeNull();
     expect(b.isOn()).toBe(false);

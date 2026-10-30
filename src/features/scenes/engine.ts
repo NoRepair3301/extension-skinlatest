@@ -1,6 +1,8 @@
 import type { Gutter, Gutters } from "../freespace/index.ts";
 import { CORNER_H, CORNER_W, usableGutters } from "../freespace/index.ts";
 import { SCENE_CSS } from "./css.ts";
+import { adoptCss, attachHost, FIXED_HOST, styleHost } from "../mount.ts";
+import { guarded, recordError } from "../../core/diag.ts";
 import type { Ctx } from "./svg.ts";
 import type { Actor, Density, LaneChoice, Motion, SceneDef } from "./types.ts";
 
@@ -83,23 +85,6 @@ export function placeActors(actors: readonly Actor[], laneW: number, laneH: numb
   return [...backs, ...out];
 }
 
-export function sheet(doc: Document, root: ShadowRoot, css: string): void {
-  const win = doc.defaultView as (Window & { CSSStyleSheet?: typeof CSSStyleSheet }) | null;
-  try {
-    if (win?.CSSStyleSheet && "adoptedStyleSheets" in root) {
-      const s = new win.CSSStyleSheet();
-      s.replaceSync(css);
-      (root as unknown as { adoptedStyleSheets: CSSStyleSheet[] }).adoptedStyleSheets = [s];
-      return;
-    }
-  } catch {
-    // fall through to a style element
-  }
-  const style = doc.createElement("style");
-  style.textContent = css;
-  root.append(style);
-}
-
 /**
  * One extension-owned shadow-root host on the document element: position fixed, inset 0, pointer-events none.
  * Inside it one clipped lane per usable gutter. Actors cannot leave their lane because the lane clips.
@@ -119,9 +104,13 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
     rootEl.classList.toggle("still", reduced());
   };
 
+  let detach: (() => void) | undefined;
+
   const teardown = () => {
     offVisibility?.();
     offVisibility = undefined;
+    detach?.();
+    detach = undefined;
     host?.remove();
     host = undefined;
     rootEl = undefined;
@@ -132,20 +121,17 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
     const h = doc.createElement("div");
     h.setAttribute("data-skinly-scene", "");
     h.setAttribute("data-skinly-ui", "scene");
-    h.style.setProperty("all", "initial");
-    h.style.setProperty("position", "fixed");
-    h.style.setProperty("inset", "0");
-    h.style.setProperty("pointer-events", "none");
-    h.style.setProperty("z-index", "2147480000");
+    styleHost(h, FIXED_HOST);
     const shadow = h.attachShadow({ mode: "open" });
-    sheet(doc, shadow, SCENE_CSS + "@media (prefers-reduced-motion:reduce){[data-anim]{animation:none}}");
+    // Reduced motion stops the movement only: every actor's resting pose is a finished picture, so the art stays visible.
+    adoptCss(doc, shadow, SCENE_CSS + "@media (prefers-reduced-motion:reduce){[data-anim]{animation:none}}");
     const r = doc.createElement("div");
     r.className = "root";
     shadow.append(r);
-    doc.documentElement.append(h);
     host = h;
     rootEl = r;
-    const onVis = () => applyEnv();
+    detach = attachHost(doc, win, h, "scene-reattach");
+    const onVis = () => guarded("scene-render", applyEnv, undefined);
     doc.addEventListener("visibilitychange", onVis);
     const mq = win.matchMedia?.("(prefers-reduced-motion: reduce)");
     mq?.addEventListener?.("change", onVis);
@@ -220,7 +206,7 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
       .sort((p, q) => p.size * (p.ratio ?? 1) - q.size * (q.ratio ?? 1))
       .slice(0, 2);
 
-  const show = (req: SceneRequest): SceneStatus => {
+  const draw = (req: SceneRequest): SceneStatus => {
     const usable = usableGutters(req.gutters, req.lane);
     const corner = usable.length === 0 ? req.gutters.corner : undefined;
     if (usable.length === 0 && !corner) {
@@ -258,6 +244,7 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
         try {
           box = buildActor(a, g, ctx, laneH, i, top);
         } catch {
+          recordError("scene-render");
           return;
         }
         lane.append(box);
@@ -267,9 +254,20 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
     return corner ? "corner" : "shown";
   };
 
+  /** Every step of drawing is caught: a failure is recorded, the half-built host is removed, and nothing reaches the page. */
+  const show = (req: SceneRequest): SceneStatus => {
+    try {
+      return draw(req);
+    } catch {
+      recordError("scene-mount");
+      guarded("scene-mount", teardown, undefined);
+      return "no-gutter";
+    }
+  };
+
   return {
     show,
-    hide: teardown,
+    hide: () => guarded("scene-mount", teardown, undefined),
     host: () => host,
     animatedCount: countAnimated,
     destroy: teardown,

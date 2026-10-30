@@ -37,6 +37,25 @@ describe("forbidden patterns in src/", () => {
     expect(hits(SRC, code)).toContain(rule);
   });
 
+  it.each([
+    ["<style> element (CSP)", 'const s = doc.createElement("style");'],
+    ["<style> element (CSP)", "const s = document.createElement('style')"],
+    ["<style> element (CSP)", 'doc.createElementNS(ns, "style")'],
+    ["style attribute (CSP)", 'host.setAttribute("style", "position:fixed")'],
+    ["style attribute (CSP)", "el.setAttribute('style', css)"],
+  ])("flags the CSP-unsafe styling %s: %s", (rule, code) => {
+    expect(hits(SRC, code)).toContain(rule);
+  });
+
+  it("allows CSSOM and adopted stylesheets (what strict sites permit)", () => {
+    expect(hits(SRC, 'el.style.setProperty("position", "fixed", "important"); el.style.cssText = ""; root.adoptedStyleSheets = [s]; el.setAttribute("data-style", "x");')).toEqual([]);
+  });
+
+  it("the page-side code in src/features and the auto script never use <style>, style attributes or innerHTML", () => {
+    const csp = scanTree(".", ["src/features", "src/extension"]).filter((v) => /CSP|innerHTML/.test(v.rule));
+    expect(csp).toEqual([]);
+  });
+
   it("does not flag reading outerHTML or comparing it", () => {
     expect(hits(SRC, "const s = el.outerHTML; if (a.outerHTML == b) {}")).toEqual([]);
   });

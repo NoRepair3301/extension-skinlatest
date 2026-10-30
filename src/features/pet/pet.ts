@@ -5,6 +5,7 @@ import { collectObstacles, nextCorner, type Box } from "./avoid.ts";
 import type { PetKind } from "./art.ts";
 import { SPEED_PX, walkTrack, type Direction, type Edge, type Speed } from "./motion.ts";
 import { createOverlay, MARGIN_PX, SIZE_PX, type Corner, type Overlay, type Size } from "./overlay.ts";
+import { recordError } from "../../core/diag.ts";
 
 /** The part of the `pet` setting the page side needs. Motion fields default to a pet that stays still. */
 export interface PetConfig {
@@ -99,6 +100,9 @@ export function createPetController(env: PetEnv): PetController {
     return { x: r.left, y: r.top, w: r.width, h: r.height };
   };
 
+  /** The overlay of a mount that has not finished yet, so a failure halfway can remove it. */
+  let building: Overlay | undefined;
+
   const mount = (cfg: PetConfig) => {
     const { doc, win } = env;
     const c = withDefaults(cfg);
@@ -111,6 +115,7 @@ export function createPetController(env: PetEnv): PetController {
       onHide: teardown,
       onPetClick: () => animator.celebrate(),
     });
+    building = overlay;
     const off: Array<() => void> = [];
     const pending: { avoid?: number | undefined } = {};
     let gutters: Gutters = { state: "none" };
@@ -215,8 +220,27 @@ export function createPetController(env: PetEnv): PetController {
     }
 
     live = state;
+    building = undefined;
     animator.start();
     schedule();
+  };
+
+  /** A failure while mounting is recorded and leaves nothing behind; it never reaches the page. */
+  const safeMount = (cfg: PetConfig): boolean => {
+    try {
+      mount(cfg);
+      return true;
+    } catch {
+      recordError("pet-mount");
+      try {
+        building?.destroy();
+        building = undefined;
+        teardown();
+      } catch {
+        // nothing left to remove
+      }
+      return false;
+    }
   };
 
   const same = (a: PetConfig, b: PetConfig) => {
@@ -231,7 +255,7 @@ export function createPetController(env: PetEnv): PetController {
       if (!allowed) return teardown();
       if (live && same(live.cfg, cfg)) return;
       teardown();
-      mount(cfg);
+      safeMount(cfg);
     },
     toggle(cfg, origin) {
       if (live) {
@@ -239,8 +263,7 @@ export function createPetController(env: PetEnv): PetController {
         return false;
       }
       if (origin !== undefined && cfg.disabledOrigins.includes(origin)) return false;
-      mount({ ...cfg, enabled: true });
-      return true;
+      return safeMount({ ...cfg, enabled: true });
     },
     mounted: () => live !== undefined,
     destroy: teardown,

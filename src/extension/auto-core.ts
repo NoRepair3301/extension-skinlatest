@@ -1,6 +1,7 @@
 import { similar } from "../analyzer/fingerprint.ts";
 import type { Applier } from "./applier-core.ts";
 import type { SiteRecord } from "./sites.ts";
+import { adoptCss } from "../features/mount.ts";
 
 export const BANNER_TEXT = "This page changed. Regenerate?";
 export const BANNER_HINT = "Open Skinly AI and choose Change my page.";
@@ -32,8 +33,7 @@ export function showBanner(doc: Document, applier: Pick<Applier, "onRestore">): 
   const host = doc.createElement("div");
   host.setAttribute("data-skinly-ui", "banner");
   const root = host.attachShadow({ mode: "open" });
-  const style = doc.createElement("style");
-  style.textContent =
+  const css =
     ":host{all:initial}.bar{position:fixed;right:12px;bottom:12px;z-index:2147483647;max-width:280px;padding:10px 12px;border-radius:8px;" +
     "background:#1f2933;color:#fff;font:13px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35)}" +
     ".bar p{margin:0 0 6px}.bar button{font:inherit;padding:3px 8px;border-radius:5px;cursor:pointer}";
@@ -49,7 +49,8 @@ export function showBanner(doc: Document, applier: Pick<Applier, "onRestore">): 
   dismiss.textContent = "Dismiss";
   dismiss.addEventListener("click", () => host.remove());
   bar.append(title, hint, dismiss);
-  root.append(style, bar);
+  adoptCss(doc, root, css);
+  root.append(bar);
   doc.documentElement.append(host);
   applier.onRestore(() => host.remove());
 }

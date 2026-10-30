@@ -1,4 +1,5 @@
 import { createBoundedObserver, type BoundedObserver } from "../../extension/observer.ts";
+import { adoptCss } from "../mount.ts";
 
 export const PAGE_BLUR_HOST = "blur-page";
 /** Highest z-index a page can have. This is a deliberate full-viewport privacy veil, unlike the pet's bounded one. */
@@ -47,8 +48,6 @@ export function createPageBlur(doc: Document, opts: PageBlurOptions = {}): PageB
     s.setProperty("pointer-events", "none");
     s.setProperty("z-index", String(PAGE_BLUR_Z));
     const root = el.attachShadow({ mode: "open" });
-    const style = doc.createElement("style");
-    style.textContent = CSS;
     const veil = doc.createElement("div");
     veil.className = "veil";
     const button = doc.createElement("button");
@@ -59,7 +58,8 @@ export function createPageBlur(doc: Document, opts: PageBlurOptions = {}): PageB
       api.off();
       opts.onUnblur?.();
     });
-    root.append(style, veil, button);
+    adoptCss(doc, root, CSS);
+    root.append(veil, button);
     return el;
   };
 

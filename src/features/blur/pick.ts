@@ -1,5 +1,6 @@
 import type { BlurController } from "./apply.ts";
 import { addSelector, buildSelector, MAX_SELECTORS } from "./selector.ts";
+import { adoptCss } from "../mount.ts";
 
 export const PICK_BANNER = "Pick mode: click what you want to blur. Press Escape or Done to finish.";
 
@@ -30,8 +31,7 @@ export function startPick(deps: PickDeps): PickSession {
   const host = doc.createElement("div");
   host.setAttribute("data-skinly-ui", "pick");
   const root = host.attachShadow({ mode: "open" });
-  const style = doc.createElement("style");
-  style.textContent =
+  const css =
     ":host{all:initial}.bar{position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:2147483000;display:flex;gap:10px;align-items:center;" +
     "padding:8px 12px;border-radius:8px;background:#1f2933;color:#fff;font:13px system-ui,sans-serif;box-shadow:0 2px 8px rgba(0,0,0,.35)}" +
     "button{font:inherit;padding:3px 10px;border-radius:5px;cursor:pointer}" +
@@ -49,7 +49,8 @@ export function startPick(deps: PickDeps): PickSession {
   const box = doc.createElement("div");
   box.className = "box";
   box.style.display = "none";
-  root.append(style, box, bar);
+  adoptCss(doc, root, css);
+  root.append(box, bar);
 
   const outline = (el: Element | undefined) => {
     if (!el) {

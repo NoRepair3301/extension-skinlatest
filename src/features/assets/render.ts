@@ -1,6 +1,7 @@
 import { usableGutters, type Gutters } from "../freespace/index.ts";
 import { SCENE_CSS } from "../scenes/css.ts";
-import { sheet } from "../scenes/engine.ts";
+import { adoptCss, attachHost, FIXED_HOST, HOST_Z, styleHost } from "../mount.ts";
+import { recordError } from "../../core/diag.ts";
 import { fromBase64 } from "./store.ts";
 import type { AssetPlacement, AssetRecord, AssetSize, AssetSpeed } from "./types.ts";
 
@@ -56,6 +57,7 @@ export function createAssetRenderer(env: AssetEnv): AssetRenderer {
   let coverSheet: CSSStyleSheet | undefined;
   let offEnv: (() => void) | undefined;
   let token = 0;
+  let detach: (() => void) | undefined;
 
   const reduced = (): boolean => win.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   const apply = () => {
@@ -75,6 +77,8 @@ export function createAssetRenderer(env: AssetEnv): AssetRenderer {
     for (const u of urls) env.revokeObjectURL(u);
     urls = [];
     videos = [];
+    detach?.();
+    detach = undefined;
     host?.remove();
     host = undefined;
     rootEl = undefined;
@@ -91,20 +95,16 @@ export function createAssetRenderer(env: AssetEnv): AssetRenderer {
     const h = doc.createElement("div");
     h.setAttribute("data-skinly-scene", "asset");
     h.setAttribute("data-skinly-ui", "asset");
-    const s = h.style;
-    s.setProperty("all", "initial");
-    s.setProperty("position", "fixed");
-    s.setProperty("inset", "0");
-    s.setProperty("pointer-events", "none");
-    s.setProperty("z-index", cover ? "-1" : "2147479000");
+    // a cover sits behind the page; otherwise just under the scene art
+    styleHost(h, { ...FIXED_HOST, "z-index": cover ? "-1" : String(Number(HOST_Z) - 1) });
     const shadow = h.attachShadow({ mode: "open" });
-    sheet(doc, shadow, SCENE_CSS + EXTRA_CSS);
+    adoptCss(doc, shadow, SCENE_CSS + EXTRA_CSS);
     const r = doc.createElement("div");
     r.className = "root";
     shadow.append(r);
-    doc.documentElement.append(h);
     host = h;
     rootEl = r;
+    detach = attachHost(doc, win, h, "asset-reattach");
     const on = () => apply();
     doc.addEventListener("visibilitychange", on);
     const mq = win.matchMedia?.("(prefers-reduced-motion: reduce)");
@@ -131,7 +131,7 @@ export function createAssetRenderer(env: AssetEnv): AssetRenderer {
     return c;
   };
 
-  const show: AssetRenderer["show"] = ({ record, placement, gutters }, onStatus) => {
+  const draw: AssetRenderer["show"] = ({ record, placement, gutters }, onStatus) => {
     const cover = placement.mode === "cover";
     let area: { x: number; w: number } | undefined;
     if (placement.mode === "lane") {
@@ -270,6 +270,21 @@ export function createAssetRenderer(env: AssetEnv): AssetRenderer {
     }
     apply();
     onStatus("shown");
+  };
+
+  /** Any failure while building is recorded and leaves nothing behind; the caller hears "failed" and can show the scene instead. */
+  const show: AssetRenderer["show"] = (req, onStatus) => {
+    try {
+      draw(req, onStatus);
+    } catch {
+      recordError("asset-mount");
+      try {
+        teardown();
+      } catch {
+        // nothing left to remove
+      }
+      onStatus("failed");
+    }
   };
 
   return { show, hide: teardown, host: () => host, destroy: teardown };

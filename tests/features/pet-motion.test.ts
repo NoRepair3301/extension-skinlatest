@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { computeGutters } from "../../src/features/freespace/index.ts";
 import { createAnimator, SLEEP_AFTER, type AnimatorDeps, type WalkPlan } from "../../src/features/pet/animate.ts";
 import { CREATURES, drawCreature, type CreaturePose } from "../../src/features/pet/creatures.ts";
@@ -8,6 +8,7 @@ import { createPetController, type PetConfig, type PetEnv } from "../../src/feat
 import { parseSettings } from "../../src/extension/settings.ts";
 import { POSES } from "../../src/features/pet/art.ts";
 import { SVG_NS } from "../../src/features/scenes/svg.ts";
+import { adoptedCss, installSheets } from "../helpers/sheets.ts";
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -249,10 +250,15 @@ describe("animator walking", () => {
 });
 
 describe("overlay behaviour", () => {
+  let uninstall: () => void = () => undefined;
+  beforeEach(() => {
+    uninstall = installSheets();
+  });
+  afterEach(() => uninstall());
   const make = () => createOverlay(document, { kind: "fox", size: "medium", corner: "bottom-right", onHide: () => undefined, onPetClick: () => undefined });
   it("the close button is invisible by default and only the hover and focus rules show it", () => {
     const o = make();
-    const css = o.host.shadowRoot!.querySelector("style")?.textContent ?? "";
+    const css = adoptedCss(o.host.shadowRoot);
     expect(css).toMatch(/\.hide\{[^}]*opacity:0/);
     expect(css).toContain(".wrap:hover .hide");
     expect(css).toContain(".wrap:focus-within .hide");
@@ -268,7 +274,7 @@ describe("overlay behaviour", () => {
     expect(wrap.getAttribute("data-facing")).toBe("-1");
     expect(o.host.style.getPropertyValue("transform")).toBe("translate(120px,301px)");
     expect(o.host.style.getPropertyValue("pointer-events")).toBe("none");
-    const css = o.host.shadowRoot!.querySelector("style")?.textContent ?? "";
+    const css = adoptedCss(o.host.shadowRoot);
     expect(css).toMatch(/\.walking \.pet,\.walking \.hide\{pointer-events:none/);
     expect(css).toContain('.wrap[data-facing="-1"] .pet svg{transform:scaleX(-1)}');
     o.setWalking(false);

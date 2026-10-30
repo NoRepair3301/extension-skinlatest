@@ -38,6 +38,9 @@ const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   ["javascript:", /javascript:/i],
   ["chrome.cookies/history/webRequest/downloads", /\bchrome\s*\.\s*(?:cookies|history|webRequest|downloads)\b/],
   ["tabs.executeScript", /\btabs\s*\.\s*executeScript\b/],
+  // Strict sites (CSP style-src without 'unsafe-inline') block both: style only through adoptedStyleSheets and element.style (src/features/mount.ts).
+  ["<style> element (CSP)", /\bcreateElement(?:NS)?\s*\([^)]*["'`]style["'`]\s*\)/],
+  ["style attribute (CSP)", /\.setAttribute(?:NS)?\s*\([^)]*["'`]style["'`]\s*,/],
 ];
 
 /** Forbidden in every scanned text file. */

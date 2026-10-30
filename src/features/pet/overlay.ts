@@ -1,4 +1,5 @@
 import { drawPet, type PetKind, type PetPose } from "./art.ts";
+import { adoptCss, attachHost } from "../mount.ts";
 
 export type Corner = "bottom-right" | "bottom-left" | "top-right" | "top-left";
 export type Size = "small" | "medium" | "large";
@@ -66,8 +67,6 @@ export function createOverlay(doc: Document, opts: OverlayOptions): Overlay {
   place(host, opts.corner, opts.size);
   const root = host.attachShadow({ mode: "open" });
 
-  const style = doc.createElement("style");
-  style.textContent = CSS;
   const wrap = doc.createElement("div");
   wrap.className = "wrap";
 
@@ -93,8 +92,10 @@ export function createOverlay(doc: Document, opts: OverlayOptions): Overlay {
   setPose("idle");
 
   wrap.append(pet, hide);
-  root.append(style, wrap);
-  doc.documentElement.append(host);
+  root.append(wrap);
+  adoptCss(doc, root, CSS);
+  // Kept on the page if a framework re-renders the document (bounded), last child of html unless html breaks position fixed.
+  const detach = attachHost(doc, doc.defaultView ?? window, host, "pet-reattach");
 
   return {
     host,
@@ -117,6 +118,9 @@ export function createOverlay(doc: Document, opts: OverlayOptions): Overlay {
       wrap.classList.toggle("walking", on);
     },
     focusPet: () => pet.focus(),
-    destroy: () => host.remove(),
+    destroy: () => {
+      detach();
+      host.remove();
+    },
   };
 }
