@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 (rc1)
+- The theme stays on every page of a site until Restore. Edge closes the popup when it shows the permission prompt, which used to stop the popup's own saving and registering. The popup now only records what you asked for and asks for the permission. The background finishes the job (saves the site, sets up every page of it and themes the open tab), also after a browser or extension restart.
+- Restore pauses the site: the popup shows "Paused on this site" with Resume. Change my page also resumes it.
+- "Why not themed here?" in the popup gives one line with the next step. The same word is in Copy diagnostics.
+- The theme goes on as the page starts loading, and the readability checks, pet and art follow once the page is parsed. Printing a themed page prints the site's own colours.
+- Registrations are checked and repaired on every start and update. Records from 0.2.0 are migrated.
+- Review fixes: no double apply when Chrome keeps the popup open, and no theme for a tab that has already left the site.
+
 ## 0.2.0 (rc6)
 - Art comes back after a reload together with the theme: it follows the stored theme (not a saved scene id), AI themes get art too (calm on a light page, midnight stars on a dark one), and every kept site loads the art script. An update re-registers sites kept by an older version.
 - Art and the pet survive strict sites and busy pages: styles only through adopted stylesheets and CSSOM, the host is the last child of the page root at the top of the stacking order and comes back (at most once per second) if a site removes it; a page root with a transform, filter, perspective or contain moves the art onto the body. The art host and the pet no longer push each other around.
