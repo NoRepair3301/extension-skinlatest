@@ -9,6 +9,9 @@ import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings }
 import { showPetHere } from "../petActions.ts";
 import { Logo } from "../Logo.tsx";
 import { PetOptions } from "./PetOptions.tsx";
+import { SceneOptions } from "../SceneOptions.tsx";
+import { artNote, showArtHere, updateArtHere } from "../sceneActions.ts";
+import { lookFor, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
@@ -46,6 +49,10 @@ export function Popup() {
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
   const [petNote, setPetNote] = useState("");
+  const [sceneNote, setSceneNote] = useState("");
+  /** What the page shows now (theme, plan scene, accent), so a changed setting can reach the art that is already there. */
+  const artSource = useRef<SceneSource | undefined>(undefined);
+  const artTab = useRef<number | undefined>(undefined);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
 
@@ -103,6 +110,24 @@ export function Popup() {
 
   const petHereOff = site !== undefined && settings.pet.disabledOrigins.includes(site.origin);
 
+  const prefersDark = (): boolean => globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+
+  /** Puts the chosen scene and picture on the page after a theme was applied (the user clicked a button). */
+  const showArt = async (tabId: number, next: Settings, source: SceneSource) => {
+    artSource.current = source;
+    artTab.current = tabId;
+    setSceneNote(artNote(await showArtHere(tabId, next, source)));
+  };
+
+  const updateScene = (next: Settings) => {
+    setSettings(next);
+    void saveSettings(next);
+    setSceneNote("");
+    const tabId = artTab.current;
+    const source = artSource.current;
+    if (tabId !== undefined && source) void updateArtHere(tabId, next, source).then((r) => setSceneNote(artNote(r)));
+  };
+
   const pickTheme = (theme: ThemeChoice) => {
     const next = { ...settings, theme };
     setSettings(next);
@@ -131,6 +156,9 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      const fresh = await loadSettings();
+      if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
+      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
@@ -156,6 +184,8 @@ export function Popup() {
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
       await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
+      artSource.current = undefined;
+      setSceneNote("");
       setView({ state: "idle", note: "Original restored." });
     } catch {
       setView({ state: "blocked", reason: MSG.blocked });
@@ -167,6 +197,7 @@ export function Popup() {
     try {
       await createPageClient(tabId).applyTheme(baseline);
       badge(tabId, "");
+      void showArt(tabId, settings, sourceForTheme(baseline, prefersDark()));
       setView({ state: "idle", note: "Back to the built-in theme." });
     } catch {
       setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
@@ -190,7 +221,13 @@ export function Popup() {
       state: "kept",
       tabId,
       origin: url ? originOf(url) : undefined,
-      kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider, model: outcome.model ?? "builtin" },
+      kept: {
+        plan: outcome.plan,
+        fingerprint: outcome.fingerprint,
+        provider,
+        model: outcome.model ?? "builtin",
+        look: lookFor(settings, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent }),
+      },
     });
   };
 
@@ -241,6 +278,9 @@ export function Popup() {
         <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
         <p class="note" aria-live="polite">{petNote}</p>
       </fieldset>
+
+      <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
+      <p class="note" aria-live="polite">{sceneNote}</p>
 
       {view.state === "consent" && (
         <section aria-label="Consent">

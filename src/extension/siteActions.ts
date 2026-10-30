@@ -4,9 +4,13 @@ import { PROMPT_VERSION } from "../ai/prompt.ts";
 import { fnv1a } from "../analyzer/fingerprint.ts";
 import type { StylePlan } from "../plan/schema.ts";
 import { registerAutoScript, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
-import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteRecord } from "./sites.ts";
+import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
 
 export const AUTO_SCRIPT_FILE = "applier-auto.js";
+/** Registered after the auto script, only for a site that has a saved scene or asset, so the document_start script stays small. */
+export const SCENE_SCRIPT_FILE = "scene.js";
+
+export const hasArt = (look: SiteLook | undefined): boolean => look !== undefined && (look.scene !== undefined || look.asset !== undefined);
 
 /** Stable script id for an origin. */
 export const scriptId = (origin: string): string => `skinly-${fnv1a(origin)}`;
@@ -19,6 +23,8 @@ export interface KeptPlan {
   fingerprint: Fingerprint;
   provider: string;
   model: string;
+  /** What art was showing when the user kept the plan (Phase 10). */
+  look?: SiteLook | undefined;
 }
 
 const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: SiteRecord): SiteRecord => ({
@@ -32,6 +38,7 @@ const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: SiteRecord)
   mode,
   blur: previous?.blur ?? [],
   blurImages: previous?.blurImages ?? false,
+  ...(kept.look ? { look: kept.look } : previous?.look ? { look: previous.look } : {}),
 });
 
 export type ActionResult = { ok: true } | { ok: false; reason: "bad-origin" | "permission" | "no-record" | "error" };
@@ -56,7 +63,8 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
     if (kept) await saveSite(o, record(kept, "auto", previous));
     else if (previous) await saveSite(o, { ...previous, mode: "auto" });
     else return { ok: false, reason: "no-record" };
-    await registerAutoScript(scriptId(o), matchFor(o), AUTO_SCRIPT_FILE);
+    const saved = await getSite(o);
+    await registerAutoScript(scriptId(o), matchFor(o), hasArt(saved?.look) ? [AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE] : AUTO_SCRIPT_FILE);
     if (tabId !== undefined) await setBadge(tabId, "ON");
     return { ok: true };
   } catch {

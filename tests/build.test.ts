@@ -41,7 +41,7 @@ describe("validateDist", () => {
     mkdirSync(`${d}/icons`, { recursive: true });
     for (const n of icons) writeFileSync(`${d}/icons/${n}`, "png");
     writeFileSync(`${d}/manifest.json`, JSON.stringify(m));
-    for (const f of ["popup/index.html", "options/index.html", "applier.js", "palette.js"]) writeFileSync(`${d}/${f}`, "x");
+    for (const f of ["popup/index.html", "options/index.html", "applier.js", "palette.js", "scene.js"]) writeFileSync(`${d}/${f}`, "x");
     writeFileSync(`${d}/background.js`, js);
   };
 
@@ -55,6 +55,14 @@ describe("validateDist", () => {
     expect(validateDist(`${dir}-extra`).join()).toContain("dist/icons must hold exactly");
     write(manifest, "console.log(1)", ICONS.slice(1), `${dir}-short`);
     expect(validateDist(`${dir}-short`).join()).toContain("dist/icons must hold exactly");
+  });
+
+  it("rejects a scene script over 150 KB", () => {
+    write(manifest, "console.log(1)", ICONS, `${dir}-big`);
+    writeFileSync(`${dir}-big/scene.js`, "x".repeat(150 * 1024 + 1));
+    expect(validateDist(`${dir}-big`).join()).toContain("scene.js is over 150 KB");
+    writeFileSync(`${dir}-big/scene.js`, "x".repeat(150 * 1024));
+    expect(validateDist(`${dir}-big`)).toEqual([]);
   });
 
   it("rejects an unexpected permission and dangerous built code", () => {

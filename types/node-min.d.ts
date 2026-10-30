@@ -5,7 +5,7 @@ declare module "node:fs" {
   export function writeFileSync(path: string, data: string | Uint8Array): void;
   export function existsSync(path: string): boolean;
   export function readdirSync(path: string): string[];
-  export function statSync(path: string): { isDirectory(): boolean };
+  export function statSync(path: string): { isDirectory(): boolean; size: number };
   export function mkdirSync(path: string, options?: { recursive?: boolean }): void;
 }
 declare module "node:path" {
