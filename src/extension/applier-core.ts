@@ -6,7 +6,8 @@ import { contrastFailures } from "../plan/contrast.ts";
 import { repairTokens } from "../plan/repair.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
 import { captureMedia, mediaIntact, type GuardProvider } from "../plan/guard.ts";
-import { addFailures, audit, compileRepair, repairCss, snapshotText, validateRepair, type Failure, type RuleBook, type Snapshot, type ValidRepairPlan } from "../plan/readability.ts";
+import { markerCleanup } from "./cleanup.ts";
+import { addFailures, audit, compileRepair, parseRepairCss, repairCss, snapshotText, validateRepair, type Failure, type RuleBook, type Snapshot, type ValidRepairPlan } from "../plan/readability.ts";
 import { buildRepairPayload, type RepairPayload } from "../features/repair/payload.ts";
 import { stepDown, validatePlan, type Strategy, type StylePlan, type Tokens } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
@@ -110,6 +111,8 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   function restore(withHooks = true): { ok: true } {
     const l = ledger;
     ledger = undefined;
+    // No ledger (a fresh script instance, a navigated page): remove whatever carries our markers.
+    if (!l && withHooks) markerCleanup(doc);
     if (withHooks) for (const hook of restoreHooks) hook();
     if (!l) return { ok: true };
     l.observer?.disconnect();
@@ -164,7 +167,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   }
 
   /** `tokensOnly` skips the page analysis (used at document_start, before the body exists) and applies no region rules. */
-  function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false): ApplyResult {
+  function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false, seedCss?: string): ApplyResult {
     restore(false);
     try {
       const before = snapshot(doc);
@@ -222,6 +225,12 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       }
       html.setAttribute("data-skinly", "on");
       next.sheet = opts.style.add(css);
+      // Repair rules stored with a remembered site: in place before the first paint, re-checked by the pass below.
+      const seeded = seedCss === undefined ? undefined : parseRepairCss(seedCss);
+      if (seeded) {
+        for (const [k, v] of seeded) next.book.set(k, v);
+        syncRepairSheet(next);
+      }
 
       opts.beforeInvariants?.();
       const bad = compare(before, snapshot(doc));
@@ -255,9 +264,11 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   }
 
   return {
-    apply: (plan: StylePlan): ApplyResult => run(plan),
+    apply: (plan: StylePlan, seedCss?: string): ApplyResult => run(plan, undefined, seedCss),
     /** Global tokens only, no page analysis: safe at document_start. */
-    applyTokens: (plan: StylePlan): ApplyResult => run(plan, true),
+    applyTokens: (plan: StylePlan, seedCss?: string): ApplyResult => run(plan, true, seedCss),
+    /** The repair rules in force now (colour-only structural CSS), for storing with a remembered site. */
+    repairRules: (): string => ledger?.repairCss ?? "",
     /** Runs `fn` whenever Restore removes our changes (used by the extension-owned banner). */
     onRestore(fn: () => void): void {
       restoreHooks.push(fn);

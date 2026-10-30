@@ -5,6 +5,7 @@ import { isDensity, isLaneChoice, isSceneId, type Density, type LaneChoice } fro
 import type { SceneId, StylePlan } from "../plan/schema.ts";
 import { storageGet, storageSet } from "./api.ts";
 import { originOf, toOrigin } from "./origin.ts";
+import { parseRepairCss } from "../plan/readability.ts";
 import { parsePlacement, parseSettings, type PetSettings } from "./settings.ts";
 
 export { originOf, toOrigin };
@@ -34,6 +35,8 @@ export interface SiteRecord {
   blur: string[];
   blurImages: boolean;
   look?: SiteLook;
+  /** Colour-only repair rules found when the theme was kept (structural selectors, no text); applied before first paint. */
+  repairCss?: string;
 }
 
 export type Sites = Record<string, SiteRecord>;
@@ -70,7 +73,7 @@ export function parseLook(raw: unknown): SiteLook | undefined {
 export function parseSite(input: unknown): SiteRecord | undefined {
   const raw = migrate(input);
   if (!isObj(raw)) return undefined;
-  const { plan, fingerprint, provider, model, promptVersion, savedAt, mode, blur, blurImages, look } = raw;
+  const { plan, fingerprint, provider, model, promptVersion, savedAt, mode, blur, blurImages, look, repairCss } = raw;
   if (!isObj(plan) || plan["v"] !== 1 || typeof plan["themeId"] !== "string" || !isObj(plan["tokens"]) || !Array.isArray(plan["regionRules"]) || !Array.isArray(plan["reasons"])) return undefined;
   if (!isObj(fingerprint) || typeof fingerprint["hash"] !== "string" || !/^[0-9a-f]{8}$/.test(fingerprint["hash"]) || typeof fingerprint["seq"] !== "string" || !/^[a-z]{0,40}$/.test(fingerprint["seq"])) return undefined;
   if (typeof provider !== "string" || provider.length === 0 || provider.length > 40) return undefined;
@@ -94,6 +97,8 @@ export function parseSite(input: unknown): SiteRecord | undefined {
     blur: blurList as string[],
     blurImages: blurImages === true,
     ...(parsedLook ? { look: parsedLook } : {}),
+    // A stored sheet that is not exactly what we write is dropped, never applied.
+    ...(typeof repairCss === "string" && repairCss !== "" && parseRepairCss(repairCss) ? { repairCss } : {}),
   };
 }
 

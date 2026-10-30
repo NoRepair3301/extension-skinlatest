@@ -63,7 +63,7 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
   if (!site || site.mode !== "auto") return "none";
   if (await deps.isBlocked()) return "blocked";
 
-  const first = deps.applier.applyTokens(site.plan);
+  const first = deps.applier.applyTokens(site.plan, site.repairCss);
   if (!first.ok) return "invalid";
   deps.onApplied(site);
 
@@ -71,11 +71,11 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
     try {
       const page = deps.applier.analyze();
       if (page.status === "ok" && similar(site.fingerprint, page.fingerprint)) {
-        if (deps.applier.apply(site.plan).ok) return "full";
-        deps.applier.applyTokens(site.plan);
+        if (deps.applier.apply(site.plan, site.repairCss).ok) return "full";
+        deps.applier.applyTokens(site.plan, site.repairCss);
         return "tokens";
       }
-      deps.applier.applyTokens(site.plan);
+      deps.applier.applyTokens(site.plan, site.repairCss);
       if (page.status === "ok") {
         if (banner && !deps.doc.querySelector('[data-skinly-ui="banner"]')) showBanner(deps.doc, deps.applier);
         return "changed";

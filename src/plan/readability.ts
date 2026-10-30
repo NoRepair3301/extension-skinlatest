@@ -213,3 +213,45 @@ export function compileRepair(plan: ValidRepairPlan, targets: readonly Element[]
   return n;
 }
 
+
+/** Largest repair sheet kept with a remembered site (storage is shared with assets). */
+export const STORED_REPAIR_MAX = 10 * 1024;
+
+const SEGMENT = /^(?:body|[a-z][a-z0-9-]{0,40}:nth-child\(\d{1,4}\))$/;
+const PAINT_VALUE = /^(?:#[0-9a-f]{6}|transparent)$/;
+
+/**
+ * Reads back a repair sheet that we stored earlier. Strict: only rules of the exact shape repairCss writes (structural selectors under
+ * the forced root, colour and background-color with hex or transparent). Anything else makes the whole sheet unusable (undefined).
+ */
+export function parseRepairCss(css: unknown): RuleBook | undefined {
+  if (typeof css !== "string" || css.length > STORED_REPAIR_MAX) return undefined;
+  const book: RuleBook = new Map();
+  for (const line of css.split("\n")) {
+    if (line.trim() === "") continue;
+    const m = /^(.+) \{ (.+) \}$/.exec(line);
+    if (!m) return undefined;
+    const paint: Paint = {};
+    for (const d of m[2]!.split(";").map((x) => x.trim()).filter(Boolean)) {
+      const dm = /^(color|background-color): (#[0-9a-f]{6}|transparent) !important$/.exec(d);
+      if (!dm || !PAINT_VALUE.test(dm[2]!)) return undefined;
+      if (dm[1] === "color") paint.color = dm[2]!;
+      else paint.bg = dm[2]!;
+    }
+    for (const sel of m[1]!.split(", ")) {
+      const prefix = `${REPAIR_ROOT} > `;
+      if (!sel.startsWith(prefix)) return undefined;
+      const segs = sel.slice(prefix.length).split(" > ");
+      if (segs.length === 0 || segs.length > MAX_DEPTH + 1 || !segs.every((s) => SEGMENT.test(s))) return undefined;
+      book.set(sel, { ...paint });
+    }
+  }
+  return book;
+}
+
+/** The part of a rule book that fits the stored size (whole rules only). */
+export const storableRepairCss = (css: string): string => {
+  if (css.length <= STORED_REPAIR_MAX) return css;
+  const cut = css.lastIndexOf("\n", STORED_REPAIR_MAX);
+  return cut > 0 ? css.slice(0, cut + 1) : "";
+};

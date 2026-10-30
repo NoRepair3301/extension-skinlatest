@@ -6,7 +6,11 @@ import { MSG, applyFailureMessage, consentText, repairConsentText } from "../../
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
-import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
+import { checkUrl } from "../../analyzer/eligibility.ts";
+import { storableRepairCss } from "../../plan/readability.ts";
+import { themeToPlan } from "../../plan/themeToPlan.ts";
+import { browserHints, getCommands, queryActiveTab, requestOrigins, runInPage, setBadge } from "../api.ts";
+import { ensureApplier } from "../inject.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings } from "../settings.ts";
 import { showPetHere } from "../petActions.ts";
@@ -18,7 +22,7 @@ import { lookFor, sceneRequest, sourceForTheme, type SceneSource } from "../scen
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
 import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
-import { enableAuto, forgetSite, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { enableAuto, forgetSite, matchFor, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
 
@@ -43,6 +47,8 @@ export function Popup() {
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
   /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
+  const [kept, setKept] = useState(false);
+  const [notice, setNotice] = useState("");
   const [keepable, setKeepable] = useState<{ tabId: number; origin: string | undefined; kept: KeptPlan } | undefined>(undefined);
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
@@ -134,7 +140,19 @@ export function Popup() {
     void saveSettings(next);
   };
 
+  const askPermission = (origin: string): Promise<boolean> => {
+    try {
+      return Promise.resolve(requestOrigins(matchFor(origin))).catch(() => false);
+    } catch {
+      return Promise.resolve(false);
+    }
+  };
+
   const start = async () => {
+    // The browser only shows its permission prompt for a call made inside the click, so this is the first thing that happens: before any
+    // await. If it is already granted there is no prompt. The auto script is registered once the theme is on (see below).
+    const grant: Promise<boolean> =
+      site && checkUrl(`${site.origin}/`, settings.blocklist).allowed ? askPermission(site.origin) : Promise.resolve(false);
     try {
       const tab = await queryActiveTab();
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
@@ -143,6 +161,7 @@ export function Popup() {
       setPetNote("");
       setSceneNote("");
       setKeepable(undefined);
+      setNotice("");
       setShowPayload(false);
       setView({ state: "working", step: "checking" });
       const outcome = await runTransform(
@@ -159,7 +178,18 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
-      setKeepable(keepFrom(outcome, tab.id, tab.url));
+      const k = keepFrom(outcome, tab.id, tab.url);
+      setKeepable(k);
+      setKept(false);
+      if (k?.origin) {
+        // One prompt, one flow: with the permission the theme is kept for the whole site right away; without it, this document only.
+        if ((await grant) && (await commitKeep(k))) {
+          setKept(true);
+          setKeepable(undefined);
+          badge(tab.id, "ON");
+          void refreshSite();
+        } else setNotice(S.popup.keepDenied);
+      }
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
       else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
@@ -198,8 +228,16 @@ export function Popup() {
     try {
       const tab = await queryActiveTab();
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
+      // A fresh script instance (popup reopened, page navigated) still cleans up by markers; make sure there is one to ask.
+      await ensureApplier(tab.id, true).catch(() => undefined);
       await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
+      // Restore also pauses automatic theming for this site until the user applies again, so a reload does not bring the theme back.
+      const origin = tab.url ? originOf(tab.url) : undefined;
+      if (origin && (await getSite(origin).catch(() => undefined))?.mode === "auto") await pauseSite(origin).catch(() => undefined);
+      setKept(false);
+      setNotice("");
+      void refreshSite();
       setKeepable(undefined);
       artSource.current = undefined;
       setSceneNote("");
@@ -212,8 +250,13 @@ export function Popup() {
   /** Undo puts the built-in baseline back. Keep leaves the preview on the page (held in memory only until Phase 5). */
   const undo = async (tabId: number, baseline: BuiltinThemeId) => {
     try {
-      await createPageClient(tabId).applyTheme(baseline);
-      badge(tabId, "");
+      const applied = await createPageClient(tabId).applyTheme(baseline);
+      // A theme already kept for this site goes back to the built-in one there too.
+      if (kept && site?.origin && applied?.ok) {
+        await enableAuto(site.origin, { plan: themeToPlan(baseline), fingerprint: site.record?.fingerprint ?? { hash: "00000000", seq: "" }, provider: "builtin", model: "builtin" }, tabId).catch(() => undefined);
+        await refreshSite();
+      }
+      badge(tabId, kept ? "ON" : "");
       setKeepable(undefined);
       void showArt(tabId, settings, sourceForTheme(baseline, prefersDark()));
       setView({ state: "idle", note: "Back to the built-in theme." });
@@ -247,16 +290,32 @@ export function Popup() {
   };
 
   /** One click: asks for this origin only, saves the theme and registers the auto script for it (the click is the user gesture). */
+  /** Saves the theme and the repair rules found for it with the site and registers the auto script. True when it worked. */
+  const commitKeep = async (k: { tabId: number; origin: string | undefined; kept: KeptPlan }): Promise<boolean> => {
+    if (!k.origin) return false;
+    let css = "";
+    try {
+      css = storableRepairCss((await runInPage<string>(k.tabId, "repairRules")) ?? "");
+    } catch {
+      css = "";
+    }
+    const r = await enableAuto(k.origin, css ? { ...k.kept, repairCss: css } : k.kept, k.tabId).catch(() => ({ ok: false }));
+    return r.ok;
+  };
+
+  /** The button that stays after a refused permission: asks again, from this click. */
   const keepOnSite = async () => {
     if (!keepable) return;
     if (!keepable.origin) return setView({ state: "idle", note: S.popup.keepNoOrigin });
     const k = keepable;
-    await siteAction(() => enableAuto(k.origin!, k.kept, k.tabId), S.popup.keepDone, S.popup.keepDenied);
-    const r = await getSite(k.origin!).catch(() => undefined);
-    if (r?.mode === "auto") {
+    if (await commitKeep(k)) {
       badge(k.tabId, "ON");
       setKeepable(undefined);
-    }
+      setKept(true);
+      setNotice("");
+      setView({ state: "idle", note: S.popup.keepDone });
+    } else setNotice(S.popup.keepDenied);
+    await refreshSite();
   };
 
   const busy = view.state === "working" || view.state === "consent";
@@ -271,6 +330,8 @@ export function Popup() {
         </h1>
         <p role="status" class={view.state === "error" || view.state === "blocked" ? "status-bad" : ""}>{statusText(view) || pageLine(site, settings)}</p>
       </header>
+
+      {notice && <p class="note" role="status">{notice}</p>}
 
       {view.state !== "consent" && (
         <div class="primary-actions">
@@ -349,7 +410,7 @@ export function Popup() {
       {view.state === "preview" && (
         <section aria-label="Preview">
           <p>{view.outcome.message ?? "Here is the AI-improved theme."}</p>
-          <button type="button" onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</button>
+          {kept ? <p class="note">{S.popup.keepDone}</p> : <button type="button" onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</button>}
           <button type="button" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</button>
           <button type="button" onClick={() => void start()}>Try another</button>
         </section>

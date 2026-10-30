@@ -94,6 +94,20 @@ describe("applier-auto on a single-page app", () => {
   });
 });
 
+describe("applier-auto with stored repair rules", () => {
+  it("puts the stored repair rules in place at document_start, with no provider call", async () => {
+    const css = 'html[data-skinly="on"]:not(#skinly-force) > body > header:nth-child(1) { color: #000000 !important; }\n';
+    const t = setup({ site: { repairCss: css } });
+    const done = runAuto(t.deps);
+    await tick();
+    expect(t.sheets).toHaveLength(2);
+    expect(t.sheets[1]).toBe(css);
+    t.fire();
+    await done;
+    expect(t.sheets.some((s) => s === css)).toBe(true);
+  });
+});
+
 describe("applier-auto", () => {
   it("applies global tokens first, region rules only after the DOM is ready and the fingerprint matches", async () => {
     const t = setup();

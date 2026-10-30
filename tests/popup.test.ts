@@ -49,6 +49,7 @@ const mount = async () => {
   const root = document.createElement("div");
   document.body.appendChild(root);
   await act(() => render(h(Popup, {}), root));
+  await act(() => new Promise<void>((r) => setTimeout(r, 0)));
   return root;
 };
 const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
@@ -208,37 +209,67 @@ describe("popup", () => {
   });
 
   describe("preview", () => {
-    it("shows Keep on this site, Undo and Try another; keeping asks for this origin only and clears the controls", async () => {
+    it("one click asks for this origin only, first, and keeps the theme for the whole site; Undo and Try another stay", async () => {
       flow.runTransform.mockResolvedValue(previewOutcome());
       const root = await mount();
       await click(root, "Change my page");
-      for (const b of ["Keep on this site", "Undo", "Try another"]) expect(find(root, b)).toBeDefined();
+      for (const b of ["Undo", "Try another"]) expect(find(root, b)).toBeDefined();
+      expect(find(root, "Keep on this site")).toBeUndefined();
       expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(7);
-      expect(api.requestOrigins).not.toHaveBeenCalled();
-      await click(root, "Keep on this site");
       expect(api.requestOrigins).toHaveBeenCalledWith(["https://example.org/*"]);
-      expect(find(root, "Undo")).toBeUndefined();
+      expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
       expect(api.setBadge).toHaveBeenCalledWith(7, "ON");
-      expect(status(root)).toContain("Every page of this site");
+      expect(root.textContent).toContain("Every page of this site");
     });
 
-    it("a built-in theme applied without a key can be kept too", async () => {
+    it("the permission request is made before the flow does anything else (inside the click)", async () => {
+      const order: string[] = [];
+      api.requestOrigins.mockImplementation(async () => {
+        order.push("permission");
+        return true;
+      });
+      flow.runTransform.mockImplementation(async () => {
+        order.push("flow");
+        return previewOutcome();
+      });
+      api.queryActiveTab.mockImplementation(async () => {
+        order.push("tab");
+        return TAB;
+      });
+      const root = await mount();
+      order.length = 0;
+      await click(root, "Change my page");
+      expect(order.slice(0, 2)).toEqual(["permission", "tab"]);
+    });
+
+    it("a built-in theme applied without a key is kept too", async () => {
       flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "calm-light", why: "no-key", message: "Applied.", plan: planFor("calm-light"), fingerprint: { hash: "0123abcd", seq: "hnm" } });
       const root = await mount();
       await click(root, "Change my page");
-      expect(find(root, "Keep on this site")).toBeDefined();
-      await click(root, "Keep on this site");
       expect((store.get("sites") as Record<string, { provider: string; mode: string }>)["https://example.org"]).toMatchObject({ provider: "builtin", mode: "auto" });
     });
 
-    it("a refused permission says in one line that the theme lasts until reload, and the button stays", async () => {
+    it("stores the repair rules found for the theme with the site", async () => {
+      flow.runTransform.mockResolvedValue(previewOutcome());
+      const css = 'html[data-skinly="on"]:not(#skinly-force) > body > p:nth-child(1) { color: #000000 !important; }\n';
+      api.runInPage.mockImplementation(async (_t: number, m: string) => (m === "repairRules" ? css : undefined));
+      const root = await mount();
+      await click(root, "Change my page");
+      expect((store.get("sites") as Record<string, { repairCss?: string }>)["https://example.org"]!.repairCss).toBe(css);
+    });
+
+    it("a refused permission applies for this document only, says so in one line, and keeps a button to ask again", async () => {
       api.requestOrigins.mockResolvedValue(false);
       flow.runTransform.mockResolvedValue(previewOutcome());
       const root = await mount();
       await click(root, "Change my page");
-      await click(root, "Keep on this site");
-      expect(status(root)).toBe("Not kept: permission wasn't given. The theme lasts only until this page is reloaded.");
+      expect(root.textContent).toContain("Not kept: permission wasn't given. The theme lasts only until this page is reloaded.");
       expect(store.get("sites")).toBeUndefined();
+      expect(api.registerAutoScript).not.toHaveBeenCalled();
+      expect(find(root, "Keep on this site")).toBeDefined();
+      api.requestOrigins.mockResolvedValue(true);
+      await click(root, "Keep on this site");
+      expect((store.get("sites") as Record<string, { mode: string }>)["https://example.org"]!.mode).toBe("auto");
     });
 
     it("shows the fallback message when a built-in theme replaced the AI plan", async () => {
@@ -308,34 +339,29 @@ describe("popup", () => {
     };
     const sites = () => store.get("sites") as Record<string, { mode: string }> | undefined;
 
-    it("offers one Keep button and does nothing until it is clicked", async () => {
+    it("Change my page keeps the site automatically: one permission request, one registered script", async () => {
       const root = await keep();
-      expect(find(root, "Keep on this site")).toBeDefined();
-      expect(find(root, "Remember this site")).toBeUndefined();
-      expect(sites()).toBeUndefined();
-      expect(api.requestOrigins).not.toHaveBeenCalled();
-    });
-
-    it("Keep on this site requests only the active origin and registers the script", async () => {
-      const root = await keep();
-      await click(root, "Keep on this site");
       expect(api.requestOrigins).toHaveBeenCalledWith(["https://example.org/*"]);
       expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
       expect(sites()!["https://example.org"]!.mode).toBe("auto");
       expect(find(root, "Pause on this site")).toBeDefined();
     });
 
-    it("a refused permission leaves nothing saved and says so", async () => {
-      api.requestOrigins.mockResolvedValue(false);
+    it("Restore pauses the site until the user applies again", async () => {
+      api.runInPage.mockResolvedValue({ ok: true });
       const root = await keep();
-      await click(root, "Keep on this site");
-      expect(sites()).toBeUndefined();
-      expect(status(root)).toContain("permission");
+      await click(root, "Restore original");
+      expect(sites()!["https://example.org"]!.mode).toBe("ask");
+      expect(api.unregisterAutoScript).toHaveBeenCalled();
+      api.registerAutoScript.mockClear();
+      flow.runTransform.mockResolvedValue(previewOutcome());
+      await click(root, "Change my page");
+      expect(sites()!["https://example.org"]!.mode).toBe("auto");
+      expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
     });
 
     it("Pause switches to ask; Forget removes record, script and permission", async () => {
       const root = await keep();
-      await click(root, "Keep on this site");
       await click(root, "Pause on this site");
       expect(sites()!["https://example.org"]!.mode).toBe("ask");
       expect(find(root, "Pause on this site")).toBeUndefined();
