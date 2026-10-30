@@ -28,6 +28,13 @@ Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each 
 | 21 | Pet button (rc4) | Pet on: "Show pet on this page" shows it, Restore removes it; on a page where the theme is rolled back the pet still shows; on a blocked page the one-line message says why | | | |
 | 22 | Failure message (rc4) | Force a rollback (a page where the theme cannot apply): the popup gives a plain-words reason, no page text | | | |
 
+## Real-browser pass 2 (fix/real-browser-2)
+- Always applied: dark app site, Wikipedia, Hacker News, india.gov.in, hero-image site. Every text readable, typing visible, images intact; the success line shows the number of fixes.
+- One browser prompt on the first Change my page; open a second page of the same site and reload: the theme stays.
+- Restore, then reload: the theme stays off. Change my page again: back on.
+- Art: stars/planets (midnight), Field props, corner strip on full-width pages; popup says which.
+- With a key: after the readability agreement the AI repair runs once; Show what will be sent shows the exact text; withdraw it in Settings, Privacy.
+
 ## Real-browser pass (fix/real-browser-1)
 Run on a dark app site, Wikipedia, Hacker News, india.gov.in and a page with a hero image. For each: Change my page with every theme.
 - Text readable everywhere; buttons keep readable labels; typing in an editor is visible with a visible caret.

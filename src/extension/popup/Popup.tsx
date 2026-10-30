@@ -48,6 +48,8 @@ export function Popup() {
   const [showPayload, setShowPayload] = useState(false);
   /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
   const [kept, setKept] = useState(false);
+  /** What the last run put on the page, for the success line. */
+  const [applied, setApplied] = useState<{ name: string; fixes: number } | undefined>(undefined);
   const [notice, setNotice] = useState("");
   const [keepable, setKeepable] = useState<{ tabId: number; origin: string | undefined; kept: KeptPlan } | undefined>(undefined);
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
@@ -178,6 +180,8 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      if (outcome.kind === "baseline" || outcome.kind === "preview") setApplied({ name: themeName(outcome.kind === "baseline" ? outcome.themeId : outcome.plan.themeId), fixes: outcome.fixes ?? 0 });
+      else setApplied(undefined);
       const k = keepFrom(outcome, tab.id, tab.url);
       setKeepable(k);
       setKept(false);
@@ -236,6 +240,7 @@ export function Popup() {
       const origin = tab.url ? originOf(tab.url) : undefined;
       if (origin && (await getSite(origin).catch(() => undefined))?.mode === "auto") await pauseSite(origin).catch(() => undefined);
       setKept(false);
+      setApplied(undefined);
       setNotice("");
       void refreshSite();
       setKeepable(undefined);
@@ -322,25 +327,40 @@ export function Popup() {
   const hints = browserHints();
   const page = shortcutsPage(hints.userAgent, hints.brave);
 
+  const stage = view.state === "working" ? STAGE_OF[view.step] : -1;
+  const headBanner = view.state === "error" || view.state === "blocked" ? "banner banner-error status-bad" : "banner banner-info";
+
   return (
     <main class="popup">
       <header class="popup-head">
         <h1>
           <Logo size={28} /> Skinly AI
         </h1>
-        <p role="status" class={view.state === "error" || view.state === "blocked" ? "status-bad" : ""}>{statusText(view) || pageLine(site, settings)}</p>
+        <p role="status" class={headBanner}>{statusText(view) || pageLine(site, settings)}</p>
       </header>
 
-      {notice && <p class="note" role="status">{notice}</p>}
+      {notice && <p class="banner banner-info" role="status">{notice}</p>}
 
       {view.state !== "consent" && (
         <div class="primary-actions">
           <Button kind="primary" onClick={() => void start()} disabled={busy}>{S.popup.change}</Button>
-          <Button onClick={() => void restore()} disabled={busy}>{S.popup.restore}</Button>
+          <Button kind="quiet" onClick={() => void restore()} disabled={busy}>{S.popup.restore}</Button>
           {view.state === "working" && <Button kind="quiet" onClick={cancel}>{S.popup.cancel}</Button>}
         </div>
       )}
-      {view.state === "working" && <Spinner label="Working" />}
+      {view.state === "working" && (
+        <>
+          <Spinner label="Working" />
+          <ol class="stages" aria-label="Progress">
+            {S.popup.stages.map((label, i) => (
+              <li key={label} class={i < stage ? "done" : i === stage ? "now" : ""} aria-current={i === stage ? "step" : undefined}>
+                {label}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+      {applied && (view.state === "idle" || view.state === "preview") && <p class="banner banner-success" role="status">{S.popup.applied(applied.name, applied.fixes)}</p>}
 
       <fieldset class="themes">
         <legend>{S.popup.themeLegend}</legend>
@@ -349,9 +369,13 @@ export function Popup() {
             <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}`}>
               <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => pickTheme(t.id)} />
               <span class="mini" aria-hidden="true" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
-                <i style={{ background: t.tokens.surface }} />
-                <i style={{ background: t.tokens.accent, width: "40%" }} />
-                <i style={{ background: t.tokens.text, width: "60%", height: "3px" }} />
+                <i class="m-head" style={{ background: t.tokens.text }} />
+                <i class="m-line" style={{ background: t.tokens.muted }} />
+                <i class="m-line short" style={{ background: t.tokens.muted }} />
+                <span class="m-row">
+                  <i class="m-card" style={{ background: t.tokens.surface, borderColor: t.tokens.border }} />
+                  <i class="m-btn" style={{ background: t.tokens.accent }} />
+                </span>
               </span>
               <span class="theme-name">{t.name}</span>
             </label>
@@ -364,9 +388,14 @@ export function Popup() {
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend>{S.popup.petLegend}</legend>
+      <section class="quick" aria-label={S.popup.quick}>
         <Toggle label={S.popup.petToggle} checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
+        <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
+        <p class="note" aria-live="polite">{sceneNote}</p>
+      </section>
+
+      <details class="acc" open={settings.pet.enabled}>
+        <summary>{S.popup.petLegend}</summary>
         {site && settings.pet.enabled && (
           <label>
             <input
@@ -384,10 +413,7 @@ export function Popup() {
         <PetOptions pet={settings.pet} onChange={updatePet} />
         <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
         <p class="note" aria-live="polite">{petNote}</p>
-      </fieldset>
-
-      <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
-      <p class="note" aria-live="polite">{sceneNote}</p>
+      </details>
 
       {site && view.state !== "consent" && (
         <AssetHere
@@ -398,11 +424,13 @@ export function Popup() {
       )}
 
       {view.state === "consent" && (
-        <section aria-label="Consent">
+        <section aria-label="Consent" class="consent">
           <p>{(view.req.purpose === "repair" ? repairConsentText : consentText)(view.req.providerNames.join(" or "))}</p>
-          <button type="button" onClick={() => answer(true)}>Send</button>
-          <button type="button" onClick={cancel}>Cancel</button>
-          <button type="button" onClick={() => setShowPayload(!showPayload)}>Show what will be sent</button>
+          <div class="row">
+            <Button kind="primary" onClick={() => answer(true)}>Send</Button>
+            <Button onClick={cancel}>Cancel</Button>
+            <Button kind="quiet" onClick={() => setShowPayload(!showPayload)}>Show what will be sent</Button>
+          </div>
           {showPayload && <textarea readOnly aria-label="Payload" rows={8} value={view.req.payload} />}
         </section>
       )}
@@ -410,40 +438,51 @@ export function Popup() {
       {view.state === "preview" && (
         <section aria-label="Preview">
           <p>{view.outcome.message ?? "Here is the AI-improved theme."}</p>
-          {kept ? <p class="note">{S.popup.keepDone}</p> : <button type="button" onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</button>}
-          <button type="button" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</button>
-          <button type="button" onClick={() => void start()}>Try another</button>
+          <div class="row">
+            {kept ? <p class="note">{S.popup.keepDone}</p> : <Button onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</Button>}
+            <Button kind="quiet" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</Button>
+            <Button kind="quiet" onClick={() => void start()}>Try another</Button>
+          </div>
         </section>
       )}
 
       {keepable && view.state === "idle" && (
         <section aria-label="Keep">
-          <button type="button" onClick={() => void keepOnSite()}>{S.popup.keep}</button>
+          <Button onClick={() => void keepOnSite()}>{S.popup.keep}</Button>
           <p class="note">{S.popup.keepNote}</p>
         </section>
       )}
       {site?.record && view.state !== "consent" && view.state !== "working" && (
         <section aria-label="This site">
           <p>{site.record.mode === "auto" ? `Automatic on this site (${providerLabel(site.record.provider)}).` : `Saved for this site (${providerLabel(site.record.provider)}).`}</p>
-          {site.record.mode === "auto" && <button type="button" onClick={() => void siteAction(() => pauseSite(site.origin), "Paused on this site.", "Couldn't pause.")}>Pause on this site</button>}
-          <button type="button" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), "Forgotten.", "Couldn't forget this site.")}>Forget this site</button>
+          <div class="row">
+            {site.record.mode === "auto" && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), "Paused on this site.", "Couldn't pause.")}>Pause on this site</Button>}
+            <Button kind="quiet" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), "Forgotten.", "Couldn't forget this site.")}>Forget this site</Button>
+          </div>
         </section>
       )}
 
-      {site && view.state !== "consent" && <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} onToolUsed={() => void showPetHere()} />}
+      {site && view.state !== "consent" && (
+        <details class="acc">
+          <summary>{S.privacy.title}</summary>
+          <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} onToolUsed={() => void showPetHere()} />
+        </details>
+      )}
 
-      <section aria-label="Shortcuts">
-        <h2>Keyboard shortcuts</h2>
-        {commands.length > 0 && (
-          <ul>
-            {commands.map((c) => (
-              <li key={c.name}>{shortcutLine(c, page)}</li>
-            ))}
-          </ul>
-        )}
-        <p class="note">To set or change a key, open {page} in the address bar.</p>
-      </section>
-      <details class="sent">
+      <details class="acc" aria-label="Shortcuts">
+        <summary>Keyboard shortcuts</summary>
+        <section aria-label="Shortcuts">
+          {commands.length > 0 && (
+            <ul>
+              {commands.map((c) => (
+                <li key={c.name}>{shortcutLine(c, page)}</li>
+              ))}
+            </ul>
+          )}
+          <p class="note">To set or change a key, open {page} in the address bar.</p>
+        </section>
+      </details>
+      <details class="acc sent">
         <summary>{S.popup.sentSummary}</summary>
         <p class="note">{S.popup.sentBody}</p>
       </details>
@@ -451,6 +490,11 @@ export function Popup() {
     </main>
   );
 }
+
+/** Which of the three visible stages each step belongs to: Reading the page, Checking readability, Applying. */
+const STAGE_OF: Record<Step, number> = { checking: 0, analysing: 0, consent: 1, asking: 1, repairing: 1, baseline: 2, applying: 2 };
+
+const themeName = (id: string): string => THEMES.find((t) => t.id === id)?.name ?? "your theme";
 
 const providerLabel = (id: string): string => (id in PROVIDER_NAMES ? PROVIDER_NAMES[id as ProviderId] : "built-in theme");
 

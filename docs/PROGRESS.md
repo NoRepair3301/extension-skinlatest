@@ -160,3 +160,8 @@ Owner decisions overrule CLAUDE.md (edited: rules 2, 3, 5; SPEC 17; AUDIT C3; do
 ### Stage 3: persistence and restore (done)
 - "Change my page" calls requestOrigins as its first statement (tested: permission before the tab query and the flow), then registers the auto script after the theme is on; one prompt. Denied: this document only, one line, a Keep button to retry. Repair rules are stored with the site (strict parser, 10 KB cap) and seeded before first paint by the auto script.
 - Restore: marker-based cleanup when the ledger is missing (src/extension/cleanup.ts), popup injects a fresh script if there is none, and Restore pauses auto theming for the site until the next apply. Tests: tests/restore-markers.test.ts, popup "Restore pauses the site", auto "stored repair rules".
+
+### Stage 4: premium polish (done)
+- Popup: banners (neutral, green for success, red only for errors), success line "Applied Midnight, 14 readability fixes", three progress stages (Reading the page, Checking readability, Applying), accordions for pet, picture, privacy tools, shortcuts and "what gets sent", quick toggles (pet, art), theme cards with live mini previews, motion tokens with reduced-motion support. Budgets and a11y tests unchanged.
+- Docs: BUGS, QA, CHANGELOG, ARCHITECTURE updated.
+- UNVERIFIED (no browser): everything visual, the real permission prompt timing inside the click, the AI repair against a real provider, the Navigation API re-apply.

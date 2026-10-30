@@ -373,6 +373,45 @@ describe("popup", () => {
     });
   });
 
+  describe("calm states", () => {
+    it("shows a success line with the theme and the number of readability fixes", async () => {
+      flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "midnight", why: "no-key", message: "Applied.", fixes: 14 });
+      const root = await mount();
+      await click(root, "Change my page");
+      expect(root.querySelector(".banner-success")!.textContent).toBe("Applied Midnight, 14 readability fixes");
+      flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "ocean", why: "no-key", message: "Applied." });
+      await click(root, "Change my page");
+      expect(root.querySelector(".banner-success")!.textContent).toBe("Applied Ocean, no readability fixes needed");
+    });
+
+    it("information is neutral and only real errors are red", async () => {
+      flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "ocean", why: "no-key", message: MSG.noKey });
+      const root = await mount();
+      await click(root, "Change my page");
+      expect(root.querySelector(".popup-head [role=status]")!.className).toContain("banner-info");
+      expect(root.querySelector(".banner-error")).toBeNull();
+      flow.runTransform.mockResolvedValue({ kind: "error", errorKind: "network", message: "Couldn't reach the AI.", themeId: "ocean" });
+      await click(root, "Change my page");
+      expect(root.querySelector(".popup-head [role=status]")!.className).toContain("banner-error");
+    });
+
+    it("shows three stages while working, with the current one marked", async () => {
+      let release: (v: unknown) => void = () => undefined;
+      flow.runTransform.mockImplementation(async (_t: number, _u: string, hooks: { onStep(s: string): void }) => {
+        hooks.onStep("analysing");
+        return new Promise((r) => (release = r));
+      });
+      const root = await mount();
+      await act(() => find(root, "Change my page")!.click());
+      await flush();
+      const items = Array.from(root.querySelectorAll("ol.stages li"));
+      expect(items.map((i) => i.textContent)).toEqual(["Reading the page", "Checking readability", "Applying"]);
+      expect(root.querySelector("ol.stages li[aria-current=step]")!.textContent).toBe("Reading the page");
+      release({ kind: "cancelled", themeId: "calm-light" });
+      await flush();
+    });
+  });
+
   it("Restore calls the page restore", async () => {
     api.runInPage.mockResolvedValue({ ok: true });
     const root = await mount();

@@ -8,6 +8,9 @@ export const en = {
   app: { name: "Skinly AI", notAffiliated: "Skinly AI is not affiliated with any website." },
   popup: {
     change: "Change my page",
+    quick: "Quick settings",
+    stages: ["Reading the page", "Checking readability", "Applying"],
+    applied: (name: string, fixes: number) => `Applied ${name}, ${fixes === 0 ? "no readability fixes needed" : fixes === 1 ? "1 readability fix" : `${fixes} readability fixes`}`,
     restore: "Restore original",
     cancel: "Cancel",
     themeLegend: "Theme",

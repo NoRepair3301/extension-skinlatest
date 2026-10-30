@@ -21,3 +21,14 @@ Status: every row is covered by a unit test (there is no browser here). Rows mar
 | C1 | Theme only on the clicked page | "Always on this site" sat behind Keep and Remember | One "Keep on this site" button after any successful apply; in-page navigation re-applies | tests/popup.test.ts "per site", tests/auto.test.ts "applier-auto on a single-page app" |
 | D1 | A rate limit with a long retry-after looked like a generic failure | Only the kind was kept | The soonest retry-after is shown as "Rate limit, try again in N seconds"; no probing | tests/providers/registry.test.ts "long retry-after", tests/ai/pipeline.test.ts "transform: rate limits" |
 | D2 | Scene and pet pickers had no pictures | Plain selects | Thumbnails drawn by the same art builders | tests/features/thumbs.test.ts |
+
+## fix/real-browser-2
+
+| # | Symptom | Cause | Fix | Test |
+|---|---|---|---|---|
+| E1 | A theme could be refused or rolled back for readability, leaving the page unthemed | Visual guard rolled back on a failed contrast check; plan contrast failures were refused | Always apply; repair pass with colour-only structural rules; images/gradients keep original colours | tests/guard.test.ts "the theme always goes on and unreadable text is repaired", tests/ai/pipeline.test.ts "never refuses a plan for contrast", tests/auto.test.ts "misses the contrast targets is still applied" |
+| E2 | Scene art and the pet vanished on auto-themed pages | The auto script showed them at document_start; its second apply ran the restore hooks and destroyed them | Re-applying keeps the hooks; only a real Restore runs them | tests/scene-flow.test.ts "auto path" |
+| E3 | Full-width pages never showed art | No gutter, no fallback | One small corner strip (120 by 160), least covered corner, pointer-events none | tests/scene-page.test.ts "corner strip", tests/features/freespace.test.ts "pickCorner", tests/scene-flow.test.ts |
+| E4 | Two prompts, theme not kept by default | Permission asked late, behind Keep | Permission requested first inside the click; stored plan and repair rules applied before first paint on every page | tests/popup.test.ts "the permission request is made before the flow does anything else", "one click asks for this origin only", tests/auto.test.ts "stored repair rules" |
+| E5 | Restore could do nothing after navigation or with a fresh script | Rollback needed the in-memory ledger | Marker-based cleanup; Restore pauses the site | tests/restore-markers.test.ts, tests/popup.test.ts "Restore pauses the site until the user applies again" |
+| E6 | Space showed neither stars nor planets at low density | Actor order | Stars and planets first | tests/features/scenes-art.test.ts "Space shows stars and planets" |
