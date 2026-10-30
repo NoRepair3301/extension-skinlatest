@@ -99,7 +99,7 @@ Method: a fresh `git clone` into a temp folder, `npm ci`, `npm run check`, `npm 
 - [ ] On a real page pick three elements, turn Share mode on, take a safe screenshot and read the PNG yourself: the picked parts are unreadable. Try a page where you did not pick something sensitive and confirm it is visible (the tool only blurs what you pick).
 - [ ] Sort and filter a real table, then press Restore order and Restore original: the page is exactly as before.
 - [ ] Pick mode: on a page with links and buttons, clicks only toggle the blur while pick mode is on; after Escape the page behaves normally. The popup closes when you click the page, so reopen it to see counts, Save picks and Safe screenshot.
-- [ ] Decision to confirm: Share mode off removes the blur entirely (there is no reveal-on-hover state), and saved picks are not auto-applied by the always-on script.
+- [x] Decisions ACCEPTED (2026-10-30): Share mode off removes the blur entirely, and saved blur picks are not auto-applied by the always-on script.
 
 ## Phase 9
 - [ ] Choose the final name and check it for trademark conflicts. Host docs/store/privacy.md at a public URL and add a contact address.
@@ -107,3 +107,8 @@ Method: a fresh `git clone` into a temp folder, `npm ci`, `npm run check`, `npm 
 - [ ] Run docs/QA.md on Edge, Chrome and Brave. Fix any failure with a fix prompt, one test per bug.
 - [ ] Final privacy check: with the Network tab open, use the extension on a page: the only requests from the extension go to the provider you chose and only after consent.
 - [ ] Look at the icon at 16 px in the toolbar on a light and a dark browser theme; replace scripts/icons.ts if you want another design.
+
+## Addendum v0.1.0-rc2 (2026-10-30)
+VERIFIED now: Gemini endpoint + request shape accepted (HTTP 200), Gemini response shape, Gemini 503 error body and retry-after, model id gemini-3.8-flash accepted, Groq 401 error body. Fresh clone: 614 tests, release zip, greps C1/C2/C6/C7/C9/C10/C12 clean.
+STILL UNVERIFIED: any complete StylePlan from a real provider (0 produced), Gemini 401/403/429 bodies, Groq success shape/model id/latency (key rejected), Groq retention terms, CORS from the service worker, everything needing a real browser.
+Decisions accepted: share mode off removes blur; saved blur picks not auto-applied; palette UI plain DOM.

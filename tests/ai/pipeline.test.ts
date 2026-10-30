@@ -112,7 +112,7 @@ describe("transform: provider errors", () => {
     expect(await p).toEqual({ kind: "cancelled", themeId: "calm-light" });
   });
 
-  it("times out on the 20 s budget", async () => {
+  it("times out on the pipeline budget", async () => {
     const h = harness({ gemini: [{ type: "delay", ms: 60_000, then: { type: "ok", json: goodPlan() } }] });
     h.deps.budgetMs = 1000; // the real minimum slice is 1 s
     const out = await transform(URL_OK, h.deps);

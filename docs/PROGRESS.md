@@ -75,3 +75,11 @@
 - Fresh clone: `npm ci` and `npm run check` green (37 files, 611 tests), `npm run release` ok. The first clone failed because `.gitignore` `store/` also ignored docs/store; fixed (`/store/`), merged and the tags moved to the fixed merge.
 - C1 to C14 run on the clone; results, UNVERIFIED items and the full human list are in docs/FINAL_REPORT.md.
 ALL DONE
+
+## fix/providers-real (v0.1.0-rc2, 2026-10-30)
+- scripts/probe.ts: one real call per provider, prints status, header names and key/type structure only; full replies in private/.
+- Gemini reply shape VERIFIED (steps[] -> model_output -> content[].text); extractGeminiText is now strict; Gemini 503 body and retry-after 30 seen; Groq 401 body seen. Tests use sanitized copies.
+- Timeouts 15 s/20 s -> 40 s/60 s (SPEC 7 updated). Reason: Gemini spends seconds on thought tokens (8.9 s for a 5-token answer). Not proven sufficient: 4 of 4 bake-off calls still timed out at 40 s, then 429.
+- Bake-off partial: Gemini 0/5 (stopped on 429), Groq 0/1 (key rejected, 401). Prompt not tuned (no answers to judge). Table in docs/HUMAN_CHECKS.md.
+- Accepted decisions: share mode off removes blur; saved blur picks not auto-applied by the auto script; palette UI is plain DOM (no Preact in palette.js).
+- Fresh clone: npm ci, npm run check (614 tests), npm run release OK; safety greps C1, C2, C6, C7, C9, C10, C12 clean.

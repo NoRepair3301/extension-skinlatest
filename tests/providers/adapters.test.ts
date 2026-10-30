@@ -16,7 +16,20 @@ const reply = (r: Reply): Awaited<ReturnType<FetchFn>> => ({
 });
 
 const groqOk = (content: string): Reply => ({ body: { choices: [{ message: { role: "assistant", content } }] } });
-const geminiOk = (text: string): Reply => ({ body: { output_text: text } });
+/** Structure recorded from a real gemini-3.8-flash reply on 2026-10-30 (ids, signature and answer replaced). */
+const geminiOk = (text: string): Reply => ({
+  body: {
+    id: "v1_SANITIZED",
+    status: "completed",
+    usage: { total_tokens: 102, total_input_tokens: 16, input_tokens_by_modality: [{ modality: "text", tokens: 16 }], total_cached_tokens: 0, total_output_tokens: 5, total_tool_use_tokens: 0, total_thought_tokens: 81, initial_input_tokens: 70 },
+    created: "2026-10-30T00:00:00Z",
+    updated: "2026-10-30T00:00:00Z",
+    service_tier: "standard",
+    steps: [{ signature: "SANITIZED", type: "thought" }, { content: [{ text, type: "text" }], type: "model_output" }],
+    object: "interaction",
+    model: "gemini-3.8-flash",
+  },
+});
 
 const scripted = (replies: Reply[]) => {
   const calls: Array<{ url: string; headers: Record<string, string>; body: string }> = [];
@@ -114,6 +127,21 @@ describe.each([
   });
 });
 
+describe("real error bodies (sanitized copies, 2026-10-30)", () => {
+  const gemini503 = { error: { message: "gemini-3.8-flash is currently experiencing high demand.", code: "service_unavailable" } };
+  const groq401 = { error: { message: "Invalid API Key", type: "invalid_request_error", code: "invalid_api_key" } };
+  it("maps Gemini 503 with retry-after 30 to server and does not retry (above 5 s)", async () => {
+    const { fetchFn, calls } = scripted([{ status: 503, body: gemini503, headers: { "retry-after": "30" } }]);
+    expect(await createGemini(async () => KEY, { fetchFn, sleep: noSleep }).generate(req)).toEqual({ ok: false, error: { kind: "server", retryAfterMs: 30_000 } });
+    expect(calls).toHaveLength(1);
+  });
+  it("maps Groq 401 invalid_api_key to auth without retry", async () => {
+    const { fetchFn, calls } = scripted([{ status: 401, body: groq401 }]);
+    expect(await createGroq(async () => KEY, { fetchFn, sleep: noSleep }).generate(req)).toEqual({ ok: false, error: { kind: "auth" } });
+    expect(calls).toHaveLength(1);
+  });
+});
+
 describe("status to ErrorKind table", () => {
   const table: Array<[number, ErrorKind]> = [
     [400, "bad-output"],
@@ -155,10 +183,12 @@ describe("answer extraction", () => {
     expect(extractGroqText({ choices: [{ message: { content: "x" } }] })).toBe("x");
     for (const bad of [null, {}, { choices: [] }, { choices: [{}] }, { choices: [{ message: { content: 5 } }] }]) expect(extractGroqText(bad)).toBeUndefined();
   });
-  it("reads the UNVERIFIED Gemini shapes and fails closed otherwise", () => {
-    expect(extractGeminiText({ output_text: "x" })).toBe("x");
-    expect(extractGeminiText({ steps: [{ type: "thought" }, { type: "model_output", content: [{ text: "a" }, { text: "b" }] }] })).toBe("ab");
-    for (const bad of [null, {}, { steps: [] }, { steps: [{ type: "model_output" }] }, { candidates: [] }]) expect(extractGeminiText(bad)).toBeUndefined();
+  it("reads the real Gemini model_output step and skips thought steps", () => {
+    expect(extractGeminiText(geminiOk("x").body)).toBe("x");
+    expect(extractGeminiText({ steps: [{ type: "model_output", content: [{ type: "text", text: "a" }, { type: "text", text: "b" }] }] })).toBe("ab");
+  });
+  it("fails closed on anything that is not the real Gemini shape", () => {
+    for (const bad of [null, {}, { steps: [] }, { steps: [{ type: "thought", signature: "s" }] }, { steps: [{ type: "model_output" }] }, { steps: [{ type: "model_output", content: [{ type: "image" }] }] }, { output_text: "x" }, { candidates: [] }]) expect(extractGeminiText(bad)).toBeUndefined();
   });
   it("parseJsonAnswer finds an object inside prose", () => {
     expect(parseJsonAnswer('prefix {"a":1} suffix')).toEqual({ a: 1 });
@@ -175,10 +205,10 @@ describe("timeouts and abort", () => {
       init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
     });
 
-  it("times out after 15 s", async () => {
+  it("times out after 40 s", async () => {
     const p = createGroq(async () => KEY, { fetchFn: hanging });
     const result = p.generate(req);
-    await vi.advanceTimersByTimeAsync(14_999);
+    await vi.advanceTimersByTimeAsync(39_999);
     let settled = false;
     void result.then(() => (settled = true));
     await Promise.resolve();

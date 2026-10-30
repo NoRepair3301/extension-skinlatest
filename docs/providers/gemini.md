@@ -30,18 +30,18 @@ Header `x-goog-api-key: YOUR_KEY`, plus `Content-Type: application/json`.
 - The structured-output page does not show `system_instruction`; the interactions page lists `system_instruction` as an interaction-scoped parameter (not carried over by `previous_interaction_id`). Combining them is not shown in one official example.
 - `schema` objects in the docs use `type`, `properties`, `enum`, `required`. Other keywords (minimum, maximum, pattern) are not shown; we do not use them.
 
-## 4. Response
-UNVERIFIED. The pages show only SDK accessors (`output_text` in Python/JavaScript) and say the final answer is "the final `model_output`" step of the interaction. No raw REST response JSON is documented on these pages, and the API reference (`/api/interactions-api#Resource:Interaction`) was not available through the fetch tool. The adapter reads text through one isolated function (`extractGeminiText`) that fails closed (returns bad-output) when it does not find the documented hints. Confirm with the bake-off, then replace the function.
+## 4. Response (VERIFIED 2026-10-30 by scripts/probe.ts, HTTP 200)
+Top-level keys: id, status ("completed"), usage { total_tokens, total_input_tokens, input_tokens_by_modality[{modality,tokens}], total_cached_tokens, total_output_tokens, total_tool_use_tokens, total_thought_tokens, initial_input_tokens }, created, updated, service_tier, steps[], object ("interaction"), model.
+`steps` held two items: `{ signature, type: "thought" }` and `{ content: [{ text, type: "text" }], type: "model_output" }`. The answer is the text of the `model_output` step; there is no top-level `output_text`. `system_instruction` plus `response_format` (type text, mime_type application/json, schema) in one request was accepted.
+Latency: a 5-token answer took 8.9 s because the model spent 81 thought tokens first. Prompts that need a full StylePlan therefore take far longer than a 15 s timeout allows (see docs/HUMAN_CHECKS.md bake-off).
 
 ## 5. Models
-`gemini-3.8-flash` (used in most examples on the docs pages). `gemini-4-argon` appears for structured outputs with tools (preview). Default: `gemini-3.8-flash`, configurable.
+`gemini-3.8-flash` is accepted by the endpoint (VERIFIED 2026-10-30, the response's `model` field echoes it). Other ids from the docs pages (`gemini-4-argon`) were not tried. Default: `gemini-3.8-flash`, configurable.
 
-## 6. Errors (troubleshooting page)
-- 400: client error, not retryable.
-- 403: `PERMISSION_DENIED`, not retryable.
-- 429: `RESOURCE_EXHAUSTED`, retryable.
-- 503: `UNAVAILABLE`, retryable. "5xx" are retryable.
-- 401, 500, 504 are not named; the JSON error body shape and any retry-after header are NOT documented there (the page defers to /gemini-api/docs/api-errors). We map by HTTP status only and treat a missing retry-after as "no retry here, fall back to the next provider".
+## 6. Errors
+Troubleshooting page (not re-verified): 400 and 403 not retryable; 429 RESOURCE_EXHAUSTED and 503 UNAVAILABLE retryable.
+VERIFIED 2026-10-30: HTTP 503 body is `{ "error": { "message": string, "code": string } }` (code was "service_unavailable", message said the model was under high demand). The response carried a `retry-after: 30` header (seconds). Header names seen on errors: alt-svc, content-encoding, content-type, date, retry-after, server, server-timing, transfer-encoding, vary, x-content-type-options, x-frame-options, x-xss-protection. Note `error.code` is a string here, not a number.
+Not seen yet: 401/403/429 bodies. We map by HTTP status only, and retry once only when retry-after is 5 s or less (so a 30 s retry-after falls back to the next provider).
 
 ## 7. Free tier
 The pricing page lists gemini-3.8-flash Standard as free of charge on the Free tier, with no RPM/TPM/RPD numbers ("not published").
