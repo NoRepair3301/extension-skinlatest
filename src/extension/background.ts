@@ -1,4 +1,4 @@
-import { getPageUrl, injectFile, onCommand, onMessage, openPaletteInPage, runInPage, runTool, setBadge, setTitle, showToast } from "./api.ts";
+import { getPageUrl, injectFile, onCommand, onInstalled, openOptionsPage, onMessage, openPaletteInPage, runInPage, runTool, setBadge, setTitle, showToast } from "./api.ts";
 import { handleCommand, isCommand, type CommandDeps } from "./commands.ts";
 import { loadSettings } from "./settings.ts";
 import { isBadgeMessage } from "./messages.ts";
@@ -21,6 +21,11 @@ const deps: CommandDeps = {
   setBadge,
   setTitle,
 };
+
+// First install opens the settings page, which shows the welcome once (settings.welcomeDone). No extra permission.
+onInstalled((reason) => {
+  if (reason === "install") void openOptionsPage().catch(() => undefined);
+});
 
 onCommand((command, tab) => {
   if (isCommand(command)) void handleCommand(deps, command, tab);

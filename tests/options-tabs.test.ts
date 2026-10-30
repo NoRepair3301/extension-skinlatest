@@ -22,13 +22,15 @@ const mount = async () => {
 const tabs = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
 const panelOf = (root: HTMLElement, id: string) => root.querySelector<HTMLElement>(`#panel-${id}`)!;
 
+const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 20)));
+
 describe("options tabs", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     location.hash = "";
     Object.values(api).forEach((f) => f.mockReset());
     Object.values(keys).forEach((f) => typeof f === "function" && f.mockReset());
-    api.storageGet.mockResolvedValue(undefined);
+    api.storageGet.mockImplementation(async (k: string) => (k === "settings" ? { welcomeDone: true } : undefined));
     api.storageSet.mockResolvedValue(undefined);
     api.getCommands.mockResolvedValue([{ name: "toggle-pet", description: "Show or hide the pet", shortcut: "Alt+Shift+P" }, { name: "x", description: "Other", shortcut: "" }]);
     api.browserHints.mockReturnValue({ userAgent: "Mozilla/5.0 Edg/120", brave: false });
@@ -77,6 +79,39 @@ describe("options tabs", () => {
     api.storageGet.mockImplementation(async (k: string) => (k === "sites" ? { v: 1, sites: {} } : undefined));
     const root = await mount();
     expect(panelOf(root, "sites").textContent).toContain("No sites saved.");
+  });
+
+  it("first run: the welcome opens once with three steps, can be skipped, and is remembered", async () => {
+    api.storageGet.mockResolvedValue(undefined);
+    const root = await mount();
+    const dlg = () => root.querySelector("dialog");
+    expect(dlg()!.textContent).toContain("Step 1 of 3");
+    const press = (label: string) => act(() => { Array.from(root.querySelectorAll("dialog button")).find((b) => b.textContent === label)!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await press("Next");
+    expect(dlg()!.textContent).toContain("Step 2 of 3");
+    expect(dlg()!.querySelector('input[type="password"]')).toBeTruthy();
+    await press("Next");
+    expect(dlg()!.textContent).toContain("stay on this device");
+    await press("Done");
+    await flush();
+    expect(dlg()).toBeNull();
+    const saved = api.storageSet.mock.calls.filter((c) => c[0] === "settings").at(-1)![1] as { welcomeDone: boolean };
+    expect(saved.welcomeDone).toBe(true);
+  });
+
+  it("first run: Skip closes it at once and About can reopen it", async () => {
+    api.storageGet.mockResolvedValue(undefined);
+    const root = await mount();
+    await act(() => { Array.from(root.querySelectorAll("dialog button")).find((b) => b.textContent === "Skip")!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await flush();
+    expect(root.querySelector("dialog")).toBeNull();
+    await act(() => { Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Show the welcome again")!.click(); });
+    expect(root.querySelector("dialog")!.textContent).toContain("Step 1 of 3");
+  });
+
+  it("when already done the welcome is not shown", async () => {
+    const root = await mount();
+    expect(root.querySelector("dialog")).toBeNull();
   });
 
   it("Erase all: a confirm dialog first, cancel does nothing, confirm clears storage and permissions", async () => {

@@ -42,3 +42,11 @@ describe("consent setting", () => {
     expect(parseSettings({ consent: { version: "1", acceptedAt: 5 } }).consent).toBeNull();
   });
 });
+
+describe("welcomeDone", () => {
+  it("defaults to false and is read back only when exactly true", () => {
+    expect(parseSettings(undefined).welcomeDone).toBe(false);
+    expect(parseSettings({ welcomeDone: "yes" }).welcomeDone).toBe(false);
+    expect(parseSettings({ welcomeDone: true }).welcomeDone).toBe(true);
+  });
+});

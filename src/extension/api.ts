@@ -189,6 +189,11 @@ export const removeAllOrigins = async (): Promise<void> => {
   if (p.origins && p.origins.length > 0) await chrome.permissions.remove({ origins: p.origins });
 };
 
+/** Runs the callback when the extension is installed or updated, with the reason. */
+export const onInstalled = (handler: (reason: string) => void): void => {
+  chrome.runtime.onInstalled.addListener((d) => handler(d.reason));
+};
+
 export const openOptionsPage = (): Promise<void> => chrome.runtime.openOptionsPage();
 
 export const extensionVersion = (): string => chrome.runtime.getManifest().version;

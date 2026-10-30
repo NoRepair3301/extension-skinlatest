@@ -9,6 +9,7 @@ import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
 import { Logo } from "../Logo.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
 import { MyAssets } from "./MyAssets.tsx";
+import { Welcome } from "./Welcome.tsx";
 import { deleteKey, keyStatus, MASK, saveKey, testKey } from "../keys.ts";
 import { entryHost } from "../../analyzer/eligibility.ts";
 import { PET_CORNERS, PET_KINDS, PET_SIZES, callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
@@ -66,17 +67,22 @@ export function Options() {
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [eraseOpen, setEraseOpen] = useState(false);
   const [eraseNote, setEraseNote] = useState("");
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
   const hints = safe(() => browserHints(), { userAgent: "", brave: false });
   const version = safe(() => extensionVersion(), "");
   const selectTab = (id: string) => {
     setTab(id);
     safe(() => history.replaceState(null, "", "#" + id), undefined);
   };
+  const closeWelcome = () => {
+    setWelcomeOpen(false);
+    if (!settings.welcomeDone) update({ ...settings, welcomeDone: true });
+  };
   const erase = async () => {
     const r = await eraseEverything();
     setEraseOpen(false);
     if (r.ok) {
-      setSettings(defaultSettings());
+      setSettings({ ...defaultSettings(), welcomeDone: true });
       setSaved({ gemini: false, groq: false });
       setSites({});
     }
@@ -94,7 +100,10 @@ export function Options() {
     })();
   }, []);
   useEffect(() => {
-    void loadSettings().then(setSettings);
+    void loadSettings().then((s) => {
+      setSettings(s);
+      if (!s.welcomeDone) setWelcomeOpen(true);
+    });
     void keyStatus().then(setSaved);
     void loadSites().then(setSites);
   }, []);
@@ -360,9 +369,12 @@ export function Options() {
           <p>Version {version}</p>
           <p class="note">Skinly AI is free and is not affiliated with any website. Its art is original and drawn in code; fonts are your system fonts. See assets/LICENSES.md in the source for the list of assets.</p>
           <p class="note">What leaves your browser: nothing, unless you click Change my page with an AI provider and agree. The privacy text ships with the extension in docs/store/privacy.md.</p>
+          <button type="button" onClick={() => setWelcomeOpen(true)}>Show the welcome again</button>
         </Card>,
       )}
 
+
+      {welcomeOpen && <Welcome settings={settings} onChange={update} onClose={closeWelcome} />}
 
       {eraseOpen && (
         <Dialog title="Erase all Skinly data?" onClose={() => setEraseOpen(false)}>
