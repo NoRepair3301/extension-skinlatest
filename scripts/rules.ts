@@ -69,6 +69,7 @@ export const KEY_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ["secret-like string (whsec_)", /\bwhsec_[A-Za-z0-9+/=]{10,}/],
   ["JWT-like string", /\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/],
   ["private key", /-----BEGIN [A-Z ]*PRIVATE KEY-----/],
+  ["secret-like string (sb_secret_)", /\bsb_secret_[A-Za-z0-9_-]{10,}/],
 ];
 
 /** The extension never names the service role (it must never hold that key). Checked in src/ and in dist. */
@@ -106,7 +107,7 @@ export function scanSource(path: string, text: string, allowedHosts: readonly st
   return out;
 }
 
-const TEXT_EXT = /\.(?:ts|tsx|js|json|md|html|css|txt)$/;
+const TEXT_EXT = /(?:\.(?:ts|tsx|js|mjs|json|md|html|css|txt|sql|toml)|\.env\.example)$/;
 
 /** Scans every text file under the given directories (relative to root). */
 export function scanTree(root: string, dirs: readonly string[]): Violation[] {
