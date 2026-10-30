@@ -43,11 +43,20 @@ Never included: text, hrefs, ids, alt, title, aria-label, data-* values, form va
   tokens:{ bg,surface,text,muted,link,accent,border,focus: "#rrggbb",
            radius:0..16 (int), font:"system"|"serif"|"mono"|"humanist"|"rounded"|"geometric",
            baseSize:14..20 (int), lineHeight:1.3..1.9 (one decimal) },
-  regionRules:[ up to 40 of { region:"rN", layout:"none"|"link-grid"|"nav-wrap",
+  regionRules:[ up to 40 of { region:"rN", layout:"none"|"link-grid"|"nav-wrap"|"center-column"|"card-grid"|"stack"|"table-clean",
                               surface:"none"|"flat"|"card", spacing:0..4 (int) } ],
   reasons:[ up to 5 of "repeated-links"|"clear-nav"|"dense-text"|"low-contrast-source"|"dark-source"|"form-heavy"|"unsure" ] }
 ```
-Font stacks are fixed in code (system-ui, Georgia/serif, ui-monospace, etc.); the AI never names fonts. layout `link-grid` or `nav-wrap` is valid only for a region whose role is link-list, nav or card-list, linkCount at least 4, and the page has no risk marker.
+Font stacks are fixed in code (system-ui, Georgia/serif, ui-monospace, etc.); the AI never names fonts. Layouts are fixed CSS templates over the existing children and never change DOM order. Eligibility (validator and compiler both check it; PROMPT_VERSION 2 tells the model):
+| layout | roles | other |
+|---|---|---|
+| link-grid | link-list, nav, card-list | linkCount at least 4 |
+| nav-wrap | link-list, nav, card-list | linkCount at least 4 |
+| card-grid | link-list, card-list, section, aside | childCount at least 3 (CSS grid over the repeated children) |
+| stack | nav, link-list, card-list, section, aside, main | childCount at least 2 (flex column with a gap) |
+| center-column | main, section | max-width and auto margins |
+| table-clean | table | border-collapse, padded bordered cells |
+Every layout needs an empty `risk` list, except table-clean which also accepts `["big-table"]`. The prompt tells the model to choose per region and not to give every region the same layout.
 ### 4.3 CSS allowlist (compiler output is tested against it)
 Tier A: color, background-color, border-color, border-width, border-style, border-radius, box-shadow, font-family, font-size, font-weight, line-height, text-decoration-color, outline-color, outline-width, outline-style, outline-offset, accent-color, caret-color, color-scheme, scrollbar-color.
 Tier B (layout templates, eligible regions only): display (grid or flex only), grid-template-columns, flex-wrap, flex-direction, gap, list-style, padding, margin, max-width.

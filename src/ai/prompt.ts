@@ -1,7 +1,7 @@
 import type { StructuralSummary } from "../core/types.ts";
 import { COLOR_KEYS, FONT_KEYS, LAYOUTS, REASONS, SURFACES, THEME_IDS } from "../plan/schema.ts";
 
-export const PROMPT_VERSION = "1";
+export const PROMPT_VERSION = "2";
 
 /** Response schema in the keyword subset the provider docs show (type, properties, enum, required, items). */
 export const STYLE_PLAN_SCHEMA = {
@@ -61,7 +61,14 @@ Rules:
 - Use only region ids that appear in the input ("regions"[].id). Never invent ids.
 - Prefer a built-in themeId ("calm-light", "midnight", "ocean", "warm-paper", "high-contrast") and copy nothing else unless the page clearly needs custom tokens; use "custom" only with your own tokens.
 - Keep contrast readable: text on bg at least 4.5:1, links at least 4.5:1.
-- layout "link-grid" or "nav-wrap" only for regions whose role is link-list, nav or card-list with linkCount at least 4, and only if "risk" is empty. Otherwise use layout "none".
+- Choose a layout per region from its role, childCount and linkCount. Every layout needs "risk" to be empty (except "table-clean", which also accepts risk ["big-table"]). The page order never changes; layouts only restyle the existing children.
+  - "link-grid": role link-list, nav or card-list, linkCount at least 4 (many links as a grid of tiles).
+  - "nav-wrap": role nav, link-list or card-list, linkCount at least 4 (a row of links that wraps).
+  - "card-grid": role link-list, card-list, section or aside, childCount at least 3 (repeated blocks as a grid of cards).
+  - "stack": role nav, link-list, card-list, section, aside or main, childCount at least 2 (children in one column with a gap).
+  - "center-column": role main or section (a readable centred column; use it on at most one or two big regions, usually the main text).
+  - "table-clean": role table (padded cells with borders).
+  - Otherwise use layout "none". Different regions should usually get different layouts; do not give every region the same one.
 - If unsure, return a built-in themeId with every layout "none" and reasons ["unsure"].
 
 Schema:
