@@ -244,3 +244,14 @@ Branch cut from main after the v0.2.1-rc1 merge.
 - Scanner (scripts/rules.ts): fetch allowed in src/providers/ and src/backend/; storage keys `auth` and `entitlement`; secret patterns (sk_live_/rk_live_, rzp_live/test_, whsec_, JWT-like, private keys) in every scanned file and in dist (validate-dist imports the same list); `service_role` refused in src/ and dist; the real-tree scan includes backend/. Page scripts may not import src/backend/ (tests/auto.test.ts). Tests: tests/rules.test.ts, tests/build.test.ts.
 - Decision: tier logic stays in src/core/entitlements.ts (CLAUDE.md names that file and it exists); the prompt's "src/plan/entitlements.ts" is read as that file.
 - .gitignore keeps `.env.example` files.
+
+### B2: backend schema (done)
+- backend/supabase/migrations/20261031000000_plus.sql: profiles, plans, entitlements, billing_events (no payload column). RLS enabled and forced on every table. Select-only policies: own profile, own entitlement, active plans; none for billing_events; insert, update and delete revoked from anon and authenticated (only the service role writes, inside functions). A trigger makes a profile per new auth user (no PII copied).
+- backend/supabase/tests/database/rls.test.sql (pgTAP, run with `supabase test db`; not run here, no database). tests/backend/migrations.test.ts holds the migration to those rules statically.
+- docs/backend/supabase.md: every endpoint, header and command used, with the supabase.com/docs page it came from; PostgREST write syntax and the RLS test role switch are marked CONVENTION (not shown on supabase.com/docs).
+
+### B3: functions (done)
+- Pure modules in backend/supabase/functions/_shared (no Deno API): b64, token (Ed25519, 3-day tokens, strict verify), http (CORS from ALLOWED_ORIGINS, generic errors, logger with an event word and request id only, constant-time compare), ratelimit (fixed window per user, bounded memory), billing (adapter interface, TEST provider with HMAC signature, 5-minute replay window, strict event parse; refused unless BILLING_MODE=test), state (transitions activated, renewed, cancelled, expired, refunded; stale events ignored), rest (Db over plain fetch), handlers (the five functions), deps (environment). Each function's index.ts is one Deno.serve line.
+- scripts/gen-entitlement-keys.mjs writes the private key to private/backend.secrets.env and prints only the public key. .env.example and backend/.env.example hold names only.
+- Tests: tests/backend/token.test.ts (sign, verify, tamper, wrong key, kid, alg, lifetime), webhook.test.ts (forged, replay, idempotent, strict parse), billing.test.ts (transitions, test mode only, checkout from the plans table, test checkout single use), http.test.ts (CORS, validation, crash is generic, logger, rate limit, delete-account, REST request shapes).
+- Decision: the scanner also refuses `sb_secret_` keys (Supabase's new secret key format).
