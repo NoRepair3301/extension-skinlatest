@@ -26,7 +26,7 @@ export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
 
   const ready = async (): Promise<boolean> => {
     try {
-      await injectFile(tabId, "applier.js");
+      await injectFile(tabId, "applier.js", true);
       return true;
     } catch {
       setNote("Skinly can't change this kind of page");

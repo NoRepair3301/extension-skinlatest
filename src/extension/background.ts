@@ -11,8 +11,9 @@ onMessage((message, senderTabId) => {
 
 const deps: CommandDeps = {
   loadSettings,
-  inject: injectFile,
-  runApplier: (tabId, method, arg) => runInPage(tabId, method, arg),
+  // The applier goes into every frame (it stays out of cross-origin ones by itself); the palette is top frame only.
+  inject: (tabId, file) => injectFile(tabId, file, file === "applier.js"),
+  runApplier: (tabId, method, arg) => runInPage(tabId, method, arg, method === "applyTheme" || method === "restore"),
   openPalette: openPaletteInPage,
   setBadge,
   setTitle,

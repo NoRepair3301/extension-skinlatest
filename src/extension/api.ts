@@ -18,7 +18,19 @@ export const queryActiveTab = async (): Promise<ActiveTab | undefined> => {
   return { id: tab.id, url: tab.url };
 };
 
-export const injectFile = async (tabId: number, file: string): Promise<void> => {
+/**
+ * Injects a script file. With `allFrames` it goes into every frame the browser lets it into; the script decides per frame
+ * (src/extension/frames.ts) and stays out of cross-origin ones. If the browser refuses the frames request, the top frame alone is injected.
+ */
+export const injectFile = async (tabId: number, file: string, allFrames = false): Promise<void> => {
+  if (allFrames) {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: [file] });
+      return;
+    } catch {
+      // fall back to the top frame below
+    }
+  }
   await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
 };
 
@@ -100,15 +112,28 @@ export const captureVisible = (): Promise<string> => chrome.tabs.captureVisibleT
 
 export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet";
 
-/** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */
-export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown): Promise<R | undefined> => {
-  const [res] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: (m: string, a?: unknown) => {
-      const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
-      return applier?.[m]?.(a);
-    },
-    args: [method, arg],
-  });
-  return res?.result as R | undefined;
+const callApplier = (m: string, a?: unknown): unknown => {
+  const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
+  return applier?.[m]?.(a);
+};
+
+/**
+ * Calls a method of the applier already injected in the tab and returns the top frame's (serialisable) result.
+ * With `allFrames` the same call also runs in every same-origin frame that has an applier; their results are not read,
+ * because each frame keeps its own ledger and rolls itself back.
+ */
+export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown, allFrames = false): Promise<R | undefined> => {
+  const run = (target: { tabId: number; allFrames?: boolean }) => chrome.scripting.executeScript({ target, func: callApplier, args: [method, arg] });
+  let results: Awaited<ReturnType<typeof run>>;
+  if (allFrames) {
+    try {
+      results = await run({ tabId, allFrames: true });
+    } catch {
+      results = await run({ tabId });
+    }
+  } else {
+    results = await run({ tabId });
+  }
+  const top = results.find((r) => r.frameId === 0) ?? results[0];
+  return top?.result as R | undefined;
 };

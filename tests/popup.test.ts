@@ -326,7 +326,7 @@ describe("popup", () => {
     api.runInPage.mockResolvedValue({ ok: true });
     const root = await mount();
     await click(root, "Restore original");
-    expect(api.runInPage).toHaveBeenCalledWith(7, "restore");
+    expect(api.runInPage).toHaveBeenCalledWith(7, "restore", undefined, true);
     expect(status(root)).toBe("Original restored.");
   });
 });

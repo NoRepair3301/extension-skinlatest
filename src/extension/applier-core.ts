@@ -23,6 +23,11 @@ export interface ApplierOptions {
   style: StyleHost;
   summaryDeps?: SummaryDeps;
   observer?: ObserverOptions;
+  /**
+   * Frame mode: never analyse the page and apply the plan's tokens only (no region rules). A frame's regions are not the top
+   * page's regions, so the top page's plan can only carry colours, fonts and sizes into it.
+   */
+  tokensOnly?: boolean;
   /** Test hook, runs just before the invariants are checked. */
   beforeInvariants?: () => void;
 }
@@ -88,7 +93,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   }
 
   /** `tokensOnly` skips the page analysis (used at document_start, before the body exists) and applies no region rules. */
-  function run(source: PlanSource, tokensOnly = false): ApplyResult {
+  function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false): ApplyResult {
     restore();
     try {
       const before = snapshot(doc);

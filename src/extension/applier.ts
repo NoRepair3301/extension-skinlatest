@@ -1,6 +1,7 @@
 import { browserEnv, createPetController, type PetConfig } from "../features/pet/pet.ts";
 import { createPageTools } from "./pageTools.ts";
 import { createApplier, type Applier, type StyleHost } from "./applier-core.ts";
+import { frameRole } from "./frames.ts";
 import { originOf } from "./origin.ts";
 
 /** One constructable stylesheet, adopted by the document. */
@@ -33,11 +34,17 @@ function withPet(applier: Applier): PageApplier {
 }
 
 // Injecting the file twice must not replace the live instance, or its rollback ledger would be lost.
+// Every same-origin frame gets its own applier (own ledger, observer and rollback), tokens only; cross-origin frames get nothing.
 if (!slot.skinlyApplier) {
-  const applier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
-  // Blur and table tools live beside the applier and are undone by the same Restore.
-  const tools = createPageTools(document, adoptedSheetHost(document));
-  applier.onRestore(() => tools.restore());
-  slot.skinlyTools = tools;
-  slot.skinlyApplier = applier;
+  const role = frameRole(window);
+  if (role === "top") {
+    const applier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
+    // Blur and table tools live beside the applier and are undone by the same Restore.
+    const tools = createPageTools(document, adoptedSheetHost(document));
+    applier.onRestore(() => tools.restore());
+    slot.skinlyTools = tools;
+    slot.skinlyApplier = applier;
+  } else if (role === "same-origin-frame") {
+    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): void => undefined });
+  }
 }

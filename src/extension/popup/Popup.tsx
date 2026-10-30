@@ -127,7 +127,7 @@ export function Popup() {
     try {
       const tab = await queryActiveTab();
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
-      await runInPage(tab.id, "restore");
+      await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
       setView({ state: "idle", note: "Original restored." });
     } catch {
