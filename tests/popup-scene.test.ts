@@ -21,10 +21,11 @@ const api = vi.hoisted(() => ({
   browserHints: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
-const flow = vi.hoisted(() => ({ runTransform: vi.fn(), applyTheme: vi.fn() }));
-vi.mock("../src/extension/flow.ts", () => ({ runTransform: flow.runTransform, createPageClient: () => ({ applyTheme: flow.applyTheme }) }));
+const flow = vi.hoisted(() => ({ runTransform: vi.fn(), applyTheme: vi.fn(), applyPlan: vi.fn() }));
+vi.mock("../src/extension/flow.ts", () => ({ runTransform: flow.runTransform, createPageClient: () => ({ applyTheme: flow.applyTheme, applyPlan: flow.applyPlan }) }));
 
 import { Popup } from "../src/extension/popup/Popup.tsx";
+import { encodeThemeCode } from "../src/extension/themeCode.ts";
 import { planFor } from "./plan/helpers.ts";
 
 const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
@@ -125,5 +126,23 @@ describe("popup: scene art after Change my page", () => {
     await act(() => void sel.dispatchEvent(new Event("change", { bubbles: true })));
     await flush();
     expect(api.runScene.mock.calls.filter((c) => c[1] === "update")).toHaveLength(1);
+  });
+
+  it("theme code: a bad code is refused with no page call; a good one goes through applyPlan", async () => {
+    const root = await mount();
+    const input = root.querySelector('input[type="text"]') as HTMLInputElement;
+    const type = async (v: string) => {
+      input.value = v;
+      await act(() => { input.dispatchEvent(new Event("input", { bubbles: true })); });
+    };
+    await type("nonsense");
+    await click(root, "Import");
+    expect(root.textContent).toContain("isn't a valid theme code");
+    expect(flow.applyPlan).not.toHaveBeenCalled();
+    flow.applyPlan.mockResolvedValue({ ok: true, themeId: "ocean", regions: 0 });
+    await type(encodeThemeCode(planFor("ocean")));
+    await click(root, "Import");
+    expect(flow.applyPlan).toHaveBeenCalledTimes(1);
+    expect(root.textContent).toContain("Theme code applied");
   });
 });

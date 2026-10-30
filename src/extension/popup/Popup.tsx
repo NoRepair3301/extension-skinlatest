@@ -16,6 +16,7 @@ import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
+import { decodeThemeCode, encodeThemeCode } from "../themeCode.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -30,7 +31,7 @@ const STEP_TEXT: Record<Step, string> = {
 
 export type View =
   | { state: "idle"; note?: string }
-  | { state: "kept"; tabId: number; origin: string | undefined; kept: KeptPlan }
+  | { state: "kept"; tabId: number; origin: string | undefined; kept: KeptPlan; copied?: boolean }
   | { state: "blocked"; reason: string }
   | { state: "working"; step: Step; detail?: string }
   | { state: "consent"; req: ConsentRequest }
@@ -45,6 +46,7 @@ export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
+  const [codeText, setCodeText] = useState("");
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
@@ -231,6 +233,33 @@ export function Popup() {
     });
   };
 
+  const copyCode = async (plan: KeptPlan["plan"]) => {
+    try {
+      await navigator.clipboard.writeText(encodeThemeCode(plan));
+      setView((v) => (v.state === "kept" ? { ...v, copied: true } : v));
+    } catch {
+      setView({ state: "idle", note: "Couldn't copy the code." });
+    }
+  };
+
+  /** An imported code is a validated, contrast-checked StylePlan with no regions; it is shown, not remembered. */
+  const importCode = async () => {
+    const r = decodeThemeCode(codeText);
+    if (!r.ok) return setView({ state: "idle", note: r.message });
+    try {
+      const tab = await queryActiveTab();
+      if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
+      const res = await createPageClient(tab.id).applyPlan(r.plan);
+      if (!res || !res.ok) return setView({ state: "error", kind: "error", message: applyFailureMessage(res) });
+      badge(tab.id, "ON");
+      setCodeText("");
+      void showArt(tab.id, settings, { themeId: r.plan.themeId, planSceneId: r.plan.sceneId, accent: r.plan.tokens.accent });
+      setView({ state: "idle", note: "Theme code applied. Use Restore to undo." });
+    } catch {
+      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
+    }
+  };
+
   const busy = view.state === "working" || view.state === "consent";
   const hints = browserHints();
   const page = shortcutsPage(hints.userAgent, hints.brave);
@@ -312,7 +341,19 @@ export function Popup() {
           ) : (
             <p>This page can't be remembered.</p>
           )}
+          <button type="button" onClick={() => void copyCode(view.kept.plan)}>Copy theme code</button>
+          {view.copied && <p>Theme code copied. It holds colours and scene only.</p>}
           <button type="button" onClick={() => setView({ state: "idle", note: "Kept." })}>Done</button>
+        </section>
+      )}
+
+      {(view.state === "idle" || view.state === "kept") && (
+        <section aria-label="Theme code">
+          <label>
+            Import theme code
+            <input type="text" value={codeText} maxLength={2000} onInput={(e) => setCodeText((e.target as HTMLInputElement).value)} />
+          </label>
+          <button type="button" disabled={codeText.trim() === ""} onClick={() => void importCode()}>Import</button>
         </section>
       )}
 
