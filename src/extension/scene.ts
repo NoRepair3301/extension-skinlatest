@@ -1,13 +1,16 @@
 import { createAssetRenderer, type AssetRenderer, type AssetStatus } from "../features/assets/render.ts";
 import { browserAssetEnv } from "../features/assets/media.ts";
 import type { AssetRecord } from "../features/assets/types.ts";
-import type { GutterState, Gutters } from "../features/freespace/index.ts";
+import { pickCorner, type GutterState, type Gutters } from "../features/freespace/index.ts";
+import { diagFlags, recordError, takeErrors } from "../core/diag.ts";
+import type { ArtState, SceneDiagPart } from "../core/diagReport.ts";
 import { watchGutters, type GutterWatch } from "../features/freespace/watch.ts";
 import { getScene } from "../features/scenes/index.ts";
 import { createSceneEngine, type SceneEngine } from "../features/scenes/engine.ts";
 import type { PageApplier } from "./applier.ts";
 import { getAsset } from "./assetStore.ts";
-import type { SceneRequest } from "./sceneConfig.ts";
+import { siteRequest, type SceneRequest } from "./sceneConfig.ts";
+import { defaultSettings, loadSettings, type Settings } from "./settings.ts";
 import { getSite, originOf, type SiteRecord } from "./sites.ts";
 
 /** What the popup learns: whether there was room, and what is showing. Fixed words only. */
@@ -23,6 +26,8 @@ export interface PageScene {
   /** Like sync, but does nothing unless art is already showing (used when only a setting changed). */
   update(req: SceneRequest | null): Promise<SceneStatusReport>;
   status(): SceneStatusReport;
+  /** The scene script's part of the diagnostics: fixed words and numbers only. */
+  diag(): SceneDiagPart;
   destroy(): void;
 }
 
@@ -32,15 +37,12 @@ type Slot = typeof globalThis & {
   skinlyOnApplied?: (site: SiteRecord) => void;
 };
 
-/** The request the auto script restores from a site record: its saved scene and asset, on the saved plan's accent. */
-export function requestFromSite(site: SiteRecord): SceneRequest | null {
-  const look = site.look;
-  if (!look) return null;
-  const accent = typeof site.plan.tokens?.accent === "string" ? site.plan.tokens.accent : "#2f6fdb";
-  const scene = look.scene && look.scene.id !== "none" ? { sceneId: look.scene.id, density: look.scene.density, lane: look.scene.lane, accent } : null;
-  const asset = look.asset && look.asset.assetId !== null ? look.asset : null;
-  if (!scene && !asset) return null;
-  return { scene, asset, fallback: null };
+/**
+ * The request the auto script restores for a kept site: the scene of the stored plan's theme (art follows the theme, not a saved scene
+ * id) while "Show art" is on, and the saved or chosen asset. Settings default when they cannot be read.
+ */
+export function requestFromSite(site: SiteRecord, settings: Settings = defaultSettings()): SceneRequest | null {
+  return siteRequest(settings, site);
 }
 
 /** The box around the text an element itself holds (not its children's), when the browser can measure it. */
@@ -79,6 +81,8 @@ export function createPageScene(win: Window): PageScene {
   let watch: GutterWatch | undefined;
   let req: SceneRequest | null = null;
   let report: SceneStatusReport = { gutters: "none", scene: "none", asset: "none" };
+  /** The gutters of the last drawing, for the diagnostics (widths only). */
+  let lastGutters: Gutters = { state: "none" };
   let cache: AssetRecord | undefined;
   let alive = true;
 
@@ -96,9 +100,23 @@ export function createPageScene(win: Window): PageScene {
     return cache;
   };
 
-  /** Draws everything for the current gutters. The asset status arrives later when the page blocks the file, so it is reported through `done` too. */
+  /**
+   * Draws everything for the current gutters. The asset status arrives later when the page blocks the file, so it is reported through
+   * `done` too. Any failure is recorded and reported as nothing shown; it never reaches the page.
+   */
   const render = async (g: Gutters, done?: (r: SceneStatusReport) => void): Promise<void> => {
+    try {
+      await draw(g, done);
+    } catch {
+      recordError("scene-render");
+      report = { gutters: g.state, scene: "none", asset: "none" };
+      done?.(report);
+    }
+  };
+
+  const draw = async (g: Gutters, done?: (r: SceneStatusReport) => void): Promise<void> => {
     if (!alive || !req) return;
+    lastGutters = g;
     const now = req;
     let sceneStatus: SceneStatusReport["scene"] = "none";
     if (now.scene) {
@@ -141,6 +159,14 @@ export function createPageScene(win: Window): PageScene {
       watch?.destroy();
       watch = undefined;
       req = next;
+      const guardedBegin = () => {
+        try {
+          begin();
+        } catch {
+          recordError("scene-measure");
+          resolve(report);
+        }
+      };
       const begin = () => {
         if (!alive || req !== next) return resolve(report);
         const finish = (r: SceneStatusReport) => resolve(r);
@@ -177,8 +203,14 @@ export function createPageScene(win: Window): PageScene {
           void render(watch.current(), finish);
         }
       };
-      if (doc.body) begin();
-      else doc.addEventListener("DOMContentLoaded", begin, { once: true });
+      if (doc.body) return guardedBegin();
+      // document_start: nothing to measure yet (an empty page looks like all gutter). The corner strip shows at once and moves to a
+      // gutter after the first real measurement, when the DOM is parsed (then again on load, after 1 s and 3 s).
+      if (needsGutters(next) && next.scene) {
+        const corner = pickCorner([], win.innerWidth || 0, win.innerHeight || 0);
+        if (corner) void render({ state: "none", corner });
+      }
+      doc.addEventListener("DOMContentLoaded", guardedBegin, { once: true });
     });
 
   return {
@@ -199,6 +231,22 @@ export function createPageScene(win: Window): PageScene {
       return start(next);
     },
     status: () => report,
+    diag(): SceneDiagPart {
+      const host = engine.host();
+      const actors = host?.shadowRoot?.querySelectorAll(".actor").length ?? 0;
+      const art: ArtState = !req
+        ? "off"
+        : report.scene === "shown" || report.asset === "shown"
+          ? "ok"
+          : report.scene === "corner"
+            ? "corner"
+            : report.gutters === "narrow"
+              ? "narrow"
+              : report.scene === "no-gutter"
+                ? "none"
+                : "off";
+      return { art, host: host?.isConnected === true, left: lastGutters.left?.w ?? 0, right: lastGutters.right?.w ?? 0, actors, flags: diagFlags(), errors: takeErrors() };
+    },
     destroy() {
       stop();
       alive = false;
@@ -219,17 +267,28 @@ function install(): void {
     slot.skinlyScene = undefined;
   });
 
-  // The auto script (applier-auto.js) calls this once the saved theme is on the page.
-  // A saved look already holds the choices, so the global scene and asset settings are not read here.
+  // The auto script (applier-auto.js) calls this once the saved theme is on the page; the art follows that theme and the "Show art" switch.
   const fromSite = async (site: SiteRecord) => {
-    const base = requestFromSite(site);
-    if (base) await slot.skinlyScene?.sync(base);
+    try {
+      const settings = await loadSettings().catch(() => defaultSettings());
+      const base = requestFromSite(site, settings);
+      if (base) await slot.skinlyScene?.sync(base);
+    } catch {
+      recordError("auto-art");
+    }
   };
   slot.skinlyOnApplied = (site) => void fromSite(site);
   const origin = originOf(location.href);
-  if (origin && applier.isActive()) void getSite(origin).then((site) => {
-      if (site && site.mode === "auto") void fromSite(site);
-    });
+  if (origin && applier.isActive())
+    void getSite(origin)
+      .then((site) => {
+        if (site && site.mode === "auto") void fromSite(site);
+      })
+      .catch(() => recordError("auto-art"));
 }
 
-install();
+try {
+  install();
+} catch {
+  recordError("scene-mount");
+}

@@ -326,6 +326,22 @@ describe("renderer", () => {
     expect(host()!.shadowRoot!.querySelectorAll("[data-anim]")).toHaveLength(0);
     r.destroy();
   });
+  it("reduced motion keeps the picture on screen (still, not hidden); a video is paused, not removed", () => {
+    vi.stubGlobal("matchMedia", (q: string) => ({ matches: q.includes("reduced-motion"), media: q, addEventListener: () => undefined, removeEventListener: () => undefined }));
+    const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+    const { r } = make();
+    const seen: string[] = [];
+    r.show({ record: rec(), placement: place({ preset: "spin" }), gutters: centred }, (s) => seen.push(s));
+    expect(seen).toEqual(["shown"]);
+    expect(inner("img")).not.toBeNull();
+    expect(inner(".root")!.classList.contains("still")).toBe(true);
+    r.destroy();
+    r.show({ record: rec("video"), placement: place(), gutters: centred }, () => undefined);
+    expect(inner("video")).not.toBeNull();
+    expect(pause).toHaveBeenCalled();
+    r.destroy();
+  });
   it("a video is muted, loops and has no controls; it pauses when the tab is hidden", () => {
     const pause = vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => undefined);
     vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());

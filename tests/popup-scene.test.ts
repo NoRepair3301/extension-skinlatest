@@ -95,13 +95,15 @@ describe("popup: scene art after Change my page", () => {
     expect(api.injectFile).not.toHaveBeenCalledWith(7, "scene.js");
   });
 
-  it("the kept site saves the scene with it and registers scene.js too", async () => {
+  it("the kept site saves art on with it and registers scene.js too", async () => {
     flow.runTransform.mockResolvedValue(preview());
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
     const root = await mount();
     await click(root, "Change my page");
-    const sites = store.get("sites") as Record<string, { look?: { scene?: { id: string } } }>;
-    expect(sites["https://example.org"]!.look!.scene!.id).toBe("space");
+    const sites = store.get("sites") as Record<string, { look?: { art?: boolean; scene?: unknown } }>;
+    // art is saved as on; the scene itself follows the theme when the page loads again
+    expect(sites["https://example.org"]!.look!.art).toBe(true);
+    expect(sites["https://example.org"]!.look!.scene).toBeUndefined();
     expect(api.registerAutoScript).toHaveBeenCalledWith(expect.any(String), ["https://example.org/*"], ["applier.js", "applier-auto.js", "scene.js"]);
   });
 
@@ -126,5 +128,43 @@ describe("popup: scene art after Change my page", () => {
     await act(() => void box.dispatchEvent(new Event("change", { bubbles: true })));
     await flush();
     expect(api.runScene.mock.calls.filter((c) => c[1] === "update")).toHaveLength(1);
+  });
+  it("Why no art? asks the page, says the same line as the copied diagnostics, and keeps the snapshot (stage 2)", async () => {
+    const page = { theme: "ocean", strategy: "safe", art: "corner", host: true, left: 0, right: 0, actors: 2, pet: false, sheets: "yes", mount: "html", htmlEffect: "none", reattached: 0 };
+    api.runInPage.mockImplementation(async (_t: number, m: string) => (m === "diag" ? { page, errors: ["scene-render"] } : undefined));
+    const { whyNoArt, parsePageDiag } = await import("../src/core/diagReport.ts");
+    const root = await mount();
+    await click(root, "Why no art?");
+    expect(root.textContent).toContain(whyNoArt(parsePageDiag(page)));
+    const stored = store.get("diag") as { page: { art: string }; errors: string[] };
+    expect(stored.page.art).toBe("corner");
+    expect(stored.errors).toEqual(["scene-render"]);
+  });
+
+  it("Why no art? on a page without Skinly says no theme is on; a page that refuses scripts says not loaded", async () => {
+    const root = await mount();
+    await click(root, "Why no art?");
+    expect(root.textContent).toContain("No theme is on this page, so there is no art.");
+    api.runInPage.mockRejectedValue(new Error("Cannot access"));
+    await click(root, "Why no art?");
+    expect(root.textContent).toContain("No theme is on this page");
+  });
+
+  it("Change my page records the provider result as a fixed word (stage 2)", async () => {
+    flow.runTransform.mockResolvedValue(preview());
+    api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
+    const root = await mount();
+    await click(root, "Change my page");
+    expect((store.get("diag") as { provider?: string }).provider).toBe("ok");
+  });
+  it("offline: a calm banner says built-in themes still work, and the result is recorded as offline (stage 3)", async () => {
+    const spy = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "ocean", why: "ai-unavailable", message: "Applied." });
+    api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
+    const root = await mount();
+    expect(root.textContent).toContain("You are offline. Built-in themes still work");
+    await click(root, "Change my page");
+    expect((store.get("diag") as { provider?: string }).provider).toBe("offline");
+    spy.mockRestore();
   });
 });

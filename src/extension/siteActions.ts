@@ -3,16 +3,23 @@ import type { Fingerprint } from "../core/types.ts";
 import { PROMPT_VERSION } from "../ai/prompt.ts";
 import { fnv1a } from "../analyzer/fingerprint.ts";
 import type { StylePlan } from "../plan/schema.ts";
-import { clearAllStorage, registerAutoScript, removeAllOrigins, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
+import { clearAllStorage, hasOrigins, registerAutoScript, removeAllOrigins, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
 import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
 
 export const AUTO_SCRIPT_FILE = "applier-auto.js";
 /** The applier itself; the auto script needs it loaded first. */
 export const APPLIER_SCRIPT_FILE = "applier.js";
-/** Registered after the auto script, only for a site that has a saved scene or asset, so the document_start script stays small. */
+/**
+ * Registered after the auto script for every kept site. It reads the site and the "Show art" switch itself and does nothing when art is
+ * off, so art switched on later (or an AI theme, whose scene follows its colours) comes back after a reload without registering again.
+ */
 export const SCENE_SCRIPT_FILE = "scene.js";
 
-export const hasArt = (look: SiteLook | undefined): boolean => look !== undefined && (look.scene !== undefined || look.asset !== undefined);
+/** Every file the auto path needs, in load order: the applier, the glue that applies the stored plan, then the art. */
+export const AUTO_FILES: readonly string[] = [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE];
+
+/** True when the saved look asks for art: art on, an older saved scene, or an asset. */
+export const hasArt = (look: SiteLook | undefined): boolean => look !== undefined && (look.art === true || look.scene !== undefined || look.asset !== undefined);
 
 /** Stable script id for an origin. */
 export const scriptId = (origin: string): string => `skinly-${fnv1a(origin)}`;
@@ -68,13 +75,31 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
     if (kept) await saveSite(o, record(kept, "auto", previous));
     else if (previous) await saveSite(o, { ...previous, mode: "auto" });
     else return { ok: false, reason: "no-record" };
-    const saved = await getSite(o);
-    await registerAutoScript(scriptId(o), matchFor(o), hasArt(saved?.look) ? [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE] : [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
+    await registerAutoScript(scriptId(o), matchFor(o), [...AUTO_FILES]);
     if (tabId !== undefined) await setBadge(tabId, "ON");
     return { ok: true };
   } catch {
     return { ok: false, reason: "error" };
   }
+}
+
+/**
+ * After an update, every kept site gets the current file list again (older versions registered scene.js only for a saved scene id, so
+ * art did not come back after a reload). Only origins whose permission is still granted are registered; a failure skips that site.
+ */
+export async function refreshAutoScripts(): Promise<number> {
+  let n = 0;
+  for (const [o, site] of Object.entries(await loadSites())) {
+    if (site.mode !== "auto") continue;
+    try {
+      if (!(await hasOrigins(matchFor(o)))) continue;
+      await registerAutoScript(scriptId(o), matchFor(o), [...AUTO_FILES]);
+      n++;
+    } catch {
+      // this site keeps its old registration
+    }
+  }
+  return n;
 }
 
 /** Saves the picked blur selectors for a site that is already remembered (selectors only, never text). */

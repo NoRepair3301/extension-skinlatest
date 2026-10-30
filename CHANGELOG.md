@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 (rc6)
+- Art comes back after a reload together with the theme: it follows the stored theme (not a saved scene id), AI themes get art too (calm on a light page, midnight stars on a dark one), and every kept site loads the art script. An update re-registers sites kept by an older version.
+- Art and the pet survive strict sites and busy pages: styles only through adopted stylesheets and CSSOM, the host is the last child of the page root at the top of the stacking order and comes back (at most once per second) if a site removes it; a page root with a transform, filter, perspective or contain moves the art onto the body. The art host and the pet no longer push each other around.
+- Timing: the corner strip shows at once, and the art moves to the side space once the page has laid out (measured again on load, after 1 s and 3 s, on resize and after page changes).
+- Reduced motion keeps the art and the pet on screen, only still.
+- Diagnostics: Settings, About, Copy diagnostics (version, theme, strategy, art state, sizes, short error names, last provider result; never page text, addresses, sites or keys) and "Why no art?" in the popup.
+- Settings page polish (cards, sticky tabs, empty states, focus rings), an offline notice, every UI text in one strings file, and no uncaught promise errors.
+
 ## 0.2.0 (rc5)
 - A theme is always applied. Text that would be hard to read is repaired with colour-only rules or keeps the site's own colours; text over pictures and gradients keeps its original colours. Optionally, after a separate agreement per site, the AI can suggest colours for the parts that needed repair.
 - One browser prompt: Change my page asks for the site first and keeps the theme for every page of it (also after in-page navigation). Restore always works and pauses the site until you apply again.

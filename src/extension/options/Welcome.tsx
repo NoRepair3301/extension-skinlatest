@@ -35,12 +35,12 @@ export function Welcome({ settings, onChange, onClose }: Props) {
         <div class="ui-stack">
           <p>{S.welcome.look}</p>
           <label>
-            Theme
+            {S.welcome.theme}
             <select value={settings.theme} onChange={(e) => onChange({ ...settings, theme: (e.currentTarget as HTMLSelectElement).value as Settings["theme"] })}>
               {THEMES.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
-              <option value="auto">Auto (follows your browser)</option>
+              <option value="auto">{S.welcome.autoOption}</option>
             </select>
           </label>
           <label>
@@ -53,7 +53,7 @@ export function Welcome({ settings, onChange, onClose }: Props) {
         <div class="ui-stack">
           <p>{S.welcome.key}</p>
           <label>
-            Provider
+            {S.welcome.provider}
             <select value={provider} onChange={(e) => setProvider((e.currentTarget as HTMLSelectElement).value as ProviderId)}>
               {PROVIDER_IDS.map((id) => (
                 <option key={id} value={id}>{NAMES[id]}</option>
@@ -61,11 +61,11 @@ export function Welcome({ settings, onChange, onClose }: Props) {
             </select>
           </label>
           <label>
-            Key
-            <input type="password" autocomplete="off" value={draft} placeholder="Paste your key" onInput={(e) => setDraft((e.currentTarget as HTMLInputElement).value)} />
+            {S.welcome.keyLabel}
+            <input type="password" autocomplete="off" value={draft} placeholder={S.welcome.keyPlaceholder} onInput={(e) => setDraft((e.currentTarget as HTMLInputElement).value)} />
           </label>
           <div class="ui-row">
-            <Button onClick={() => void saveDraft()} disabled={draft.trim() === ""}>Save key</Button>
+            <Button onClick={() => void saveDraft()} disabled={draft.trim() === ""}>{S.welcome.saveKey}</Button>
           </div>
           <p role="status">{note}</p>
         </div>

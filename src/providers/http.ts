@@ -11,6 +11,8 @@ export interface HttpDeps {
   timeoutMs?: number;
   /** Used between the first try and the single retry. */
   sleep?: (ms: number) => Promise<void>;
+  /** navigator.onLine by default; false fails the call at once as a network error. */
+  online?: () => boolean;
 }
 
 /** Used only when an adapter passes no timeout; the real limits are PROVIDER_TIMEOUTS in src/config.ts. */
@@ -18,6 +20,7 @@ export const CALL_TIMEOUT_MS = 25_000;
 export const MAX_RETRY_AFTER_MS = 5_000;
 
 const defaultFetch: FetchFn = (url, init) => fetch(url, init);
+const defaultOnline = (): boolean => (typeof navigator === "undefined" ? true : navigator.onLine !== false);
 const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** Maps an HTTP status (and optionally an error message) to an ErrorKind. Docs: docs/providers/*.md. */
@@ -85,6 +88,8 @@ export async function callJson(call: Call, req: GenerateRequest, deps: HttpDeps 
 
   const attempt = async (): Promise<Result> => {
     if (req.signal?.aborted) return { ok: false, error: { kind: "aborted" } };
+    // Offline: fail at once as a network error (the pipeline then keeps the built-in theme) instead of waiting for the timeout.
+    if ((deps.online ?? defaultOnline)() === false) return { ok: false, error: { kind: "network" } };
     const ctl = new AbortController();
     let timedOut = false;
     const timer = setTimeout(() => {

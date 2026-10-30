@@ -18,7 +18,11 @@ import { Logo } from "../Logo.tsx";
 import { PetOptions } from "./PetOptions.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
 import { artStatus, showArtHere, updateArtHere } from "../sceneActions.ts";
-import { lookFor, sceneRequest, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
+import { parsePageDiag, whyNoArt, type PageDiag } from "../../core/diagReport.ts";
+import type { DiagKind } from "../../core/diag.ts";
+import { providerResultOf, recordErrors, recordProviderResult, savePageDiag } from "../diagStore.ts";
+import { isOnline, useOnline } from "../../ui/online.ts";
+import { lookFor, sceneRequest, sourceForPlan, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
 import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
@@ -57,6 +61,8 @@ export function Popup() {
   const tabUrl = useRef<string | undefined>(undefined);
   const [petNote, setPetNote] = useState("");
   const [sceneNote, setSceneNote] = useState("");
+  const [whyArt, setWhyArt] = useState("");
+  const online = useOnline();
   /** What the page shows now (theme, plan scene, accent), so a changed setting can reach the art that is already there. */
   const artSource = useRef<SceneSource | undefined>(undefined);
   const artTab = useRef<number | undefined>(undefined);
@@ -75,7 +81,7 @@ export function Popup() {
 
   useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
   useEffect(() => {
-    void loadSettings().then(setSettings);
+    void loadSettings().then(setSettings).catch(() => recordErrors(["popup-error"]));
     void refreshSite();
     // The keys the browser really assigned (a suggested key is dropped when something else already uses it).
     void (async () => {
@@ -106,14 +112,14 @@ export function Popup() {
   const updatePet = (pet: Settings["pet"]) => {
     const next = { ...settings, pet };
     setSettings(next);
-    void saveSettings(next);
+    void saveSettings(next).catch(() => recordErrors(["popup-error"]));
     setPetNote("");
     updatePetInPage(next, site?.tabId);
   };
 
   const showPet = async () => {
     const r = await showPetHere();
-    setPetNote(r.ok ? "The pet is on this page. Restore original removes it." : r.why);
+    setPetNote(r.ok ? S.popup.petShown : r.why);
   };
 
   const petHereOff = site !== undefined && settings.pet.disabledOrigins.includes(site.origin);
@@ -127,9 +133,23 @@ export function Popup() {
     setSceneNote(artStatus(await showArtHere(tabId, next, source), sceneRequest(next, source) !== null));
   };
 
+  /** Asks the page why there is (no) art, says it in one line, and keeps the snapshot for Copy diagnostics. Fixed words only. */
+  const explainArt = async () => {
+    const nothing = parsePageDiag({ theme: "none", art: "not-loaded" })!;
+    try {
+      const tab = await queryActiveTab();
+      const d = tab ? await runInPage<{ page: PageDiag; errors: DiagKind[] }>(tab.id, "diag") : undefined;
+      const page = parsePageDiag(d?.page) ?? nothing;
+      setWhyArt(whyNoArt(page));
+      if (d) void savePageDiag(page, Array.isArray(d.errors) ? d.errors : []);
+    } catch {
+      setWhyArt(whyNoArt(nothing));
+    }
+  };
+
   const updateScene = (next: Settings) => {
     setSettings(next);
-    void saveSettings(next);
+    void saveSettings(next).catch(() => recordErrors(["popup-error"]));
     setSceneNote("");
     const tabId = artTab.current;
     const source = artSource.current;
@@ -139,7 +159,7 @@ export function Popup() {
   const pickTheme = (theme: ThemeChoice) => {
     const next = { ...settings, theme };
     setSettings(next);
-    void saveSettings(next);
+    void saveSettings(next).catch(() => recordErrors(["popup-error"]));
   };
 
   const askPermission = (origin: string): Promise<boolean> => {
@@ -180,6 +200,7 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      void recordProviderResult(!isOnline() && outcome.kind !== "preview" ? "offline" : providerResultOf(outcome));
       if (outcome.kind === "baseline" || outcome.kind === "preview") setApplied({ name: themeName(outcome.kind === "baseline" ? outcome.themeId : outcome.plan.themeId), fixes: outcome.fixes ?? 0 });
       else setApplied(undefined);
       const k = keepFrom(outcome, tab.id, tab.url);
@@ -196,7 +217,7 @@ export function Popup() {
       }
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
-      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      else if (outcome.kind === "preview") void showArt(tab.id, fresh, sourceForPlan(outcome.plan));
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
@@ -246,7 +267,7 @@ export function Popup() {
       setKeepable(undefined);
       artSource.current = undefined;
       setSceneNote("");
-      setView({ state: "idle", note: "Original restored." });
+      setView({ state: "idle", note: S.popup.restored });
     } catch {
       setView({ state: "blocked", reason: MSG.blocked });
     }
@@ -264,7 +285,7 @@ export function Popup() {
       badge(tabId, kept ? "ON" : "");
       setKeepable(undefined);
       void showArt(tabId, settings, sourceForTheme(baseline, prefersDark()));
-      setView({ state: "idle", note: "Back to the built-in theme." });
+      setView({ state: "idle", note: S.popup.backToBuiltin });
     } catch {
       setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
     }
@@ -284,11 +305,11 @@ export function Popup() {
   const keepFrom = (outcome: Outcome, tabId: number, url: string | undefined): { tabId: number; origin: string | undefined; kept: KeptPlan } | undefined => {
     const origin = url ? originOf(url) : undefined;
     if (outcome.kind === "preview") {
-      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      const look = lookFor(settings, sourceForPlan(outcome.plan));
       return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: outcome.providerId ?? "builtin", model: outcome.model ?? "builtin", look } };
     }
     if (outcome.kind === "baseline" && outcome.plan && outcome.fingerprint) {
-      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      const look = lookFor(settings, sourceForPlan(outcome.plan));
       return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: "builtin", model: "builtin", look } };
     }
     return undefined;
@@ -334,11 +355,12 @@ export function Popup() {
     <main class="popup">
       <header class="popup-head">
         <h1>
-          <Logo size={28} /> Skinly AI
+          <Logo size={28} /> {S.app.name}
         </h1>
         <p role="status" class={headBanner}>{statusText(view) || pageLine(site, settings)}</p>
       </header>
 
+      {!online && <p class="banner banner-info" role="status">{S.popup.offline}</p>}
       {notice && <p class="banner banner-info" role="status">{notice}</p>}
 
       {view.state !== "consent" && (
@@ -392,6 +414,8 @@ export function Popup() {
         <Toggle label={S.popup.petToggle} checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
         <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
         <p class="note" aria-live="polite">{sceneNote}</p>
+        <Button kind="quiet" onClick={() => void explainArt()}>{S.popup.whyArt}</Button>
+        {whyArt && <p class="note" role="status">{whyArt}</p>}
       </section>
 
       <details class="acc" open={settings.pet.enabled}>
@@ -407,11 +431,11 @@ export function Popup() {
                 updatePet({ ...settings.pet, disabledOrigins: off ? [...rest, site.origin] : rest });
               }}
             />
-            Disable pet on this site
+            {S.popup.petOffHere}
           </label>
         )}
         <PetOptions pet={settings.pet} onChange={updatePet} />
-        <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
+        <button type="button" onClick={() => void showPet()}>{S.popup.showPetHere}</button>
         <p class="note" aria-live="polite">{petNote}</p>
       </details>
 
@@ -424,40 +448,40 @@ export function Popup() {
       )}
 
       {view.state === "consent" && (
-        <section aria-label="Consent" class="consent">
+        <section aria-label={S.popup.consentLabel} class="consent">
           <p>{(view.req.purpose === "repair" ? repairConsentText : consentText)(view.req.providerNames.join(" or "))}</p>
           <div class="row">
-            <Button kind="primary" onClick={() => answer(true)}>Send</Button>
-            <Button onClick={cancel}>Cancel</Button>
-            <Button kind="quiet" onClick={() => setShowPayload(!showPayload)}>Show what will be sent</Button>
+            <Button kind="primary" onClick={() => answer(true)}>{S.popup.send}</Button>
+            <Button onClick={cancel}>{S.popup.cancel}</Button>
+            <Button kind="quiet" onClick={() => setShowPayload(!showPayload)}>{S.popup.showPayload}</Button>
           </div>
-          {showPayload && <textarea readOnly aria-label="Payload" rows={8} value={view.req.payload} />}
+          {showPayload && <textarea readOnly aria-label={S.popup.payloadLabel} rows={8} value={view.req.payload} />}
         </section>
       )}
 
       {view.state === "preview" && (
-        <section aria-label="Preview">
-          <p>{view.outcome.message ?? "Here is the AI-improved theme."}</p>
+        <section aria-label={S.popup.previewLabel}>
+          <p>{view.outcome.message ?? S.popup.previewDefault}</p>
           <div class="row">
             {kept ? <p class="note">{S.popup.keepDone}</p> : <Button onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</Button>}
-            <Button kind="quiet" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</Button>
-            <Button kind="quiet" onClick={() => void start()}>Try another</Button>
+            <Button kind="quiet" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>{S.popup.undo}</Button>
+            <Button kind="quiet" onClick={() => void start()}>{S.popup.tryAnother}</Button>
           </div>
         </section>
       )}
 
       {keepable && view.state === "idle" && (
-        <section aria-label="Keep">
+        <section aria-label={S.popup.keepLabel}>
           <Button onClick={() => void keepOnSite()}>{S.popup.keep}</Button>
           <p class="note">{S.popup.keepNote}</p>
         </section>
       )}
       {site?.record && view.state !== "consent" && view.state !== "working" && (
-        <section aria-label="This site">
-          <p>{site.record.mode === "auto" ? `Automatic on this site (${providerLabel(site.record.provider)}).` : `Saved for this site (${providerLabel(site.record.provider)}).`}</p>
+        <section aria-label={S.popup.thisSite}>
+          <p>{site.record.mode === "auto" ? S.popup.siteAutoWith(providerLabel(site.record.provider)) : S.popup.siteSavedWith(providerLabel(site.record.provider))}</p>
           <div class="row">
-            {site.record.mode === "auto" && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), "Paused on this site.", "Couldn't pause.")}>Pause on this site</Button>}
-            <Button kind="quiet" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), "Forgotten.", "Couldn't forget this site.")}>Forget this site</Button>
+            {site.record.mode === "auto" && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), S.popup.paused, S.popup.pauseFailed)}>{S.popup.pause}</Button>}
+            <Button kind="quiet" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), S.popup.forgotten, S.popup.forgetFailed)}>{S.popup.forget}</Button>
           </div>
         </section>
       )}
@@ -469,9 +493,9 @@ export function Popup() {
         </details>
       )}
 
-      <details class="acc" aria-label="Shortcuts">
-        <summary>Keyboard shortcuts</summary>
-        <section aria-label="Shortcuts">
+      <details class="acc" aria-label={S.popup.shortcutsLabel}>
+        <summary>{S.popup.shortcuts}</summary>
+        <section aria-label={S.popup.shortcutsLabel}>
           {commands.length > 0 && (
             <ul>
               {commands.map((c) => (
@@ -479,7 +503,7 @@ export function Popup() {
               ))}
             </ul>
           )}
-          <p class="note">To set or change a key, open {page} in the address bar.</p>
+          <p class="note">{S.popup.shortcutHow(page)}</p>
         </section>
       </details>
       <details class="acc sent">
@@ -494,9 +518,9 @@ export function Popup() {
 /** Which of the three visible stages each step belongs to: Reading the page, Checking readability, Applying. */
 const STAGE_OF: Record<Step, number> = { checking: 0, analysing: 0, consent: 1, asking: 1, repairing: 1, baseline: 2, applying: 2 };
 
-const themeName = (id: string): string => THEMES.find((t) => t.id === id)?.name ?? "your theme";
+const themeName = (id: string): string => THEMES.find((t) => t.id === id)?.name ?? S.popup.yourTheme;
 
-const providerLabel = (id: string): string => (id in PROVIDER_NAMES ? PROVIDER_NAMES[id as ProviderId] : "built-in theme");
+const providerLabel = (id: string): string => (id in PROVIDER_NAMES ? PROVIDER_NAMES[id as ProviderId] : S.popup.builtinTheme);
 
 function toView(o: Outcome, tabId: number): View {
   switch (o.kind) {

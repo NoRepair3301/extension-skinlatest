@@ -41,6 +41,9 @@ export interface DiagFlags {
 }
 
 const ring: DiagKind[] = [];
+/** Errors recorded since the script started, and how many of them were already handed to the store (takeErrors). */
+let total = 0;
+let taken = 0;
 const flags: DiagFlags = { reattached: 0 };
 const listeners = new Set<() => void>();
 
@@ -59,6 +62,7 @@ const notify = () => {
 /** Records one caught error as its short kind. Never throws. */
 export function recordError(kind: DiagKind): void {
   ring.push(isKind(kind) ? kind : "other");
+  total++;
   if (ring.length > DIAG_MAX) ring.splice(0, ring.length - DIAG_MAX);
   notify();
 }
@@ -82,6 +86,13 @@ export function guarded<T>(kind: DiagKind, fn: () => T, fallback: T): T {
 }
 
 export const diagErrors = (): DiagKind[] => ring.slice();
+
+/** The errors recorded since the last call (at most DIAG_MAX), so each one is persisted once. */
+export function takeErrors(): DiagKind[] {
+  const fresh = Math.min(total - taken, ring.length);
+  taken = total;
+  return fresh > 0 ? ring.slice(-fresh) : [];
+}
 export const diagFlags = (): DiagFlags => ({ ...flags });
 
 /** Subscribe to any change; returns the unsubscribe. */
@@ -99,6 +110,8 @@ export function parseKinds(raw: unknown): DiagKind[] {
 /** For tests. */
 export function resetDiag(): void {
   ring.length = 0;
+  total = 0;
+  taken = 0;
   for (const k of Object.keys(flags) as Array<keyof DiagFlags>) delete flags[k];
   flags.reattached = 0;
   notify();

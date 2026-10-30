@@ -19,7 +19,7 @@ export function AssetHere({ initial, onUse, onSave }: Props) {
   const [list, setList] = useState<AssetRecord[]>([]);
   const [p, setP] = useState<AssetPlacement>(initial.assetId === null ? defaultPlacement() : initial);
   const [note, setNote] = useState("");
-  useEffect(() => void loadAssets().then(setList), []);
+  useEffect(() => void loadAssets().then(setList).catch(() => setList([])), []);
   const set = <K extends keyof AssetPlacement>(key: K, value: AssetPlacement[K]) => setP({ ...p, [key]: value });
   const pick = <K extends "mode" | "size" | "speed" | "preset">(key: K, label: string, values: readonly AssetPlacement[K][], text: Record<string, string>) => (
     <label>
@@ -33,8 +33,8 @@ export function AssetHere({ initial, onUse, onSave }: Props) {
   );
   const use = async () => {
     if (p.assetId === null) return setNote(S.asset.pickFirst);
-    const report = await onUse(p);
-    const saved = await onSave(p);
+    const report = await onUse(p).catch(() => undefined);
+    const saved = await onSave(p).catch(() => false);
     setNote(`${artStatus(report, true)} ${saved ? S.asset.saved : S.asset.visitOnly}`);
   };
   return (

@@ -15,6 +15,15 @@ const PROVIDERS_DIR = "src/providers/";
 const BLUR_DIR = "src/features/blur/";
 const BLUR_RE = /\b(?:-webkit-)?backdrop-filter\b|\bblur\s*\(\s*\d/;
 
+/**
+ * Every storage.local key the extension uses, and nothing else: keys (provider keys, src/extension/keys.ts), settings, sites
+ * (origin-keyed site records), assets (the user's own pictures) and diag (src/extension/diagStore.ts: the last page snapshot,
+ * the last 20 caught errors as short kinds and the last provider result kind; never text, URLs, origins or keys).
+ */
+export const STORAGE_KEYS = ["keys", "settings", "sites", "assets", "diag"] as const;
+/** A storage key constant (`KEY = "x"`, `SITES_KEY = "x"`) or a literal key passed to storageGet/storageSet. */
+const STORAGE_KEY_RE = /\b[A-Z_]*KEY\s*=\s*["'`]([^"'`]*)["'`]|\bstorage(?:Get|Set)\s*(?:<[^>]*>)?\(\s*["'`]([^"'`]*)["'`]/g;
+
 /** Forbidden anywhere in src/. */
 const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   ["eval(", /\beval\s*\(/],
@@ -41,6 +50,8 @@ const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
   // Strict sites (CSP style-src without 'unsafe-inline') block both: style only through adoptedStyleSheets and element.style (src/features/mount.ts).
   ["<style> element (CSP)", /\bcreateElement(?:NS)?\s*\([^)]*["'`]style["'`]\s*\)/],
   ["style attribute (CSP)", /\.setAttribute(?:NS)?\s*\([^)]*["'`]style["'`]\s*,/],
+  // Parsed markup brings its own <style> elements and style attributes; our DOM is built with createElement and textContent only.
+  ["HTML parsing (CSP)", /\bnew\s+DOMParser\b|\bcreateContextualFragment\b/],
 ];
 
 /** Forbidden in every scanned text file. */
@@ -68,6 +79,10 @@ export function scanSource(path: string, text: string, allowedHosts: readonly st
     if (p !== API_FILE && /\b(?:chrome|browser)\s*\.\s*[A-Za-z_$]/.test(line)) add("chrome./browser. outside src/extension/api.ts");
     if (!p.startsWith(PROVIDERS_DIR) && /\bfetch\s*\(/.test(line)) add("fetch( outside src/providers/");
     if (!p.startsWith(BLUR_DIR) && BLUR_RE.test(line)) add("CSS blur outside src/features/blur/");
+    for (const m of line.matchAll(STORAGE_KEY_RE)) {
+      const key = m[1] ?? m[2] ?? "";
+      if (!(STORAGE_KEYS as readonly string[]).includes(key)) add(`storage key not on the list: ${key}`);
+    }
     if (p !== CONFIG_FILE) {
       for (const m of line.matchAll(URL_RE)) {
         const host = (m[1] ?? "").toLowerCase();

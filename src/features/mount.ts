@@ -113,7 +113,12 @@ export function attachHost(doc: Document, win: Window, host: HTMLElement, kind: 
   let timer: number | undefined;
   let alive = true;
 
-  const misplaced = (): boolean => !host.isConnected || host.parentNode !== parent || (onHtml && parent.lastElementChild !== host);
+  // Our other hosts (scene, asset, pet, banner) may follow this one: only a page element after it counts, so two hosts never trade places.
+  const pageAfter = (): boolean => {
+    for (let n = host.nextElementSibling; n; n = n.nextElementSibling) if (!n.hasAttribute("data-skinly-ui")) return true;
+    return false;
+  };
+  const misplaced = (): boolean => !host.isConnected || host.parentNode !== parent || (onHtml && pageAfter());
   const fix = () => {
     timer = undefined;
     if (!alive || !misplaced() || left <= 0) return;

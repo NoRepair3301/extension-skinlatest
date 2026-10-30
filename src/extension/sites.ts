@@ -15,8 +15,12 @@ export const SITE_VERSION = 1;
 export const MAX_SITES = 200;
 const MAX_BLUR = 50;
 
-/** The art saved for a site (Phase 10): the scene that was showing, the pet look and the chosen asset. Choices only, never page data. */
+/**
+ * The art saved for a site: whether art was on (the scene follows the theme), the pet look and the chosen asset. Choices only, never
+ * page data. `scene` is the older form (a saved scene id): it is still read and counts as art on.
+ */
 export interface SiteLook {
+  art?: boolean;
   scene?: { id: SceneId; density: Density; lane: LaneChoice };
   pet?: Omit<PetSettings, "enabled" | "disabledOrigins">;
   asset?: AssetPlacement;
@@ -58,6 +62,7 @@ const isObjLike = (v: unknown): v is Record<string, unknown> => typeof v === "ob
 export function parseLook(raw: unknown): SiteLook | undefined {
   if (!isObjLike(raw)) return undefined;
   const out: SiteLook = {};
+  if (typeof raw["art"] === "boolean") out.art = raw["art"];
   const sc = raw["scene"];
   if (isObjLike(sc) && isSceneId(sc["id"]) && sc["id"] !== "none" && isDensity(sc["density"]) && isLaneChoice(sc["lane"])) out.scene = { id: sc["id"], density: sc["density"], lane: sc["lane"] };
   if (isObjLike(raw["pet"])) {
@@ -66,7 +71,8 @@ export function parseLook(raw: unknown): SiteLook | undefined {
   }
   const a = raw["asset"];
   if (isObjLike(a) && typeof a["assetId"] === "string" && ASSET_ID.test(a["assetId"])) out.asset = parsePlacement(a);
-  return out.scene || out.pet || out.asset ? out : undefined;
+  if (out.scene && out.art === undefined) out.art = true;
+  return out.art !== undefined || out.pet || out.asset ? out : undefined;
 }
 
 /** Shape check only (the plan itself is validated at apply time). Returns undefined for anything corrupt. */

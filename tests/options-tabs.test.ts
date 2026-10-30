@@ -135,4 +135,64 @@ describe("options tabs", () => {
     expect(api.clearAllStorage).toHaveBeenCalledTimes(1);
     expect(panelOf(root, "privacy").textContent).toContain("All Skinly data was erased.");
   });
+  it("About: Copy diagnostics puts the fixed report on the clipboard and shows it; no page data (stage 2)", async () => {
+    const diag = { v: 1, errors: ["scene-mount"], provider: "timeout", origin: "https://bank.example", page: { theme: "midnight", strategy: "safe", art: "narrow", host: false, left: 40, right: 0, actors: 0, pet: true, sheets: "yes", mount: "body", htmlEffect: "transform", reattached: 2, title: "My Account Title" } };
+    api.storageGet.mockImplementation(async (k: string) => (k === "settings" ? { welcomeDone: true } : k === "diag" ? diag : undefined));
+    const writes: string[] = [];
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (t: string) => void writes.push(t) } });
+    const root = await mount();
+    tabs(root).find((t) => t.textContent === "About")!.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    const button = Array.from(panelOf(root, "about").querySelectorAll("button")).find((b) => b.textContent === "Copy diagnostics")!;
+    expect(button).toBeDefined();
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect(writes).toHaveLength(1);
+    const text = writes[0]!;
+    for (const line of ["version: 0.2.0", "theme: midnight", "strategy: safe", "art: narrow", "host present: no", "gutters: left 40 px, right 0 px", "actors: 0", "mount: body (html effect: transform)", "re-attached: 2", "last provider result: timeout", "scene-mount"]) expect(text).toContain(line);
+    for (const m of ["bank.example", "My Account Title"]) expect(text).not.toContain(m);
+    expect(panelOf(root, "about").textContent).toContain("Copied.");
+    expect((panelOf(root, "about").querySelector("textarea") as HTMLTextAreaElement).value).toBe(text);
+  });
+
+  it("About: when the clipboard is refused the text stays visible to copy by hand", async () => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async () => { throw new Error("denied"); } } });
+    const root = await mount();
+    const button = Array.from(panelOf(root, "about").querySelectorAll("button")).find((b) => b.textContent === "Copy diagnostics")!;
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect(panelOf(root, "about").textContent).toContain("Could not copy");
+    expect((panelOf(root, "about").querySelector("textarea") as HTMLTextAreaElement).value).toContain("version: 0.2.0");
+  });
+  it("offline: a banner shows and Test key says it cannot reach the provider without calling it (stage 3)", async () => {
+    const spy = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    keys.keyStatus.mockResolvedValue({ gemini: true, groq: false });
+    const root = await mount();
+    await flush();
+    expect(root.textContent).toContain("You are offline.");
+    const test = Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Test key" && !b.disabled)!;
+    test.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect(keys.testKey).not.toHaveBeenCalled();
+    expect(root.textContent).toContain("Could not reach the provider.");
+    window.dispatchEvent(new Event("online"));
+    spy.mockReturnValue(true);
+    await flush();
+    spy.mockRestore();
+  });
+  it("Privacy: withdrawing the readability agreement clears it for every site and saves (audit C3 withdraw path)", async () => {
+    const saved: unknown[] = [];
+    api.storageGet.mockImplementation(async (k: string) => (k === "settings" ? { welcomeDone: true, repairConsent: { "https://a.example": { version: 1, acceptedAt: "2026-10-30T10:00:00.000Z" }, "https://b.example": { version: 1, acceptedAt: "2026-10-30T10:00:00.000Z" } } } : undefined));
+    api.storageSet.mockImplementation(async (k: string, v: unknown) => void (k === "settings" && saved.push(v)));
+    const root = await mount();
+    await flush();
+    const button = Array.from(panelOf(root, "privacy").querySelectorAll("button")).find((b) => (b.textContent ?? "").startsWith("Withdraw the readability agreement"))!;
+    expect(button.textContent).toContain("(2)");
+    expect(button.disabled).toBe(false);
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect((saved.at(-1) as { repairConsent: Record<string, unknown> }).repairConsent).toEqual({});
+    expect(button.textContent).toContain("(0)");
+    expect(button.disabled).toBe(true);
+  });
 });

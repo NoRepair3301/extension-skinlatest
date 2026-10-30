@@ -28,6 +28,14 @@ Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each 
 | 21 | Pet button (rc4) | Pet on: "Show pet on this page" shows it, Restore removes it; on a page where the theme is rolled back the pet still shows; on a blocked page the one-line message says why | | | |
 | 22 | Failure message (rc4) | Force a rollback (a page where the theme cannot apply): the popup gives a plain-words reason, no page text | | | |
 
+## Final pass (fix/final-1)
+- Theme and art on a modern app site, on Wikipedia and on a full-width page: art shows in the side space, or in one small corner strip on the full-width page; it never covers text and never takes a click.
+- Reload, then open a second page of the same site: theme and art both come back. With an AI theme too.
+- Windows "Animation effects" off (reduced motion): the art and the pet are still visible, only still.
+- Restore: theme, art and pet go; reload: they stay off.
+- Diagnostics step: popup, Why no art? gives one line. Settings, About, Copy diagnostics: paste it into a text editor and check it has no page text, address, site name or key. Send it with any art bug.
+- Offline (turn off the network): popup and Settings say so; Change my page still applies a built-in theme.
+
 ## Real-browser pass 2 (fix/real-browser-2)
 - Always applied: dark app site, Wikipedia, Hacker News, india.gov.in, hero-image site. Every text readable, typing visible, images intact; the success line shows the number of fixes.
 - One browser prompt on the first Change my page; open a second page of the same site and reload: the theme stays.

@@ -5,6 +5,11 @@ import type { SiteRecord } from "./sites.ts";
 import { sendMessage } from "./api.ts";
 import { runAuto } from "./auto-core.ts";
 import { BADGE_MESSAGE } from "./messages.ts";
+import { recordError } from "../core/diag.ts";
+import { savePageDiag } from "./diagStore.ts";
+
+/** The page snapshot is stored once per page load, after the last late re-measure of the art (3 s). */
+export const DIAG_SNAPSHOT_MS = 4000;
 import { loadSettings, petConfig } from "./settings.ts";
 import { getSite, originOf } from "./sites.ts";
 
@@ -14,7 +19,8 @@ const applier = (globalThis as unknown as { skinlyApplier?: PageApplier }).skinl
 const origin = originOf(location.href);
 
 if (applier && origin) {
-  void runAuto({
+  // Nothing here may throw into the page: every step records its short kind and stops.
+  runAuto({
     doc: document,
     origin,
     applier,
@@ -38,11 +44,26 @@ if (applier && origin) {
     },
     onApplied: (site) => {
       void sendMessage(BADGE_MESSAGE).catch(() => undefined);
-      void loadSettings().then((s) => applier.syncPet(petFor(petConfig(s), site)));
-      // The scene script (scene.js, registered only for a site with saved art) picks the saved look up from here.
-      (globalThis as unknown as { skinlyOnApplied?: (site: SiteRecord) => void }).skinlyOnApplied?.(site);
+      void loadSettings()
+        .then((s) => applier.syncPet(petFor(petConfig(s), site)))
+        .catch(() => recordError("auto-pet"));
+      // The scene script (scene.js, registered with every kept site) shows the art of the stored plan's theme from here.
+      try {
+        (globalThis as unknown as { skinlyOnApplied?: (site: SiteRecord) => void }).skinlyOnApplied?.(site);
+      } catch {
+        recordError("auto-art");
+      }
+      // For Settings, About, Copy diagnostics: fixed words and numbers of this page only (no origin, no text).
+      window.setTimeout(() => {
+        try {
+          const d = applier.diag();
+          void savePageDiag(d.page, d.errors);
+        } catch {
+          recordError("other");
+        }
+      }, DIAG_SNAPSHOT_MS);
     },
-  });
+  }).catch(() => recordError("auto-run"));
 }
 
 /** The saved pet look of a site wins over the global one; a saved look means the user wanted the pet there. */

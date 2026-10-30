@@ -39,12 +39,12 @@ describe("site actions", () => {
     expect(await loadSites()).toEqual({});
   });
 
-  it("Always on requests only the active origin, saves auto, registers one script and sets the badge", async () => {
+  it("Always on requests only the active origin, saves auto, registers the auto files and sets the badge", async () => {
     expect(await enableAuto(A, kept(), 5)).toEqual({ ok: true });
     expect(api.requestOrigins).toHaveBeenCalledTimes(1);
     expect(api.requestOrigins).toHaveBeenCalledWith([`${A}/*`]);
     expect((await getSite(A))!.mode).toBe("auto");
-    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, "scene.js"]);
     expect(api.setBadge).toHaveBeenCalledWith(5, "ON");
   });
 

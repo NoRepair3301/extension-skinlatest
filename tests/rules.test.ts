@@ -43,6 +43,8 @@ describe("forbidden patterns in src/", () => {
     ["<style> element (CSP)", 'doc.createElementNS(ns, "style")'],
     ["style attribute (CSP)", 'host.setAttribute("style", "position:fixed")'],
     ["style attribute (CSP)", "el.setAttribute('style', css)"],
+    ["HTML parsing (CSP)", "new DOMParser().parseFromString(x, 'text/html')"],
+    ["HTML parsing (CSP)", "range.createContextualFragment(x)"],
   ])("flags the CSP-unsafe styling %s: %s", (rule, code) => {
     expect(hits(SRC, code)).toContain(rule);
   });
@@ -129,5 +131,17 @@ describe("sentence-ending words", () => {
     expect(scanSource("src/ai/messages.ts", 'const t = "Nothing else leaves your browser.";', [])).toEqual([]);
     expect(scanSource("src/ai/messages.ts", "browser.storage.local.get()", [])).toHaveLength(1);
     expect(scanSource("src/ai/messages.ts", "chrome . tabs.query()", [])).toHaveLength(1);
+  });
+});
+
+describe("storage keys (the scanner list)", () => {
+  it("lists exactly the keys the extension uses, diag included", async () => {
+    const { STORAGE_KEYS } = await import("../scripts/rules.ts");
+    expect([...STORAGE_KEYS].sort()).toEqual(["assets", "diag", "keys", "settings", "sites"]);
+  });
+  it("flags a key constant or a literal storage key that is not on the list, and allows the listed ones", () => {
+    expect(hits(SRC, 'const KEY = "tracking";')).toContain("storage key not on the list: tracking");
+    expect(hits(SRC, 'await storageSet("history", x);')).toContain("storage key not on the list: history");
+    expect(hits(SRC, 'export const DIAG_KEY = "diag"; await storageGet<unknown>("sites");')).toEqual([]);
   });
 });
