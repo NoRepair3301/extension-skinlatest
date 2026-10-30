@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
-import { THEMES, type BuiltinThemeId } from "../../themes/index.ts";
+import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
@@ -102,7 +102,7 @@ export function Popup() {
 
   const petHereOff = site !== undefined && settings.pet.disabledOrigins.includes(site.origin);
 
-  const pickTheme = (theme: BuiltinThemeId) => {
+  const pickTheme = (theme: ThemeChoice) => {
     const next = { ...settings, theme };
     setSettings(next);
     void saveSettings(next);
@@ -210,6 +210,10 @@ export function Popup() {
             {t.name}
           </label>
         ))}
+        <label>
+          <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
+          Auto (light by day, dark when your browser is dark)
+        </label>
       </fieldset>
 
       <fieldset>

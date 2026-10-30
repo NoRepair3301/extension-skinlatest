@@ -17,7 +17,7 @@ describe("contrast", () => {
 });
 
 describe("themes", () => {
-  it("has the five built-in themes", () => {
+  it("has the six built-in themes", () => {
     expect(THEMES.map((t) => t.id)).toEqual([...BUILTIN_THEME_IDS]);
   });
   it.each(THEMES.map((t) => [t.id, t] as const))("%s meets the contrast targets", (_id, t) => {

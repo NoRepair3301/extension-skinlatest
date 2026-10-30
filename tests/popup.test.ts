@@ -78,11 +78,11 @@ describe("popup", () => {
     api.browserHints.mockReturnValue({ userAgent: "Chrome/130 Edg/130", brave: false });
   });
 
-  it("idle: shows the title, five themes and the not-affiliated line, and calls nothing yet", async () => {
+  it("idle: shows the title, six themes plus Auto and the not-affiliated line, and calls nothing yet", async () => {
     const root = await mount();
     expect(root.textContent).toContain("Skinly AI");
     expect(root.textContent).toContain("Skinly AI is not affiliated with any website.");
-    expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(5);
+    expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(7);
     expect(find(root, "Change my page")).toBeDefined();
     expect(flow.runTransform).not.toHaveBeenCalled();
     expect(api.injectFile).not.toHaveBeenCalled();
@@ -203,7 +203,7 @@ describe("popup", () => {
       const root = await mount();
       await click(root, "Change my page");
       for (const b of ["Keep", "Undo", "Try another"]) expect(find(root, b)).toBeDefined();
-      expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(5);
+      expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(7);
       await click(root, "Keep");
       expect(find(root, "Undo")).toBeUndefined();
       expect(api.setBadge).toHaveBeenCalledWith(7, "ON");

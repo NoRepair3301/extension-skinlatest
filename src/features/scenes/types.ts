@@ -1,4 +1,8 @@
+import { SCENE_IDS, type SceneId } from "../../plan/schema.ts";
 import type { Ctx } from "./svg.ts";
+
+export { SCENE_IDS };
+export type { SceneId };
 
 export const MOTIONS = ["float", "drift", "orbit", "patrol", "cross", "write", "sway", "spin", "pulse"] as const;
 export type Motion = (typeof MOTIONS)[number];
@@ -9,9 +13,6 @@ export type Density = (typeof DENSITIES)[number];
 export const LANE_CHOICES = ["both", "left", "right"] as const;
 export type LaneChoice = (typeof LANE_CHOICES)[number];
 
-/** Built-in scene ids. "none" means no scene. */
-export const SCENE_IDS = ["none", "paper", "space", "ocean", "midnight-stars", "calm", "field"] as const;
-export type SceneId = (typeof SCENE_IDS)[number];
 
 export interface Actor {
   id: string;

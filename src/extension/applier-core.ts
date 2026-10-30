@@ -6,7 +6,7 @@ import { contrastFailures } from "../plan/contrast.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
 import { validatePlan, type StylePlan } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
-import { isBuiltinThemeId } from "../themes/index.ts";
+import { isThemeChoice, resolveTheme } from "../themes/index.ts";
 import { createBoundedObserver, type BoundedObserver, type ObserverOptions } from "./observer.ts";
 
 export interface StyleHandle {
@@ -157,8 +157,11 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       restoreHooks.push(fn);
     },
     applyTheme(id: string): ApplyResult {
-      if (!isBuiltinThemeId(id)) return { ok: false, reason: "bad-theme" };
-      return run((summary) => themeToPlan(id, summary));
+      if (!isThemeChoice(id)) return { ok: false, reason: "bad-theme" };
+      // "auto" follows the page's colour-scheme preference (the browser's setting).
+      const dark = doc.defaultView?.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+      const resolved = resolveTheme(id, dark);
+      return run((summary) => themeToPlan(resolved, summary));
     },
     analyze: (): PageAnalysis => {
       const a = analyze(doc, opts.summaryDeps);

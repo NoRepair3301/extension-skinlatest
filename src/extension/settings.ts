@@ -1,5 +1,6 @@
 import { DEFAULT_MODELS, PROVIDER_IDS, type ProviderId } from "../config.ts";
-import { DEFAULT_THEME_ID, isBuiltinThemeId, type BuiltinThemeId } from "../themes/index.ts";
+import { isDensity, isLaneChoice, isSceneId, type Density, type LaneChoice, type SceneId } from "../features/scenes/types.ts";
+import { DEFAULT_THEME_ID, isThemeChoice, type ThemeChoice } from "../themes/index.ts";
 import { storageGet, storageSet } from "./api.ts";
 import { toOrigin } from "./origin.ts";
 
@@ -19,8 +20,16 @@ export interface PetSettings {
   disabledOrigins: string[];
 }
 
+/** Scene art in empty side space (Phase 10). "theme" means the theme's own default scene; "none" in `choice` is the same as off. */
+export interface SceneSettings {
+  enabled: boolean;
+  choice: SceneId | "theme";
+  density: Density;
+  lane: LaneChoice;
+}
+
 export interface Settings {
-  theme: BuiltinThemeId;
+  theme: ThemeChoice;
   blocklist: string[];
   /** Fallback order for AI calls. */
   order: ProviderId[];
@@ -29,6 +38,7 @@ export interface Settings {
   /** Set once the user accepts the consent text; asked again when CONSENT_VERSION changes. */
   consent: { version: number; acceptedAt: string } | null;
   pet: PetSettings;
+  scene: SceneSettings;
 }
 
 const KEY = "settings";
@@ -43,6 +53,7 @@ export const defaultSettings = (): Settings => ({
   aiCallsToday: { date: "", count: 0 },
   consent: null,
   pet: { enabled: false, kind: "pebble", size: "medium", corner: "bottom-right", disabledOrigins: [] },
+  scene: { enabled: true, choice: "theme", density: "normal", lane: "both" },
 });
 
 const isProviderId = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDER_IDS as readonly string[]).includes(v);
@@ -52,7 +63,7 @@ export function parseSettings(raw: unknown): Settings {
   const out = defaultSettings();
   if (typeof raw !== "object" || raw === null) return out;
   const r = raw as Record<string, unknown>;
-  if (isBuiltinThemeId(r["theme"])) out.theme = r["theme"];
+  if (isThemeChoice(r["theme"])) out.theme = r["theme"];
   if (Array.isArray(r["blocklist"])) {
     out.blocklist = r["blocklist"].filter((v): v is string => typeof v === "string" && v.length > 0 && v.length <= 253).slice(0, 200);
   }
@@ -92,6 +103,14 @@ export function parseSettings(raw: unknown): Settings {
     if (Array.isArray(p["disabledOrigins"])) {
       out.pet.disabledOrigins = [...new Set(p["disabledOrigins"].filter((v): v is string => toOrigin(v) !== undefined))].slice(0, 200);
     }
+  }
+  const scene = r["scene"];
+  if (typeof scene === "object" && scene !== null) {
+    const sc = scene as Record<string, unknown>;
+    if (sc["enabled"] === false) out.scene.enabled = false;
+    if (sc["choice"] === "theme" || isSceneId(sc["choice"])) out.scene.choice = sc["choice"] as SceneSettings["choice"];
+    if (isDensity(sc["density"])) out.scene.density = sc["density"];
+    if (isLaneChoice(sc["lane"])) out.scene.lane = sc["lane"];
   }
   return out;
 }

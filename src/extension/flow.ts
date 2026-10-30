@@ -52,6 +52,7 @@ export function runTransform(tabId: number, url: string, hooks: FlowHooks, signa
       keyStatus,
       askConsent: hooks.askConsent,
       clock: callClock,
+      prefersDark: () => globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches === true,
       onStep: hooks.onStep,
     },
     signal,
