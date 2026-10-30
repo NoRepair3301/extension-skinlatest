@@ -17,6 +17,7 @@ const api = vi.hoisted(() => ({
   registerAutoScript: vi.fn(),
   unregisterAutoScript: vi.fn(),
   getCommands: vi.fn(),
+  runScene: vi.fn(),
   browserHints: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);

@@ -1,6 +1,6 @@
 # Skinly AI (working name): product spec, source of truth
 
-Chromium MV3 extension. The user opens any website and clicks "Change my page". A local analyser builds a small structural summary. The AI provider the user chose returns a JSON style plan. We validate it, compile CSS ourselves and apply it. The result can be remembered per site. Free plan only for now (5 themes, everything unlocked).
+Chromium MV3 extension. The user opens any website and clicks "Change my page". A local analyser builds a small structural summary. The AI provider the user chose returns a JSON style plan. We validate it, compile CSS ourselves and apply it. The result can be remembered per site. Free plan only for now (6 themes plus Auto, everything unlocked).
 If this file and a phase doc disagree, this file wins. Items marked UNSURE must not be guessed: stop and ask.
 
 ## 1. Non-goals (this version)
@@ -39,13 +39,14 @@ Never included: text, hrefs, ids, alt, title, aria-label, data-* values, form va
 ### 4.2 StylePlan v1 (what the AI returns; unknown keys are rejected)
 ```
 { v:1,
-  themeId:"calm-light"|"midnight"|"ocean"|"warm-paper"|"high-contrast"|"custom",
+  themeId:"calm-light"|"midnight"|"ocean"|"warm-paper"|"high-contrast"|"field"|"custom",
   tokens:{ bg,surface,text,muted,link,accent,border,focus: "#rrggbb",
            radius:0..16 (int), font:"system"|"serif"|"mono"|"humanist"|"rounded"|"geometric",
            baseSize:14..20 (int), lineHeight:1.3..1.9 (one decimal) },
   regionRules:[ up to 40 of { region:"rN", layout:"none"|"link-grid"|"nav-wrap"|"center-column"|"card-grid"|"stack"|"table-clean",
                               surface:"none"|"flat"|"card", spacing:0..4 (int) } ],
-  reasons:[ up to 5 of "repeated-links"|"clear-nav"|"dense-text"|"low-contrast-source"|"dark-source"|"form-heavy"|"unsure" ] }
+  reasons:[ up to 5 of "repeated-links"|"clear-nav"|"dense-text"|"low-contrast-source"|"dark-source"|"form-heavy"|"unsure" ],
+  sceneId?:"none"|"paper"|"space"|"ocean"|"midnight-stars"|"calm"|"field"  /* optional, default "none"; PROMPT_VERSION 3 */ }
 ```
 Font stacks are fixed in code (system-ui, Georgia/serif, ui-monospace, etc.); the AI never names fonts. Layouts are fixed CSS templates over the existing children and never change DOM order. Eligibility (validator and compiler both check it; PROMPT_VERSION 2 tells the model):
 | layout | roles | other |
@@ -106,8 +107,8 @@ kind = auth | rate | quota | network | timeout | blocked | bad-output | server |
 ## 9. Permissions
 `permissions: ["activeTab","scripting","storage"]`; `optional_host_permissions: ["https://*/*","http://*/*"]` (requested one origin at a time, from a user click: the visited origin for "Always on this site", or the provider host when saving a key). No static host_permissions, no content_scripts in the manifest, no `tabs`, cookies, history, webRequest, downloads. Keyboard commands: transform-page (Alt+Shift+S), restore-page (Alt+Shift+R), open-palette (Alt+Shift+K), toggle-blur-page (Alt+Shift+B, rc4). The browser drops a suggested key that something else already uses, so the popup lists each command with the key the commands API really reports (through api.ts), or "Not set - open edge://extensions/shortcuts" (chrome:// or brave:// on those browsers; shown as text, opening it would need the tabs permission). Every command that reaches a page ends with a 2 s extension-owned toast ("Skinly: theme applied", "Skinly: restored", "Skinly: blur on", "Skinly: blur off", "Skinly: palette open", "Skinly: couldn't change this page"). Blocked pages (internal, store, PDF, blocklist) are never injected into, so the "blocked page" case uses the toolbar badge "!" and the action title instead of a toast. If the browser passes no URL with a command, the gate asks the page for its address (activeTab covers it) instead of treating the page as blocked.
 
-## 10. Themes (free plan: all five)
-calm-light (default), midnight, ocean, warm-paper, high-contrast. Each is a JSON token set (same keys as StylePlan tokens). Contrast targets (tested by script): text/bg at least 4.5 (high-contrast at least 7), link/bg at least 4.5, muted/bg at least 4.5, accent/bg at least 3, focus/bg at least 3. Colour is never the only status cue.
+## 10. Themes (free plan: all six, plus Auto)
+calm-light (default), midnight, ocean, warm-paper, high-contrast, field (olive, khaki, dark green). "Auto" is a popup choice, not a theme: it applies calm-light, or midnight when the browser prefers a dark colour scheme (resolved on the page). Each theme has a default scene (calm-light: calm, midnight: midnight-stars, ocean: ocean, warm-paper: paper, field: field, high-contrast: none; `DEFAULT_SCENE_BY_THEME` in src/themes/index.ts). Each is a JSON token set (same keys as StylePlan tokens). Contrast targets (tested by script): text/bg at least 4.5 (high-contrast at least 7), link/bg at least 4.5, muted/bg at least 4.5, accent/bg at least 3, focus/bg at least 3. Colour is never the only status cue.
 
 ## 11. UX copy (short, plain)
 - Consent (first AI use, versioned): "Skinly AI will send a small description of this page's layout (shapes, sizes and colours, no text, links, images or forms) to <provider>. Their terms apply and they may keep it. Nothing else leaves your browser." Buttons: Send, Cancel, Show what will be sent.
@@ -126,3 +127,8 @@ Pet (P6), palette and shortcuts (P7), blur, safe screenshot and table tools (P8)
 ## 15. rc4 notes (pet, failure messages)
 - Pet (rc4): independent of any theme. The popup's "Show pet on this page" button injects the applier only after the click, only when `pet.enabled`, and only on allowed pages; if it cannot show it says why in one line (`PET_WHY`, src/extension/petActions.ts). The pet also shows after "Change my page" (even when the theme was rolled back) and after any popup tool or the blur command on that page. Changing a pet setting only updates or removes a pet that is already showing (`updatePet`); it never injects or brings a hidden pet back. Off by default; removed by Restore; never on blocked pages.
 - Theme failure message (rc4): when an apply rolls back, the popup and the command tooltip say why in plain words, built from the reason code only (`invariants`, `invalid-plan` with the fixed details `contrast` or `region missing on page`, `too-large`, `bad-theme`, `error`, or no answer from the page script), never from page content, plan values or invariant details (src/ai/messages.ts `applyFailureReason`).
+
+## 16. Phase 10 (scenes, pets, custom assets)
+- Scenes (src/features/scenes) are decorative SVG art drawn only in measured empty side space ("gutters", src/features/freespace). A gutter is usable at 120 px or more. If the page has no usable gutter no art is shown and the popup says so in one line (FREESPACE_WHY). Art lives in one extension-owned shadow-root host (position fixed, pointer-events none) with one clipped lane per usable gutter; it never touches a site element. At most 40 animated nodes in total; motion is CSS keyframes on transform and opacity only; paused while the tab is hidden; still under prefers-reduced-motion.
+- The AI can only choose a built-in `sceneId` (StylePlan, optional, default "none"). With "none" the theme's default scene applies; high-contrast never shows a scene. User settings: `scene: {enabled, choice: "theme"|sceneId, density: low|normal|high, lane: both|left|right}`.
+- The "field" scene may include one flat, stylised rifle silhouette that never moves, fires or targets anything. `ARMY_WEAPON_PROPS` in src/config.ts removes it (store review can be sensitive about weapons).

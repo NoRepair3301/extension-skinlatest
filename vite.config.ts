@@ -13,7 +13,7 @@ const manifestPlugin = {
 };
 
 // Four builds share this file: the default one (background, popup, options),
-// `--mode applier` and `--mode palette` (injected on demand) and `--mode applier-auto` (registered per origin after the user opts in).
+// `--mode applier` and `--mode palette` (injected on demand) and `--mode applier-auto` (registered per origin after the user opts in) and `--mode scene` (scene art and custom assets, injected on demand or registered only for a site with saved art).
 // The last three are self-contained classic scripts.
 export default defineConfig(({ mode }) => {
   const common = {
@@ -23,19 +23,20 @@ export default defineConfig(({ mode }) => {
     logLevel: "silent" as const,
     oxc: { jsx: { runtime: "automatic" as const, importSource: "preact" } },
   };
-  if (mode === "applier" || mode === "applier-auto" || mode === "palette") {
+  if (mode === "applier" || mode === "applier-auto" || mode === "palette" || mode === "scene") {
     const auto = mode === "applier-auto";
     const pal = mode === "palette";
+    const scn = mode === "scene";
     return {
       ...common,
       build: {
         outDir: "../../dist",
         emptyOutDir: false,
         lib: {
-          entry: pal ? "palette.ts" : auto ? "applier-auto.ts" : "applier.ts",
+          entry: scn ? "scene.ts" : pal ? "palette.ts" : auto ? "applier-auto.ts" : "applier.ts",
           formats: ["iife" as const],
-          name: pal ? "SkinlyPalette" : auto ? "SkinlyApplierAuto" : "SkinlyApplier",
-          fileName: () => (pal ? "palette.js" : auto ? "applier-auto.js" : "applier.js"),
+          name: scn ? "SkinlyScene" : pal ? "SkinlyPalette" : auto ? "SkinlyApplierAuto" : "SkinlyApplier",
+          fileName: () => (scn ? "scene.js" : pal ? "palette.js" : auto ? "applier-auto.js" : "applier.js"),
         },
       },
     };

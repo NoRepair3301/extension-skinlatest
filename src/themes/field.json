@@ -1,0 +1,9 @@
+{
+  "id": "field",
+  "name": "Field",
+  "tokens": {
+    "bg": "#ece8d0", "surface": "#f7f4e4", "text": "#1f2a14", "muted": "#4a5636",
+    "link": "#2f5d1e", "accent": "#4f6b2a", "border": "#c2b98f", "focus": "#2f5d1e",
+    "radius": 6, "font": "system", "baseSize": 16, "lineHeight": 1.6
+  }
+}

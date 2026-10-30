@@ -12,7 +12,7 @@ import { validatePlan, type StylePlan } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
 import type { ErrorKind, Provider } from "../providers/types.ts";
-import type { BuiltinThemeId } from "../themes/index.ts";
+import { resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
 import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG } from "./messages.ts";
 import { buildUserMessage, SYSTEM_PROMPT } from "./prompt.ts";
 
@@ -45,6 +45,8 @@ export interface PipelineDeps {
   keyStatus(): Promise<Record<ProviderId, boolean>>;
   askConsent(req: ConsentRequest): Promise<boolean>;
   clock: CallClock;
+  /** For the "auto" theme: does the browser prefer a dark colour scheme? Default no. */
+  prefersDark?(): boolean;
   onStep?(step: Step, detail?: string): void;
   now?(): number;
   today?(): string;
@@ -99,7 +101,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   const elig = checkUrl(url, settings.blocklist);
   if (!elig.allowed) return { kind: "blocked", reason: elig.reason, message: blockedMessage(elig.reason) };
 
-  const baselineId = settings.theme;
+  const baselineId = resolveTheme(settings.theme, deps.prefersDark?.() ?? false);
   const baseline = (why: BaselineWhy, message: string): Outcome => ({ kind: "baseline", themeId: baselineId, why, message });
 
   step("baseline");

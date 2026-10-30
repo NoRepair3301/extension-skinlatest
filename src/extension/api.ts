@@ -56,9 +56,9 @@ export const onMessage = (handler: MessageHandler): void => {
 };
 
 /** Registers the auto-apply script for exactly the given match patterns, replacing an older registration with the same id. */
-export const registerAutoScript = async (id: string, matches: string[], file: string): Promise<void> => {
+export const registerAutoScript = async (id: string, matches: string[], file: string | string[]): Promise<void> => {
   await unregisterAutoScript(id);
-  await chrome.scripting.registerContentScripts([{ id, matches, js: [file], runAt: "document_start", persistAcrossSessions: true }]);
+  await chrome.scripting.registerContentScripts([{ id, matches, js: Array.isArray(file) ? file : [file], runAt: "document_start", persistAcrossSessions: true }]);
 };
 
 export const unregisterAutoScript = async (id: string): Promise<void> => {
@@ -137,7 +137,7 @@ export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ..
 /** PNG data URL of the visible area of the tab's window. Needs the activeTab grant from the user's click. */
 export const captureVisible = (): Promise<string> => chrome.tabs.captureVisibleTab({ format: "png" });
 
-export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet" | "togglePet";
 
 const callApplier = (m: string, a?: unknown): unknown => {
   const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
@@ -163,4 +163,19 @@ export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, 
   }
   const top = results.find((r) => r.frameId === 0) ?? results[0];
   return top?.result as R | undefined;
+};
+
+export type SceneMethod = "sync" | "update" | "status";
+
+/** Calls the scene script (scene.js) already injected in the tab. Returns what it reports, or undefined when it is not there. */
+export const runScene = async <R = unknown>(tabId: number, method: SceneMethod, arg?: unknown): Promise<R | undefined> => {
+  const [res] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (m: string, a: unknown) => {
+      const scene = (globalThis as unknown as { skinlyScene?: Record<string, (x?: unknown) => unknown> }).skinlyScene;
+      return scene?.[m]?.(a);
+    },
+    args: [method, arg ?? null],
+  });
+  return res?.result as R | undefined;
 };

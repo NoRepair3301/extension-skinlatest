@@ -1,6 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
 import { Logo } from "../Logo.tsx";
+import { SceneOptions } from "../SceneOptions.tsx";
+import { MyAssets } from "./MyAssets.tsx";
 import { deleteKey, keyStatus, MASK, saveKey, testKey } from "../keys.ts";
 import { entryHost } from "../../analyzer/eligibility.ts";
 import { PET_CORNERS, PET_KINDS, PET_SIZES, callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
@@ -192,6 +194,13 @@ export function Options() {
         ))}
         <p class="note">The pet never appears on blocked pages and moves away from form fields. Turn it off for one site from the popup.</p>
       </section>
+
+      <section>
+        <h2>Scenes</h2>
+        <SceneOptions scene={settings.scene} onChange={(scene) => update({ ...settings, scene })} />
+      </section>
+
+      <MyAssets placement={settings.asset} onPlacement={(asset) => update({ ...settings, asset })} />
 
       <section>
         <h2>Privacy and storage</h2>

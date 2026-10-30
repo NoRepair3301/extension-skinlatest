@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from "preact/hooks";
 import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
-import { THEMES, type BuiltinThemeId } from "../../themes/index.ts";
+import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
-import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings } from "../settings.ts";
 import { showPetHere } from "../petActions.ts";
 import { Logo } from "../Logo.tsx";
+import { PetOptions } from "./PetOptions.tsx";
+import { SceneOptions } from "../SceneOptions.tsx";
+import { artNote, showArtHere, updateArtHere } from "../sceneActions.ts";
+import { lookFor, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
+import { decodeThemeCode, encodeThemeCode } from "../themeCode.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -26,7 +31,7 @@ const STEP_TEXT: Record<Step, string> = {
 
 export type View =
   | { state: "idle"; note?: string }
-  | { state: "kept"; tabId: number; origin: string | undefined; kept: KeptPlan }
+  | { state: "kept"; tabId: number; origin: string | undefined; kept: KeptPlan; copied?: boolean }
   | { state: "blocked"; reason: string }
   | { state: "working"; step: Step; detail?: string }
   | { state: "consent"; req: ConsentRequest }
@@ -41,10 +46,15 @@ export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
+  const [codeText, setCodeText] = useState("");
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
   const [petNote, setPetNote] = useState("");
+  const [sceneNote, setSceneNote] = useState("");
+  /** What the page shows now (theme, plan scene, accent), so a changed setting can reach the art that is already there. */
+  const artSource = useRef<SceneSource | undefined>(undefined);
+  const artTab = useRef<number | undefined>(undefined);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
 
@@ -80,7 +90,7 @@ export function Popup() {
     if (tabId === undefined) return;
     void (async () => {
       try {
-        await runInPage(tabId, "updatePet", next.pet);
+        await runInPage(tabId, "updatePet", petConfig(next));
       } catch {
         // no applier in this tab: nothing to update
       }
@@ -102,7 +112,25 @@ export function Popup() {
 
   const petHereOff = site !== undefined && settings.pet.disabledOrigins.includes(site.origin);
 
-  const pickTheme = (theme: BuiltinThemeId) => {
+  const prefersDark = (): boolean => globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches === true;
+
+  /** Puts the chosen scene and picture on the page after a theme was applied (the user clicked a button). */
+  const showArt = async (tabId: number, next: Settings, source: SceneSource) => {
+    artSource.current = source;
+    artTab.current = tabId;
+    setSceneNote(artNote(await showArtHere(tabId, next, source)));
+  };
+
+  const updateScene = (next: Settings) => {
+    setSettings(next);
+    void saveSettings(next);
+    setSceneNote("");
+    const tabId = artTab.current;
+    const source = artSource.current;
+    if (tabId !== undefined && source) void updateArtHere(tabId, next, source).then((r) => setSceneNote(artNote(r)));
+  };
+
+  const pickTheme = (theme: ThemeChoice) => {
     const next = { ...settings, theme };
     setSettings(next);
     void saveSettings(next);
@@ -130,6 +158,9 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      const fresh = await loadSettings();
+      if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
+      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
@@ -155,6 +186,8 @@ export function Popup() {
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
       await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
+      artSource.current = undefined;
+      setSceneNote("");
       setView({ state: "idle", note: "Original restored." });
     } catch {
       setView({ state: "blocked", reason: MSG.blocked });
@@ -166,6 +199,7 @@ export function Popup() {
     try {
       await createPageClient(tabId).applyTheme(baseline);
       badge(tabId, "");
+      void showArt(tabId, settings, sourceForTheme(baseline, prefersDark()));
       setView({ state: "idle", note: "Back to the built-in theme." });
     } catch {
       setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
@@ -189,8 +223,41 @@ export function Popup() {
       state: "kept",
       tabId,
       origin: url ? originOf(url) : undefined,
-      kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider, model: outcome.model ?? "builtin" },
+      kept: {
+        plan: outcome.plan,
+        fingerprint: outcome.fingerprint,
+        provider,
+        model: outcome.model ?? "builtin",
+        look: lookFor(settings, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent }),
+      },
     });
+  };
+
+  const copyCode = async (plan: KeptPlan["plan"]) => {
+    try {
+      await navigator.clipboard.writeText(encodeThemeCode(plan));
+      setView((v) => (v.state === "kept" ? { ...v, copied: true } : v));
+    } catch {
+      setView({ state: "idle", note: "Couldn't copy the code." });
+    }
+  };
+
+  /** An imported code is a validated, contrast-checked StylePlan with no regions; it is shown, not remembered. */
+  const importCode = async () => {
+    const r = decodeThemeCode(codeText);
+    if (!r.ok) return setView({ state: "idle", note: r.message });
+    try {
+      const tab = await queryActiveTab();
+      if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
+      const res = await createPageClient(tab.id).applyPlan(r.plan);
+      if (!res || !res.ok) return setView({ state: "error", kind: "error", message: applyFailureMessage(res) });
+      badge(tab.id, "ON");
+      setCodeText("");
+      void showArt(tab.id, settings, { themeId: r.plan.themeId, planSceneId: r.plan.sceneId, accent: r.plan.tokens.accent });
+      setView({ state: "idle", note: "Theme code applied. Use Restore to undo." });
+    } catch {
+      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
+    }
   };
 
   const busy = view.state === "working" || view.state === "consent";
@@ -210,6 +277,10 @@ export function Popup() {
             {t.name}
           </label>
         ))}
+        <label>
+          <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
+          Auto (light by day, dark when your browser is dark)
+        </label>
       </fieldset>
 
       <fieldset>
@@ -232,9 +303,13 @@ export function Popup() {
             Disable pet on this site
           </label>
         )}
+        <PetOptions pet={settings.pet} onChange={updatePet} />
         <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
         <p class="note" aria-live="polite">{petNote}</p>
       </fieldset>
+
+      <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
+      <p class="note" aria-live="polite">{sceneNote}</p>
 
       {view.state === "consent" && (
         <section aria-label="Consent">
@@ -266,7 +341,19 @@ export function Popup() {
           ) : (
             <p>This page can't be remembered.</p>
           )}
+          <button type="button" onClick={() => void copyCode(view.kept.plan)}>Copy theme code</button>
+          {view.copied && <p>Theme code copied. It holds colours and scene only.</p>}
           <button type="button" onClick={() => setView({ state: "idle", note: "Kept." })}>Done</button>
+        </section>
+      )}
+
+      {(view.state === "idle" || view.state === "kept") && (
+        <section aria-label="Theme code">
+          <label>
+            Import theme code
+            <input type="text" value={codeText} maxLength={2000} onInput={(e) => setCodeText((e.target as HTMLInputElement).value)} />
+          </label>
+          <button type="button" disabled={codeText.trim() === ""} onClick={() => void importCode()}>Import</button>
         </section>
       )}
 

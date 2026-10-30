@@ -18,7 +18,7 @@ export function collectDist(dir: string): ZipEntry[] {
 
 /** Only these kinds of files belong in the extension package. */
 const ALLOWED_ENTRY = /^(?:manifest\.json|[A-Za-z0-9_-]+\.js|(?:assets|icons|options|popup)\/[A-Za-z0-9._-]+\.(?:js|css|html|png))$/;
-const REQUIRED = ["manifest.json", "background.js", "applier.js", "applier-auto.js", "palette.js", "popup/index.html", "options/index.html", "icons/icon-128.png"];
+const REQUIRED = ["manifest.json", "background.js", "applier.js", "applier-auto.js", "palette.js", "scene.js", "popup/index.html", "options/index.html", "icons/icon-128.png"];
 
 /** Problems with the file list of a release zip (empty when fine). */
 export function checkEntries(names: readonly string[]): string[] {

@@ -1,7 +1,7 @@
 import { checkUrl } from "../analyzer/eligibility.ts";
 import { injectFile, queryActiveTab, runInPage } from "./api.ts";
 import { originOf } from "./origin.ts";
-import { loadSettings } from "./settings.ts";
+import { loadSettings, petConfig } from "./settings.ts";
 
 /** One-line reasons shown in the popup when the pet cannot be shown. Fixed text only. */
 export const PET_WHY = {
@@ -34,7 +34,7 @@ export async function showPetHere(): Promise<PetShowResult> {
     } catch {
       return { ok: false, why: PET_WHY.denied };
     }
-    const shown = await runInPage<boolean>(tab.id, "syncPet", settings.pet);
+    const shown = await runInPage<boolean>(tab.id, "syncPet", petConfig(settings));
     return shown === true ? { ok: true } : { ok: false, why: PET_WHY.notShown };
   } catch {
     return { ok: false, why: PET_WHY.denied };

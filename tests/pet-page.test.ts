@@ -66,3 +66,21 @@ describe("pet does not depend on a theme (I)", () => {
     expect(hosts()).toHaveLength(0);
   });
 });
+
+describe("togglePet (the toggle-pet command)", () => {
+  it("shows the pet, then hides it, whatever the enabled setting says", () => {
+    expect(applier.togglePet(cfg({ enabled: false }))).toBe(true);
+    expect(hosts()).toHaveLength(1);
+    expect(applier.togglePet(cfg({ enabled: false }))).toBe(false);
+    expect(hosts()).toHaveLength(0);
+  });
+  it("does not bring the pet back on a site the user turned it off for", () => {
+    expect(applier.togglePet(cfg({ disabledOrigins: [location.origin] }))).toBe(false);
+    expect(hosts()).toHaveLength(0);
+  });
+  it("Restore removes a toggled-on pet", () => {
+    applier.togglePet(cfg());
+    applier.restore();
+    expect(hosts()).toHaveLength(0);
+  });
+});

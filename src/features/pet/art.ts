@@ -1,7 +1,10 @@
-export type PetKind = "pebble" | "sprout";
-export type PetPose = "idle" | "blink" | "walk-a" | "walk-b" | "celebrate";
+import { drawCreature, isCreature, type CreatureKind } from "./creatures.ts";
 
-export const POSES: readonly PetPose[] = ["idle", "blink", "walk-a", "walk-b", "celebrate"];
+/** Pebble and Sprout are the original two; the five creatures (fox, cat, bunny, slime, owl) came in Phase 10. */
+export type PetKind = "pebble" | "sprout" | CreatureKind;
+export type PetPose = "idle" | "blink" | "walk-a" | "walk-b" | "celebrate" | "sleep" | "wave-a" | "wave-b";
+
+export const POSES: readonly PetPose[] = ["idle", "blink", "walk-a", "walk-b", "celebrate", "sleep", "wave-a", "wave-b"];
 
 /** The SVG XML namespace identifier: a name, not an address. Nothing is fetched. Assembled so the URL scanner has nothing to flag. */
 const SVG_NS = ["http:", "", "www.w3.org", "2000", "svg"].join("/");
@@ -15,7 +18,7 @@ function node(doc: Document, tag: string, attrs: Attrs, ...children: Element[]):
   return el;
 }
 
-const PALETTE: Record<PetKind, { body: string; shade: string; accent: string }> = {
+const PALETTE: Record<"pebble" | "sprout", { body: string; shade: string; accent: string }> = {
   pebble: { body: "#8fa8c4", shade: "#6d87a6", accent: "#f3b8b8" },
   sprout: { body: "#9ccf8f", shade: "#74b066", accent: "#f6d36b" },
 };
@@ -27,8 +30,11 @@ const star = (doc: Document, x: number, y: number, color: string): Element =>
  * Two original pets drawn from basic shapes: Pebble, a round stone with stubby feet, and Sprout, a round bud with two leaves.
  * Built with createElementNS only. 64 x 64 viewBox.
  */
-export function drawPet(doc: Document, kind: PetKind, pose: PetPose): SVGSVGElement {
-  const c = PALETTE[kind];
+export function drawPet(doc: Document, kind: PetKind, poseIn: PetPose, accent?: string): SVGSVGElement {
+  if (isCreature(kind)) return drawCreature(doc, kind, poseIn, accent);
+  // the two original pets have no sleep or wave art: sleep closes the eyes, waving is a happy idle
+  const pose: PetPose = poseIn === "sleep" ? "blink" : poseIn === "wave-a" || poseIn === "wave-b" ? "idle" : poseIn;
+  const c = PALETTE[kind as "pebble" | "sprout"];
   const lift = pose === "celebrate" ? -5 : pose === "walk-a" ? -1 : 0;
   const lean = pose === "walk-a" ? -2 : pose === "walk-b" ? 2 : 0;
   const parts: Element[] = [];
@@ -80,6 +86,6 @@ export function drawPet(doc: Document, kind: PetKind, pose: PetPose): SVGSVGElem
   }
 
   const svg = node(doc, "svg", { viewBox: "0 0 64 64", width: "100%", height: "100%", "aria-hidden": "true", focusable: "false" }, ...parts) as SVGSVGElement;
-  svg.setAttribute("data-pose", pose);
+  svg.setAttribute("data-pose", poseIn);
   return svg;
 }

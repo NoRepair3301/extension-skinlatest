@@ -103,3 +103,9 @@ Real Edge feedback: only the page background changed, the ERP changed nothing, b
 - I. Pet independent of the theme; "Show pet on this page"; shows after tools; `updatePet` never resurrects a hidden pet. J. Rollback reasons in plain words from reason codes only.
 - Safety greps C1, C2, C6, C7, C9, C10, C12: clean (C2 hits are the palette's own input and the pet's own button; C10's hit is the word "browser." in user-facing copy; no package.json change).
 - Tests moved: the 6 command tests in tests/features/palette.test.ts now live in tests/commands.test.ts (superset). No test weakened; changed expectations are listed in the final report.
+
+## Phase 10: scenes, pets, custom assets (v0.2.0-rc1, 2026-10-30)
+- Steps 1 to 10 done, one commit each (free-space, scene engine, six scenes, field theme + auto + sceneId, five pets, pet behaviour, custom assets, per-site look, copy/import theme code, scripts/preview.ts). Step 9 and 10 were finished in this session; the uncommitted theme-code work found at the start was completed (test mock lacked `applyPlan`) and committed.
+- `npm run check` green (61 files, 950 tests), `npm run release` ok. scene.js is 67 KB (limit 150 KB). Safety greps C1, C2, C6, C7, C9, C10, C12 clean (C2 hits are the palette's own input and the pet's own button; C9/C10 hits are field names or user-facing words; package.json only gained the scene build mode and the preview script).
+- Weapon props are behind ARMY_WEAPON_PROPS in src/config.ts (store review may be sensitive).
+- UNVERIFIED: how the art looks and moves, gutters on real sites, CSP fallback of uploaded media. Human items are in docs/HUMAN_CHECKS.md. Run `npm run preview` then open private/preview.html.

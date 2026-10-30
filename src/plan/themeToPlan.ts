@@ -17,5 +17,5 @@ export function themeToPlan(id: BuiltinThemeId, summary?: StructuralSummary): St
     const surface = SURFACE_BY_ROLE[r.role];
     if (surface) regionRules.push({ region: r.id, layout: "none", surface, spacing: 0 });
   }
-  return { v: 1, themeId: id, tokens: { ...theme.tokens }, regionRules, reasons: [] };
+  return { v: 1, themeId: id, tokens: { ...theme.tokens }, regionRules, reasons: [], sceneId: "none" };
 }

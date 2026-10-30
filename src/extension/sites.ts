@@ -1,7 +1,11 @@
 import type { Fingerprint } from "../core/types.ts";
-import type { StylePlan } from "../plan/schema.ts";
+import { ASSET_ID } from "../features/assets/types.ts";
+import type { AssetPlacement } from "../features/assets/types.ts";
+import { isDensity, isLaneChoice, isSceneId, type Density, type LaneChoice } from "../features/scenes/types.ts";
+import type { SceneId, StylePlan } from "../plan/schema.ts";
 import { storageGet, storageSet } from "./api.ts";
 import { originOf, toOrigin } from "./origin.ts";
+import { parsePlacement, parseSettings, type PetSettings } from "./settings.ts";
 
 export { originOf, toOrigin };
 
@@ -9,6 +13,13 @@ export const SITES_KEY = "sites";
 export const SITE_VERSION = 1;
 export const MAX_SITES = 200;
 const MAX_BLUR = 50;
+
+/** The art saved for a site (Phase 10): the scene that was showing, the pet look and the chosen asset. Choices only, never page data. */
+export interface SiteLook {
+  scene?: { id: SceneId; density: Density; lane: LaneChoice };
+  pet?: Omit<PetSettings, "enabled" | "disabledOrigins">;
+  asset?: AssetPlacement;
+}
 
 export interface SiteRecord {
   v: 1;
@@ -22,6 +33,7 @@ export interface SiteRecord {
   mode: "ask" | "auto";
   blur: string[];
   blurImages: boolean;
+  look?: SiteLook;
 }
 
 export type Sites = Record<string, SiteRecord>;
@@ -37,11 +49,28 @@ export function migrate(raw: unknown): unknown {
   return undefined;
 }
 
+const isObjLike = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+
+/** A saved look read back from storage; every part is re-validated and anything unknown is dropped. */
+export function parseLook(raw: unknown): SiteLook | undefined {
+  if (!isObjLike(raw)) return undefined;
+  const out: SiteLook = {};
+  const sc = raw["scene"];
+  if (isObjLike(sc) && isSceneId(sc["id"]) && sc["id"] !== "none" && isDensity(sc["density"]) && isLaneChoice(sc["lane"])) out.scene = { id: sc["id"], density: sc["density"], lane: sc["lane"] };
+  if (isObjLike(raw["pet"])) {
+    const p = parseSettings({ pet: raw["pet"] }).pet;
+    out.pet = { kind: p.kind, size: p.size, corner: p.corner, motion: p.motion, direction: p.direction, edge: p.edge, speed: p.speed, sleepWhenIdle: p.sleepWhenIdle, keepInFreeSpace: p.keepInFreeSpace };
+  }
+  const a = raw["asset"];
+  if (isObjLike(a) && typeof a["assetId"] === "string" && ASSET_ID.test(a["assetId"])) out.asset = parsePlacement(a);
+  return out.scene || out.pet || out.asset ? out : undefined;
+}
+
 /** Shape check only (the plan itself is validated at apply time). Returns undefined for anything corrupt. */
 export function parseSite(input: unknown): SiteRecord | undefined {
   const raw = migrate(input);
   if (!isObj(raw)) return undefined;
-  const { plan, fingerprint, provider, model, promptVersion, savedAt, mode, blur, blurImages } = raw;
+  const { plan, fingerprint, provider, model, promptVersion, savedAt, mode, blur, blurImages, look } = raw;
   if (!isObj(plan) || plan["v"] !== 1 || typeof plan["themeId"] !== "string" || !isObj(plan["tokens"]) || !Array.isArray(plan["regionRules"]) || !Array.isArray(plan["reasons"])) return undefined;
   if (!isObj(fingerprint) || typeof fingerprint["hash"] !== "string" || !/^[0-9a-f]{8}$/.test(fingerprint["hash"]) || typeof fingerprint["seq"] !== "string" || !/^[a-z]{0,40}$/.test(fingerprint["seq"])) return undefined;
   if (typeof provider !== "string" || provider.length === 0 || provider.length > 40) return undefined;
@@ -52,6 +81,7 @@ export function parseSite(input: unknown): SiteRecord | undefined {
   const blurList = blur === undefined ? [] : blur;
   if (!Array.isArray(blurList) || blurList.length > MAX_BLUR || blurList.some((s) => typeof s !== "string" || s.length === 0 || s.length > 200)) return undefined;
   if (blurImages !== undefined && typeof blurImages !== "boolean") return undefined;
+  const parsedLook = parseLook(look);
   return {
     v: 1,
     plan: plan as unknown as StylePlan,
@@ -63,6 +93,7 @@ export function parseSite(input: unknown): SiteRecord | undefined {
     mode,
     blur: blurList as string[],
     blurImages: blurImages === true,
+    ...(parsedLook ? { look: parsedLook } : {}),
   };
 }
 

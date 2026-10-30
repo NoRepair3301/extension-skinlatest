@@ -14,7 +14,7 @@ export interface AutoDeps {
   isBlocked(): Promise<boolean>;
   /** Calls back once the DOM is parsed (immediately if it already is). */
   whenReady(cb: () => void): void;
-  onApplied(): void;
+  onApplied(site: SiteRecord): void;
 }
 
 export type AutoResult = "none" | "blocked" | "invalid" | "tokens" | "full" | "changed";
@@ -57,7 +57,7 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
 
   const first = deps.applier.applyTokens(site.plan);
   if (!first.ok) return "invalid";
-  deps.onApplied();
+  deps.onApplied(site);
 
   return new Promise<AutoResult>((resolve) => {
     deps.whenReady(() => {

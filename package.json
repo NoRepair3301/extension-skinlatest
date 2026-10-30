@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && vite build --mode applier && vite build --mode applier-auto && vite build --mode palette",
+    "build": "vite build && vite build --mode applier && vite build --mode applier-auto && vite build --mode palette && vite build --mode scene",
     "typecheck": "tsc --noEmit --pretty false",
     "lint": "eslint . --quiet",
     "test": "vitest run --reporter=dot",
@@ -13,7 +13,8 @@
     "validate-dist": "node scripts/validate-dist.ts",
     "check": "npm run typecheck --silent && npm run lint --silent && npm run test --silent && npm run build --silent && npm run validate-dist --silent && npm run contrast --silent",
     "release": "npm run build --silent && node scripts/release.ts",
-    "bakeoff": "node scripts/bakeoff.ts"
+    "bakeoff": "node scripts/bakeoff.ts",
+    "preview": "node scripts/preview.ts"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",

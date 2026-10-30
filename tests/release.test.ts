@@ -45,6 +45,7 @@ describe("release zip", () => {
     "applier.js": "1",
     "applier-auto.js": "1",
     "palette.js": "1",
+    "scene.js": "1",
     "popup.js": "1",
     "popup/index.html": "x",
     "options/index.html": "x",

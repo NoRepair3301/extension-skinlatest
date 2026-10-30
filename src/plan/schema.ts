@@ -1,7 +1,10 @@
 import type { RiskMarker, StructuralSummary } from "../core/types.ts";
 
-export const THEME_IDS = ["calm-light", "midnight", "ocean", "warm-paper", "high-contrast", "custom"] as const;
+export const THEME_IDS = ["calm-light", "midnight", "ocean", "warm-paper", "high-contrast", "field", "custom"] as const;
 export type ThemeId = (typeof THEME_IDS)[number];
+/** Built-in scene art (src/features/scenes). The AI can only pick one of these ids; "none" means the theme's default applies. */
+export const SCENE_IDS = ["none", "paper", "space", "ocean", "midnight-stars", "calm", "field"] as const;
+export type SceneId = (typeof SCENE_IDS)[number];
 export const FONT_KEYS = ["system", "serif", "mono", "humanist", "rounded", "geometric"] as const;
 export type FontKey = (typeof FONT_KEYS)[number];
 export const LAYOUTS = ["none", "link-grid", "nav-wrap", "center-column", "card-grid", "stack", "table-clean"] as const;
@@ -42,6 +45,8 @@ export interface StylePlan {
   tokens: Tokens;
   regionRules: RegionRule[];
   reasons: Reason[];
+  /** Optional in input (default "none"); the validator always returns it. */
+  sceneId?: SceneId;
 }
 
 declare const validated: unique symbol;
@@ -103,15 +108,17 @@ export function validatePlan(input: unknown, summary: StructuralSummary): Valida
   const errors: string[] = [];
   const err = (path: string, why: string) => errors.push(`${path}: ${why}`);
 
-  const exactKeys = (obj: Record<string, unknown>, keys: readonly string[], path: string) => {
-    for (const k of Object.keys(obj)) if (!keys.includes(k)) err(`${path}.${k}`, "unknown key");
+  const exactKeys = (obj: Record<string, unknown>, keys: readonly string[], path: string, optional: readonly string[] = []) => {
+    for (const k of Object.keys(obj)) if (!keys.includes(k) && !optional.includes(k)) err(`${path}.${k}`, "unknown key");
     for (const k of keys) if (!(k in obj)) err(`${path}.${k}`, "missing");
   };
 
   if (!isRecord(input)) return { ok: false, errors: ["plan: must be an object"] };
-  exactKeys(input, ["v", "themeId", "tokens", "regionRules", "reasons"], "plan");
+  exactKeys(input, ["v", "themeId", "tokens", "regionRules", "reasons"], "plan", ["sceneId"]);
   if (input["v"] !== 1) err("v", "must be 1");
   if (!isEnum(THEME_IDS, input["themeId"])) err("themeId", "unknown theme");
+  const sceneIn = input["sceneId"];
+  if (sceneIn !== undefined && !isEnum(SCENE_IDS, sceneIn)) err("sceneId", "unknown scene");
 
   const tokensIn = input["tokens"];
   const tokens: Partial<Tokens> = {};
@@ -197,6 +204,6 @@ export function validatePlan(input: unknown, summary: StructuralSummary): Valida
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
-    plan: { v: 1, themeId: input["themeId"] as ThemeId, tokens: tokens as Tokens, regionRules: rules, reasons } as ValidPlan,
+    plan: { v: 1, themeId: input["themeId"] as ThemeId, tokens: tokens as Tokens, regionRules: rules, reasons, sceneId: (sceneIn as SceneId | undefined) ?? "none" } as ValidPlan,
   };
 }

@@ -8,3 +8,6 @@ label { display: flex; gap: 6px; align-items: center; padding: 3px 0; font-size:
 button { font: inherit; padding: 7px 10px; border-radius: 6px; cursor: pointer; }
 [role="status"] { min-height: 1.2em; font-size: 12px; margin: 0; }
 footer { font-size: 11px; opacity: 0.75; }
+details.pet-options { display: grid; gap: 4px; margin: 4px 0; }
+details.pet-options label { display: flex; gap: 6px; align-items: center; }
+details.pet-options select { flex: 1; }

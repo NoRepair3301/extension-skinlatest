@@ -6,6 +6,7 @@ import { shortcutLine, shortcutsPage } from "../src/extension/shortcuts.ts";
 
 interface Opts {
   applyResult?: unknown;
+  petOn?: boolean | undefined;
   blurState?: unknown;
   failInject?: boolean;
   blocklist?: string[];
@@ -23,6 +24,7 @@ function make(o: Opts = {}) {
     },
     runApplier: async (_t, m, a) => {
       calls.push(`run:${m}${typeof a === "string" ? `:${a}` : ""}`);
+      if (m === "togglePet") return "petOn" in o ? o.petOn : true;
       return m === "applyTheme" ? (o.applyResult ?? { ok: true }) : undefined;
     },
     openPalette: async () => void calls.push("palette"),
@@ -47,8 +49,9 @@ const tab = (url: string | undefined) => ({ id: 3, url });
 const OK = "https://ok.test/";
 
 describe("commands", () => {
-  it("knows the four commands", () => {
-    expect([...COMMANDS]).toEqual(["transform-page", "restore-page", "open-palette", "toggle-blur-page"]);
+  it("knows the five commands", () => {
+    expect([...COMMANDS]).toEqual(["transform-page", "restore-page", "open-palette", "toggle-blur-page", "toggle-pet"]);
+    expect(isCommand("toggle-pet")).toBe(true);
     expect(isCommand("toggle-blur-page")).toBe(true);
     expect(isCommand("nope")).toBe(false);
   });
@@ -168,5 +171,26 @@ describe("shortcut lines", () => {
     expect(shortcutsPage("Mozilla/5.0 (Windows NT 10.0) AppleWebKit/537.36 Chrome/130 Safari/537.36 Edg/130.0.0.0", false)).toBe("edge://extensions/shortcuts");
     expect(shortcutsPage("Mozilla/5.0 Chrome/130 Safari/537.36", false)).toBe("chrome://extensions/shortcuts");
     expect(shortcutsPage("Mozilla/5.0 Chrome/130 Safari/537.36", true)).toBe("brave://extensions/shortcuts");
+  });
+});
+
+describe("toggle-pet", () => {
+  it("injects the applier, toggles the pet with the pet settings and shows a two-second toast either way", async () => {
+    const on = make();
+    await handleCommand(on.d, "toggle-pet", tab(OK));
+    expect(on.calls).toEqual(["title:Skinly AI", "inject:applier.js", "run:togglePet", `toast:${TOAST.petOn}`]);
+    const off = make({ petOn: false });
+    await handleCommand(off.d, "toggle-pet", tab(OK));
+    expect(off.calls).toContain(`toast:${TOAST.petOff}`);
+  });
+  it("says it failed when the page does not answer", async () => {
+    const { d, calls } = make({ petOn: undefined });
+    await handleCommand(d, "toggle-pet", tab(OK));
+    expect(calls).toContain(`toast:${TOAST.failed}`);
+  });
+  it("does nothing on a blocked page except the badge and the tooltip", async () => {
+    const { d, calls } = make();
+    await handleCommand(d, "toggle-pet", tab("chrome://settings"));
+    expect(calls).toEqual(["badge:!", `title:${MSG.blocked}`]);
   });
 });

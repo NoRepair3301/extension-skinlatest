@@ -47,6 +47,9 @@ export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLO
   return out;
 }
 
+/** Phase 10: all scene code, minified, stays under this. */
+export const SCENE_MAX_BYTES = 150 * 1024;
+
 const allFiles = (dir: string): string[] =>
   readdirSync(dir).flatMap((name) => {
     const p = join(dir, name);
@@ -65,12 +68,14 @@ export function validateDist(dist: string): string[] {
   const popup = (manifest["action"] as { default_popup?: string } | undefined)?.default_popup;
   const options = manifest["options_page"] as string | undefined;
   const icons = Object.values((manifest["icons"] as Record<string, string> | undefined) ?? {});
-  for (const f of [bg, popup, options, "applier.js", "palette.js", ...icons]) {
+  for (const f of [bg, popup, options, "applier.js", "palette.js", "scene.js", ...icons]) {
     if (!f || !existsSync(join(dist, f))) out.push(`missing built file: ${f ?? "(unset in manifest)"}`);
   }
   const shipped = allFiles(dist).map((f) => f.split("\\").join("/")).filter((f) => f.includes("/icons/")).map((f) => f.slice(f.lastIndexOf("/") + 1)).sort();
   const wanted = ["icon-128.png", "icon-16.png", "icon-32.png", "icon-48.png"];
   if (shipped.join() !== wanted.join()) out.push(`dist/icons must hold exactly ${wanted.join(", ")}, found: ${shipped.join(", ") || "nothing"}`);
+  const scene = join(dist, "scene.js");
+  if (existsSync(scene) && statSync(scene).size > SCENE_MAX_BYTES) out.push(`scene.js is over ${SCENE_MAX_BYTES / 1024} KB`);
   if (allFiles(dist).some((f) => f.endsWith(".map"))) out.push("source map files must not ship");
   for (const file of jsFiles(dist)) {
     for (const rule of scanBuiltJs(readFileSync(file, "utf8"))) out.push(`${file}: ${rule}`);

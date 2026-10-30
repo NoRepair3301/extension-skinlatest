@@ -24,6 +24,8 @@ export const TOAST = {
   blurOn: "Skinly: blur on",
   blurOff: "Skinly: blur off",
   paletteOpen: "Skinly: palette open",
+  petOn: "Skinly: pet shown",
+  petOff: "Skinly: pet hidden",
   blocked: "Skinly: blocked page",
   failed: "Skinly: couldn't change this page",
 } as const;
