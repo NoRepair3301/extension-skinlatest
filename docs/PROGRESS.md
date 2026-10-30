@@ -135,3 +135,10 @@ Real Edge feedback: themes broke claude.ai-style apps (accent blocks with invisi
 - Pet: Motion select (still, bounce up/down, bounce left/right, top to bottom, bottom to top, left to right, right to left) and Speed directly in the popup; new setting `edgeFallback` (default on): with no usable gutter the pet walks along the screen edge, with a one-line note. Vertical bounce inside a gutter is tested through walkTrack + nextPosition.
 - Popup: theme grid wraps (auto-fill columns, names wrap, body scrolls at 600 px); import theme code is a textarea with the exact format hint and a clear error; Copy theme code confirms.
 - Stage C: "Keep on this site" replaces Remember/Always (one button after any successful apply, preview or built-in); it asks for this origin only from the click and registers applier-auto. Denied: one line says the theme lasts until reload. The built-in baseline outcome now carries its plan and fingerprint so it can be kept. The auto script re-applies after same-document navigations (Navigation API, popstate, hashchange; debounced, at most 60 per document). A tokens-only apply never goes beyond `safe` because it is not visually checked.
+
+### Stage D: leftovers (done)
+- UI text moved to src/ui/strings.ts: PetOptions, SceneOptions, MyAssets, PrivacyTools, popup toasts and apply-failure reasons (src/ai/messages.ts keeps the SPEC 11 copy; its non-SPEC lines read from S). Pet thumbnails and scene thumbnails are drawn by the page's own art builders (src/features/scenes/thumb.ts, drawPet) as small picker buttons.
+- 429: a long retry-after (over 5 s) moves to the next provider at once; if every provider is limited the soonest wait is shown as "Rate limit, try again in N seconds". No probing, no sleeping.
+- Docs: docs/BUGS.md (new), docs/QA.md, CHANGELOG.md, docs/ARCHITECTURE.md (strategy ladder and visual guard).
+- Final: `npm run check` green (73 files, 1101 tests). Budgets (gz): popup 14 + shared 27 + 9, applier 25/50, auto 5/20, scene 21/150.
+- UNVERIFIED (no browser here): that the stale error is gone, the exact look of every themed site, scene art on real pages, the Navigation API re-apply, the permission prompt flow.

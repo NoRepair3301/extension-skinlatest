@@ -1,6 +1,8 @@
 import { useEffect, useState } from "preact/hooks";
 import { SCREENSHOT_NOTE, safeScreenshot } from "../../features/blur/screenshot.ts";
-import { captureVisible, injectFile, runTool } from "../api.ts";
+import { S } from "../../ui/strings.ts";
+import { captureVisible, runTool } from "../api.ts";
+import { ensureApplier } from "../inject.ts";
 import type { ToolState } from "../pageTools.ts";
 import { saveBlur } from "../siteActions.ts";
 import type { SiteRecord } from "../sites.ts";
@@ -40,10 +42,10 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
 
   const ready = async (): Promise<boolean> => {
     try {
-      await injectFile(tabId, "applier.js", true);
+      await ensureApplier(tabId, true);
       return true;
     } catch {
-      setNote("Skinly can't change this kind of page");
+      setNote(S.privacy.blocked);
       return false;
     }
   };
@@ -55,7 +57,7 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
         onToolUsed?.();
       }
     } catch {
-      setNote("That didn't work; the page was left as it was.");
+      setNote(S.privacy.failed);
     }
   };
 
@@ -67,7 +69,7 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
       if (saved) await runTool(tabId, "blurTargets", saved.blur, saved.blurImages);
       const s = await runTool<ToolState>(tabId, "pickStart");
       setState(s);
-      setNote("Pick mode is on in the page. Click what to blur, then press Escape or Done. Turn on Share mode to see the blur.");
+      setNote(S.privacy.pickOn);
     });
 
   const share = (on: boolean) =>
@@ -82,7 +84,7 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
   const wholePage = (on: boolean) =>
     guard(async () => {
       setState(await runTool<ToolState>(tabId, "blurPage", on));
-      setNote(on ? "The whole page is blurred. Use the Unblur button in the page, or turn this off here." : "Page blur is off.");
+      setNote(on ? S.privacy.pageOn : S.privacy.pageOff);
     });
 
   const blurImages = (on: boolean) =>
@@ -94,9 +96,9 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
 
   const save = async () => {
     const cur = await runTool<ToolState>(tabId, "blurState").catch(() => undefined);
-    if (!cur) return setNote("Nothing to save yet.");
+    if (!cur) return setNote(S.privacy.nothingToSave);
     const r = await saveBlur(origin, cur.picked, images);
-    setNote(r.ok ? `Saved ${cur.picked.length} pick(s) for this site.` : "Remember this site first, then save your picks.");
+    setNote(r.ok ? S.privacy.saved(cur.picked.length) : S.privacy.keepFirst);
     onSaved();
   };
 
@@ -108,15 +110,15 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
         capture: captureVisible,
         now: () => new Date(),
       });
-      if (!r.ok) return setNote(r.reason === "not-confirmed" ? "Couldn't turn Share mode on, so no picture was taken." : "Couldn't take the picture.");
+      if (!r.ok) return setNote(r.reason === "not-confirmed" ? S.privacy.shareFailed : S.privacy.shotFailed);
       setShot({ url: URL.createObjectURL(r.blob), name: r.fileName });
-      setNote("Picture ready. Check it before you share it.");
+      setNote(S.privacy.shotReady);
     });
 
   const tablesOn = () =>
     guard(async () => {
       const n = (await runTool<number>(tabId, "tablesEnable")) ?? 0;
-      setNote(n > 0 ? `Table tools on for ${n} table(s): click a column header to sort.` : "No data tables found on this page.");
+      setNote(n > 0 ? S.privacy.tables(n) : S.privacy.noTables);
     });
 
   const applyFilter = (q: string) => {
@@ -125,36 +127,36 @@ export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Pro
   };
 
   return (
-    <section aria-label="Privacy and table tools">
-      <h2>Privacy and tables</h2>
+    <section aria-label={S.privacy.section}>
+      <h2>{S.privacy.title}</h2>
       <label>
         <input type="checkbox" checked={state?.page ?? false} onChange={(e) => void wholePage((e.currentTarget as HTMLInputElement).checked)} />
-        Blur whole page
+        {S.privacy.blurPage}
       </label>
-      <button type="button" onClick={() => void pick()}>Pick element to blur</button>
+      <button type="button" onClick={() => void pick()}>{S.privacy.pick}</button>
       <label>
         <input type="checkbox" checked={state?.share ?? false} onChange={(e) => void share((e.currentTarget as HTMLInputElement).checked)} />
-        Blur picked parts
+        {S.privacy.blurPicked}
       </label>
       <label>
         <input type="checkbox" checked={images} onChange={(e) => void blurImages((e.currentTarget as HTMLInputElement).checked)} />
-        Blur images and video
+        {S.privacy.blurImages}
       </label>
-      {state && <p>{state.count} blurred, {state.missing} not found</p>}
-      <button type="button" onClick={() => void save()}>Save picks for this site</button>
-      <button type="button" onClick={() => void screenshot()}>Safe screenshot</button>
+      {state && <p>{S.privacy.count(state.count, state.missing)}</p>}
+      <button type="button" onClick={() => void save()}>{S.privacy.savePicks}</button>
+      <button type="button" onClick={() => void screenshot()}>{S.privacy.screenshot}</button>
       <p class="note">{SCREENSHOT_NOTE}</p>
-      {state?.page && <p class="note">Whole-page blur is on, so the picture will be blurred too.</p>}
+      {state?.page && <p class="note">{S.privacy.pageBlurShot}</p>}
       {shot && (
-        <a href={shot.url} download={shot.name}>Save {shot.name}</a>
+        <a href={shot.url} download={shot.name}>{S.privacy.save(shot.name)}</a>
       )}
 
-      <button type="button" onClick={() => void tablesOn()}>Table tools</button>
+      <button type="button" onClick={() => void tablesOn()}>{S.privacy.tableTools}</button>
       <label>
-        Filter rows
+        {S.privacy.filter}
         <input type="text" value={filter} onInput={(e) => applyFilter((e.currentTarget as HTMLInputElement).value)} />
       </label>
-      <button type="button" onClick={() => void guard(async () => void (await runTool(tabId, "tablesRestoreOrder")))}>Restore order</button>
+      <button type="button" onClick={() => void guard(async () => void (await runTool(tabId, "tablesRestoreOrder")))}>{S.privacy.restoreOrder}</button>
       <p role="status">{note}</p>
     </section>
   );

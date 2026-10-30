@@ -13,7 +13,7 @@ import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
 import type { ErrorKind, Provider } from "../providers/types.ts";
 import { resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
-import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG } from "./messages.ts";
+import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG, rateLimited } from "./messages.ts";
 import { buildUserMessage, SYSTEM_PROMPT } from "./prompt.ts";
 
 /** The page side, reached through scripting. Implemented in src/extension/flow.ts; faked in tests. */
@@ -176,6 +176,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       if (!r?.ok) return baseline("apply-failed", aiApplyFailureMessage(r));
       return { kind: "preview", source: "fallback", plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };
     }
+    if ((kind === "rate" || kind === "quota") && result.retryAfterMs !== undefined) return baseline("ai-unavailable", rateLimited(result.retryAfterMs));
     return baseline("ai-unavailable", MSG.allFailed);
   }
 

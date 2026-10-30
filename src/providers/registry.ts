@@ -24,7 +24,7 @@ export interface RegistryOptions {
 
 export type RegistryResult =
   | { ok: true; json: unknown; providerId: ProviderId; model: string; usage?: Usage; repaired: boolean }
-  | { ok: false; error: { kind: ErrorKind }; providerId?: ProviderId; tried: ProviderId[] };
+  | { ok: false; error: { kind: ErrorKind }; providerId?: ProviderId; tried: ProviderId[]; /** Soonest a rate-limited provider said it would accept a call (milliseconds); only set when every provider failed on a limit. */ retryAfterMs?: number };
 
 type Base = Pick<GenerateRequest, "system" | "user">;
 
@@ -52,10 +52,13 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
 
   const tried: ProviderId[] = [];
   let last: ErrorKind = "auth";
+  /** Smallest retry-after (ms) reported by a rate or quota answer. Never used to probe: only to tell the user. */
+  let soonest: number | undefined;
 
   const fail = (kind: ErrorKind, providerId?: ProviderId): RegistryResult => {
     const k = kind === "aborted" && budgetHit ? "timeout" : kind;
-    return providerId ? { ok: false, error: { kind: k }, providerId, tried } : { ok: false, error: { kind: k }, tried };
+    const wait = (k === "rate" || k === "quota") && soonest !== undefined ? { retryAfterMs: soonest } : {};
+    return providerId ? { ok: false, error: { kind: k }, providerId, tried, ...wait } : { ok: false, error: { kind: k }, tried, ...wait };
   };
 
   try {
@@ -103,6 +106,7 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
         } else {
           const kind = res.error.kind;
           last = kind;
+          if ((kind === "rate" || kind === "quota") && res.error.retryAfterMs !== undefined) soonest = Math.min(soonest ?? Infinity, res.error.retryAfterMs);
           if (kind === "auth") return fail("auth", provider.id);
           if (kind === "aborted") {
             if (!timedOutHere()) return fail("aborted", provider.id);

@@ -316,3 +316,11 @@ describe("transform: guards", () => {
     expect((await transform(URL_OK, h.deps)).kind).toBe("preview");
   });
 });
+
+describe("transform: rate limits", () => {
+  it("says how long to wait when every provider is limited for more than 5 s", async () => {
+    const h = harness({ gemini: [{ type: "rate", retryAfterMs: 31_200 }], groq: [{ type: "rate", retryAfterMs: 42_000 }] });
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "baseline", why: "ai-unavailable", message: "Rate limit, try again in 32 seconds" });
+  });
+});

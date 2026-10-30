@@ -1,4 +1,6 @@
 import { PET_EDGES, PET_KINDS, PET_SIZES, PET_SPEEDS, type PetSettings } from "../settings.ts";
+import { drawPet } from "../../features/pet/art.ts";
+import { Thumb } from "../../ui/Thumb.tsx";
 import { S } from "../../ui/strings.ts";
 
 /** One choice that sets both the axis and the direction. Fixed list; nothing here is typed by the user. */
@@ -59,6 +61,13 @@ export function PetOptions({ pet, onChange }: Props) {
       </label>
       {pet.motion !== "still" && select("speed", S.pet.speed, PET_SPEEDS, (v) => S.pet.speeds[v])}
       {pet.motion !== "still" && <p class="note">{S.pet.edgeNote}</p>}
+      <div class="thumbs" role="group" aria-label={S.pet.kind}>
+        {PET_KINDS.map((k) => (
+          <button type="button" key={k} class="thumb-btn" aria-pressed={pet.kind === k} aria-label={S.pet.kinds[k]} title={S.pet.kinds[k]} onClick={() => set("kind", k)}>
+            <Thumb draw={(doc) => drawPet(doc, k, "idle")} />
+          </button>
+        ))}
+      </div>
       <details class="pet-options">
         <summary>{S.pet.options}</summary>
         {select("kind", S.pet.kind, PET_KINDS, (v) => S.pet.kinds[v])}

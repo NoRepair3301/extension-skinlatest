@@ -32,5 +32,11 @@ user click -> popup -> flow -> analyzer (page, read only) -> StructuralSummary
 - **Cannot do**: write CSS, selectors or code, touch the DOM, call anything. No AI output reaches the page except as a validated StylePlan compiled by us.
 - User-supplied things (assets, theme codes, settings) are validated on every read and never join a provider payload.
 
+## Strategy ladder and visual guard
+- `StylePlan.strategy` (full, safe, text-only) and `protectBackgrounds` decide how much of a page a theme may paint (SPEC 4.2). The compiler (src/plan/compile.ts) is the only place CSS is made. Only the page root and the legacy colour attributes are forced; everything else is `:where` with no `!important`.
+- Built-in themes pick the starting strategy from the summary's `page` facts (src/plan/themeToPlan.ts); the AI may pick it too. A tokens-only apply (document_start, frames) never exceeds safe because nothing can be checked yet.
+- The guard (src/plan/guard.ts, pure; real provider in src/extension/guard-dom.ts) reads computed style after the sheet is on: up to 300 visible text parents (contrast 3), 30 editable fields (4.5, caret visible), 30 largest media and background-image elements (display, visibility, opacity, filter and background-image unchanged). A background image anywhere in the ancestor chain means unknown and the element is skipped. It never writes to the page.
+- Failure: the applier recompiles one strategy down, re-checks once, then rolls back (`ApplyResult` reason `visual` with a code: text, editable, caret, media).
+
 ## Safety nets
 Invariants run after every apply; a failure rolls back everything. Restore removes every `data-skinly-*` attribute and our stylesheet. An error in our UI shows an error boundary with Restore this page. The scanner (`scripts/rules.ts`), `validate-dist`, the contrast script and the budgets in `docs/PERF.md` run inside `npm run check`.
