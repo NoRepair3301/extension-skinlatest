@@ -38,3 +38,4 @@ a { color: var(--ui-link); }
 .ui-row { display: flex; gap: var(--sp-2); flex-wrap: wrap; align-items: center; }
 .ui-stack { display: grid; gap: var(--sp-3); }
 .ui-muted { color: var(--ui-muted); font-size: var(--fs-2); }
+.ui-boundary { display: grid; gap: var(--sp-3); padding: var(--sp-4); }
