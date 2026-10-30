@@ -51,10 +51,10 @@ describe("validateDist", () => {
   });
 
   it("rejects a missing or extra icon file", () => {
-    write(manifest, "console.log(1)", [...ICONS, "icon-64.png"]);
-    expect(validateDist(dir).join()).toContain("dist/icons must hold exactly");
-    write(manifest, "console.log(1)", ICONS.slice(1));
-    expect(validateDist(dir).join()).toContain("dist/icons must hold exactly");
+    write(manifest, "console.log(1)", [...ICONS, "icon-64.png"], `${dir}-extra`);
+    expect(validateDist(`${dir}-extra`).join()).toContain("dist/icons must hold exactly");
+    write(manifest, "console.log(1)", ICONS.slice(1), `${dir}-short`);
+    expect(validateDist(`${dir}-short`).join()).toContain("dist/icons must hold exactly");
   });
 
   it("rejects an unexpected permission and dangerous built code", () => {
