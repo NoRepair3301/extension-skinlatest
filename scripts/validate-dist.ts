@@ -16,6 +16,9 @@ const KEY_PATTERNS: ReadonlyArray<readonly [string, RegExp]> = [
   ["key-like string (sk-)", /sk-[A-Za-z0-9]{20,}/],
 ];
 
+/** Chromium refuses to load an extension with more suggested shortcuts than this. */
+export const MAX_SUGGESTED_KEYS = 4;
+
 const sameSet = (a: unknown, b: readonly string[]): boolean =>
   Array.isArray(a) && a.length === b.length && [...a].sort().join("\n") === [...b].sort().join("\n");
 
@@ -28,6 +31,8 @@ export function validateManifest(m: Record<string, unknown>): string[] {
   if ("host_permissions" in m) out.push("host_permissions must not exist");
   if ("content_scripts" in m) out.push("content_scripts must not exist");
   if (JSON.stringify(m).includes("<all_urls>")) out.push("<all_urls> must not appear");
+  const suggested = Object.values((m["commands"] ?? {}) as Record<string, { suggested_key?: unknown }>).filter((c) => c.suggested_key !== undefined).length;
+  if (suggested > MAX_SUGGESTED_KEYS) out.push(`at most ${MAX_SUGGESTED_KEYS} commands may have a suggested_key (found ${suggested})`);
   if (typeof m["version"] !== "string" || !/^\d+\.\d+\.\d+$/.test(m["version"])) out.push("version must look like 1.2.3");
   return out;
 }

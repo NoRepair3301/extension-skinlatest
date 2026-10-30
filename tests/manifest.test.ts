@@ -15,16 +15,23 @@ describe("manifest.json", () => {
     expect(Object.keys(good["icons"] as object)).toEqual(["16", "32", "48", "128"]);
   });
 
-  it("declares the five keyboard commands with suggested keys", () => {
-    const commands = good["commands"] as Record<string, { suggested_key: { default: string }; description: string }>;
+  it("declares the five keyboard commands; at most 4 carry a suggested key (browser limit)", () => {
+    const commands = good["commands"] as Record<string, { suggested_key?: { default: string }; description: string }>;
+    expect(Object.values(commands).filter((c) => c.suggested_key).length).toBeLessThanOrEqual(4);
+    expect(Object.entries(commands).filter(([, c]) => !c.suggested_key).map(([n]) => n)).toEqual(["open-palette"]);
     expect(Object.keys(commands)).toEqual(["transform-page", "restore-page", "open-palette", "toggle-blur-page", "toggle-pet"]);
-    expect(commands["toggle-pet"]!.suggested_key.default).toBe("Alt+Shift+P");
-    expect(commands["toggle-blur-page"]!.suggested_key.default).toBe("Alt+Shift+B");
+    expect(commands["toggle-pet"]!.suggested_key!.default).toBe("Alt+Shift+P");
+    expect(commands["toggle-blur-page"]!.suggested_key!.default).toBe("Alt+Shift+B");
     for (const c of Object.values(commands)) expect(c.description.length).toBeGreaterThan(5);
   });
 
   it("passes validation", () => {
     expect(validateManifest(good)).toEqual([]);
+  });
+
+  it("rejects more than 4 suggested keys", () => {
+    const c = { ...(good["commands"] as object), extra: { suggested_key: { default: "Alt+Shift+X" }, description: "Extra command" } };
+    expect(validateManifest(with_({ commands: c }))).toEqual([expect.stringContaining("suggested_key")]);
   });
 
   it("rejects an unexpected permission", () => {

@@ -17,7 +17,7 @@
   "commands": {
     "transform-page": { "suggested_key": { "default": "Alt+Shift+S" }, "description": "Apply your built-in theme to this page" },
     "restore-page": { "suggested_key": { "default": "Alt+Shift+R" }, "description": "Restore the original page" },
-    "open-palette": { "suggested_key": { "default": "Alt+Shift+K" }, "description": "Find a link or button on this page" },
+    "open-palette": { "description": "Find a link or button on this page" },
     "toggle-blur-page": { "suggested_key": { "default": "Alt+Shift+B" }, "description": "Blur or unblur the whole page" },
     "toggle-pet": { "suggested_key": { "default": "Alt+Shift+P" }, "description": "Show or hide the pet on this page" }
   }
