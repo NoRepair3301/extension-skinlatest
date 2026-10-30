@@ -1,0 +1,20 @@
+{
+  "counts": {
+    "nodes": 38,
+    "links": 5,
+    "forms": 0,
+    "tables": 1,
+    "images": 0,
+    "headings": 0,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "link-list",
+      "childCount": 5,
+      "linkCount": 5
+    }
+  ]
+}

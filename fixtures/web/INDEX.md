@@ -19,3 +19,6 @@ rtl-page.html | right-to-left | ~50 | dir=rtl, nav and list
 large-page.html | very large | ~1900 | thousands of nodes, many headings (region cap)
 hostile-overlay.html | hostile/ambiguous | ~40 | overlay, divs with no semantics, spacers
 dark-aware.html | dark-mode aware | ~40 | color-scheme meta, prefers-color-scheme CSS
+legacy-portal-tables.html | legacy portal | ~75 | nested layout tables, bgcolor, background and font attributes, a border/cellpadding data table
+legacy-portal-fonts.html | legacy portal | ~45 | font-tag soup, center, inline backgrounds, body background attribute
+legacy-portal-frames.html | legacy portal login | ~35 | table-layout sign-in (password and one-time-code inputs), two same-origin iframes
