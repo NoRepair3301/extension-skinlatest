@@ -27,6 +27,8 @@ export interface KeptPlan {
   model: string;
   /** What art was showing when the user kept the plan (Phase 10). */
   look?: SiteLook | undefined;
+  /** Repair rules in force when the theme was kept. */
+  repairCss?: string | undefined;
 }
 
 const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: SiteRecord): SiteRecord => ({
@@ -41,6 +43,7 @@ const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: SiteRecord)
   blur: previous?.blur ?? [],
   blurImages: previous?.blurImages ?? false,
   ...(kept.look ? { look: kept.look } : previous?.look ? { look: previous.look } : {}),
+  ...(kept.repairCss ? { repairCss: kept.repairCss } : {}),
 });
 
 export type ActionResult = { ok: true } | { ok: false; reason: "bad-origin" | "permission" | "no-record" | "error" };

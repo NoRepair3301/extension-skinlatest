@@ -90,11 +90,17 @@ describe("scene.js page script", () => {
     expect(hostEls()[0]!.shadowRoot!.querySelectorAll(".lane")).toHaveLength(2);
   });
 
-  it("shows nothing and says so when the page uses the full width", async () => {
+  it("uses one small corner strip when the page uses the full width", async () => {
     wide = true;
     const r = await slot.skinlyScene!.sync({ scene: scene(), asset: null, fallback: null });
-    expect(r).toEqual({ gutters: "none", scene: "no-gutter", asset: "none" });
-    expect(hostEls()).toHaveLength(0);
+    expect(r).toEqual({ gutters: "none", scene: "corner", asset: "none" });
+    expect(hostEls()).toHaveLength(1);
+    const lane = hostEls()[0]!.shadowRoot!.querySelector(".lane") as HTMLElement;
+    expect(lane.getAttribute("data-lane")).toBe("corner");
+    expect(parseFloat(lane.style.width)).toBeLessThanOrEqual(120);
+    expect(parseFloat(lane.style.height)).toBeLessThanOrEqual(160);
+    expect(lane.querySelectorAll(".actor").length).toBeGreaterThan(0);
+    expect(lane.querySelectorAll(".actor").length).toBeLessThanOrEqual(2);
   });
 
   it("Restore (the applier rollback hook) removes everything and the script can be installed again", async () => {

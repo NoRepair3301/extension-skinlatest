@@ -55,7 +55,7 @@ export function collectContentRects(doc: Document, getRect: RectOf, isHidden: (e
     const x = vp ? Math.max(0, r.x) : r.x;
     const right = vp ? Math.min(vp.w, r.x + r.w) : r.x + r.w;
     if (right - x < MIN_SIDE) continue;
-    out.push({ x, w: right - x });
+    out.push({ x, w: right - x, y: r.y, h: r.h });
   }
   return out;
 }

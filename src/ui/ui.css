@@ -40,6 +40,22 @@ a { color: var(--ui-link); }
 .ui-muted { color: var(--ui-muted); font-size: var(--fs-2); }
 .ui-boundary { display: grid; gap: var(--sp-3); padding: var(--sp-4); }
 
+/* Banners: calm by default; red is only for real errors. */
+.banner { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-2); font-size: var(--fs-3); line-height: var(--lh-body); border: 1px solid var(--ui-border); background: var(--ui-surface-alt); color: var(--ui-text); }
+.banner-success { border-color: var(--ui-ok); }
+.banner-error { border-color: var(--ui-danger); color: var(--ui-danger); background: var(--ui-surface); }
+.stages { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); font-size: var(--fs-3); color: var(--ui-muted); }
+.stages li::before { content: "\25CB  "; }
+.stages li.done::before { content: "\2713  "; color: var(--ui-ok); }
+.stages li.now { color: var(--ui-text); font-weight: 600; }
+.stages li.now::before { content: "\25CF  "; color: var(--ui-accent); }
+.acc { border: 1px solid var(--ui-border); border-radius: var(--r-2); padding: 0 var(--sp-3); background: var(--ui-surface); }
+.acc > summary { cursor: pointer; padding: var(--sp-2) 0; font-weight: 600; font-size: var(--fs-3); }
+.acc[open] > summary { margin-bottom: var(--sp-2); }
+.acc > :last-child { margin-bottom: var(--sp-3); }
+.acc > summary:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 2px; }
+.quick { display: grid; gap: var(--sp-2); }
+.row { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
 /* Picture pickers (scene and pet): a row of small drawings made by the same builders the page uses. */
 .thumbs { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
 .thumb-btn { width: 44px; height: 44px; padding: 2px; border: 2px solid transparent; border-radius: var(--r-2); background: transparent; cursor: pointer; }

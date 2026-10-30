@@ -26,13 +26,13 @@ export type RegistryResult =
   | { ok: true; json: unknown; providerId: ProviderId; model: string; usage?: Usage; repaired: boolean }
   | { ok: false; error: { kind: ErrorKind }; providerId?: ProviderId; tried: ProviderId[]; /** Soonest a rate-limited provider said it would accept a call (milliseconds); only set when every provider failed on a limit. */ retryAfterMs?: number };
 
-type Base = Pick<GenerateRequest, "system" | "user">;
+type Base = Pick<GenerateRequest, "system" | "user" | "schema">;
 
 const safeCodes = (codes: string[]): string[] => codes.slice(0, 10).map((c) => c.replace(/[^a-zA-Z0-9._\[\]-]/g, "").slice(0, 40)).filter(Boolean);
 
 /** The repair request carries only our own reason codes, never text from the rejected answer. */
 export function repairRequest(req: Base, codes: string[]): Base {
-  return { system: req.system, user: `${req.user}\n\nYour previous answer was rejected. Reason codes: ${safeCodes(codes).join(", ") || "unreadable"}. Return only the corrected JSON object.` };
+  return { ...req, user: `${req.user}\n\nYour previous answer was rejected. Reason codes: ${safeCodes(codes).join(", ") || "unreadable"}. Return only the corrected JSON object.` };
 }
 
 /**

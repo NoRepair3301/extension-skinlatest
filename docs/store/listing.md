@@ -18,7 +18,6 @@ What you get
 - Keyboard shortcuts and a find-a-link palette that only moves focus; you press Enter yourself.
 - Privacy blur for parts you pick, and a safe screenshot of the visible area (stays on your computer).
 - Table tools: sort, filter and sticky headers on plain data tables, with Restore order.
-- Copy and import a theme code (colours and scene only).
 - Settings in tabs, shortcuts with their real keys, and one button to erase all Skinly data.
 
 What it never does

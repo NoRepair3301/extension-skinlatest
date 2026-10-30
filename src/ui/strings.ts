@@ -8,6 +8,9 @@ export const en = {
   app: { name: "Skinly AI", notAffiliated: "Skinly AI is not affiliated with any website." },
   popup: {
     change: "Change my page",
+    quick: "Quick settings",
+    stages: ["Reading the page", "Checking readability", "Applying"],
+    applied: (name: string, fixes: number) => `Applied ${name}, ${fixes === 0 ? "no readability fixes needed" : fixes === 1 ? "1 readability fix" : `${fixes} readability fixes`}`,
     restore: "Restore original",
     cancel: "Cancel",
     themeLegend: "Theme",
@@ -37,13 +40,13 @@ export const en = {
   },
   scene: {
     legend: "Scene art",
-    scene: "Scene",
+    show: "Show art that matches the theme",
     names: { theme: "The theme's own scene", paper: "Paper", space: "Space", ocean: "Ocean", "midnight-stars": "Midnight stars", calm: "Calm", field: "Field", off: "Off" } as Record<string, string>,
     amount: "Amount",
     densities: { low: "Fewer", normal: "Normal", high: "More" },
     where: "Where",
     lanes: { both: "Both sides", left: "Left side", right: "Right side" },
-    note: "Art only appears in empty space beside the page. It never covers text, links, buttons or pictures, and it is still if your system asks for less motion.",
+    note: "The art follows the theme. It appears only in empty space: beside the page, or in one small corner when the page uses the full width. It never covers text, links, buttons or pictures, and it is still if your system asks for less motion.",
   },
   privacy: {
     section: "Privacy and table tools",
@@ -161,7 +164,8 @@ export const en = {
   steps: {
     checking: "Checking this page…",
     baseline: "Applying the built-in theme…",
-    analysing: "Reading the page layout…",
+    analysing: "Reading the page…",
+    repairing: "Checking readability…",
     consent: "Waiting for your answer…",
     asking: "Asking the AI for a better theme…",
     applying: "Applying…",
@@ -191,6 +195,8 @@ export const en = {
     eraseConfirm: "Erase everything",
     erased: "All Skinly data was erased.",
     eraseFailed: "Couldn't erase everything. Try again.",
+    repairNote: "Optional second agreement, asked once per site: for parts of a page that look hard to read after restyling, their tag names, up to three class names, colours and the colour rules of the page's stylesheets. Never text, links, ids, form values or addresses.",
+    repairWithdraw: "Withdraw the readability agreement for all sites",
     showWelcome: "Show the welcome again",
   },
   welcome: {

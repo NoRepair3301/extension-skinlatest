@@ -25,19 +25,23 @@ const kept = (look?: KeptPlan["look"]): KeptPlan => ({ plan: planFor("ocean"), f
 
 describe("effectiveScene", () => {
   const s = defaultSettings().scene;
-  it("uses the theme's default scene, the plan's own pick, or the user's choice", () => {
+  it("follows the theme: calm-light calm, midnight space, ocean ocean, warm-paper paper, field field", () => {
+    expect(effectiveScene(s, "calm-light")).toBe("calm");
+    expect(effectiveScene(s, "midnight")).toBe("space");
     expect(effectiveScene(s, "ocean")).toBe("ocean");
+    expect(effectiveScene(s, "warm-paper")).toBe("paper");
     expect(effectiveScene(s, "field")).toBe("field");
     expect(effectiveScene(s, "custom")).toBe("none");
-    expect(effectiveScene(s, "custom", "space")).toBe("space");
-    expect(effectiveScene(s, "calm-light", "space")).toBe("space");
-    expect(effectiveScene({ ...s, choice: "paper" }, "ocean", "space")).toBe("paper");
   });
-  it("off means none, and high contrast never shows a scene whatever else is chosen", () => {
+  it("auto shows calm in light and midnight stars in dark", () => {
+    expect(effectiveScene(s, "calm-light", true, false)).toBe("calm");
+    expect(effectiveScene(s, "midnight", true, true)).toBe("midnight-stars");
+    expect(sceneRequest(settings(), sourceForTheme("auto", true))!.scene!.sceneId).toBe("midnight-stars");
+    expect(sceneRequest(settings(), sourceForTheme("auto", false))!.scene!.sceneId).toBe("calm");
+  });
+  it("off means none, and high contrast never shows a scene", () => {
     expect(effectiveScene({ ...s, enabled: false }, "ocean")).toBe("none");
-    expect(effectiveScene({ ...s, choice: "none" }, "ocean")).toBe("none");
     expect(effectiveScene(s, "high-contrast")).toBe("none");
-    expect(effectiveScene({ ...s, choice: "space" }, "high-contrast", "space")).toBe("none");
   });
 });
 

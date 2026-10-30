@@ -27,6 +27,7 @@ export function artStatus(report: SceneStatusReport | undefined, wanted: boolean
   if (!report) return "Scene art is not loaded on this page (the browser did not allow it).";
   const why = artNote(report);
   if (why) return report.scene === "no-gutter" ? `Scene art is on. ${why}` : why;
+  if (report.scene === "corner") return "Scene art is showing in a small corner strip (this page has no free side space).";
   return report.scene === "shown" || report.asset === "shown" ? "Scene art is showing in the empty side space." : "Scene art is on.";
 }
 

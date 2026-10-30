@@ -94,6 +94,20 @@ describe("applier-auto on a single-page app", () => {
   });
 });
 
+describe("applier-auto with stored repair rules", () => {
+  it("puts the stored repair rules in place at document_start, with no provider call", async () => {
+    const css = 'html[data-skinly="on"]:not(#skinly-force) > body > header:nth-child(1) { color: #000000 !important; }\n';
+    const t = setup({ site: { repairCss: css } });
+    const done = runAuto(t.deps);
+    await tick();
+    expect(t.sheets).toHaveLength(2);
+    expect(t.sheets[1]).toBe(css);
+    t.fire();
+    await done;
+    expect(t.sheets.some((s) => s === css)).toBe(true);
+  });
+});
+
 describe("applier-auto", () => {
   it("applies global tokens first, region rules only after the DOM is ready and the fingerprint matches", async () => {
     const t = setup();
@@ -132,8 +146,8 @@ describe("applier-auto", () => {
     expect(t.doc.querySelector("[data-skinly-ui]")).not.toBeNull();
     const before = t.doc.documentElement.outerHTML;
     expect(before).toContain("data-skinly-ui");
-    // restore through a fresh apply cycle triggers the hooks
-    t.applier.applyTokens(t.site.plan);
+    // a real Restore runs the hooks
+    t.applier.restore();
     expect(t.doc.querySelector("[data-skinly-ui]")).toBeNull();
   });
 
@@ -146,11 +160,14 @@ describe("applier-auto", () => {
     expect(t.applied).not.toHaveBeenCalled();
   });
 
-  it("a stored plan that fails contrast applies nothing", async () => {
+  it("a stored plan that misses the contrast targets is still applied (colours are nudged)", async () => {
     const base = setup().site.plan;
     const t = setup({ site: { plan: { ...base, themeId: "custom", tokens: { ...base.tokens, text: "#d0d8dc" } } } });
-    expect(await runAuto(t.deps)).toBe("invalid");
-    expect(t.sheets).toHaveLength(0);
+    const done = runAuto(t.deps);
+    await tick();
+    t.fire();
+    expect(await done).not.toBe("invalid");
+    expect(t.sheets.length).toBeGreaterThan(0);
   });
 
   it("does nothing in ask mode, with no record, or on a blocked site", async () => {

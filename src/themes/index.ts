@@ -39,7 +39,7 @@ export const resolveTheme = (choice: ThemeChoice, prefersDark: boolean): Builtin
 /** Each theme's default scene (SPEC 4.3). High contrast never shows a scene. */
 export const DEFAULT_SCENE_BY_THEME: Record<BuiltinThemeId, SceneId> = {
   "calm-light": "calm",
-  midnight: "midnight-stars",
+  midnight: "space",
   ocean: "ocean",
   "warm-paper": "paper",
   "high-contrast": "none",

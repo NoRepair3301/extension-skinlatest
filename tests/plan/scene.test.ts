@@ -27,11 +27,9 @@ describe("sceneId in the StylePlan", () => {
       if (!r.ok) expect(r.errors).toEqual(["sceneId: unknown scene"]);
     }
   });
-  it("the response schema and the prompt know the scene ids", () => {
-    expect([...STYLE_PLAN_SCHEMA.properties.sceneId.enum]).toEqual([...SCENE_IDS]);
-    expect(STYLE_PLAN_SCHEMA.required).not.toContain("sceneId");
-    for (const id of SCENE_IDS) expect(SYSTEM_PROMPT).toContain(`"${id}"`);
-    expect(SYSTEM_PROMPT).toContain("high-contrast");
+  it("the AI no longer chooses scenes: the schema and the prompt do not mention them", () => {
+    expect(Object.keys(STYLE_PLAN_SCHEMA.properties)).not.toContain("sceneId");
+    expect(SYSTEM_PROMPT).not.toContain("sceneId");
   });
 });
 

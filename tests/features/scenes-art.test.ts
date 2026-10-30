@@ -102,3 +102,13 @@ describe("Field scene shows its signature props at every density", () => {
     for (const id of ["tank", "helicopter", "rifle-prop"]) expect(shown).toContain(id);
   });
 });
+
+import { SPACE } from "../../src/features/scenes/space.ts";
+
+describe("Space shows stars and planets at every density", () => {
+  it.each(["low", "normal", "high"] as const)("%s", (density) => {
+    const shown = SPACE.actors.slice(0, actorCount(SPACE.actors.length, density)).map((a) => a.id);
+    expect(shown).toContain("stars");
+    expect(shown.some((id) => /planet|gas-giant/.test(id))).toBe(true);
+  });
+});

@@ -122,7 +122,6 @@ describe("popup: every state renders and passes the accessibility audit", () => 
     await click(root, "Change my page");
     expect(root.querySelector('section[aria-label="Preview"]')).toBeTruthy();
     expect(audit(root)).toEqual([]);
-    await click(root, "Keep on this site");
     expect(root.querySelector('section[aria-label="This site"]')).toBeTruthy();
     expect(audit(root)).toEqual([]);
   });

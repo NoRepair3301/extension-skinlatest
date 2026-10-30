@@ -14,6 +14,8 @@ Skinly AI is not affiliated with any website.
 - The palette reads link and button labels in memory to let you search them and never stores or sends them.
 
 ## What can leave your browser
+Optionally, and only after a second agreement per site, for the parts of a page that look hard to read after restyling, the extension also sends their tag names, up to three class names each, their colours and the colour rules of the page's stylesheets (never text, links, ids, form values, addresses or titles; at most 6 KB). "Show what will be sent" shows it first, and you can withdraw the agreement in Settings, Privacy.
+
 Only when you click "Change my page", have saved a key, and have accepted the consent text, the extension sends a small description of the page's layout (shapes, sizes and colours) to the AI provider you chose. No text, links or forms are sent: not page text, not links, not form values, not images, not URLs, not titles. The extension never sends this on pages with sign-in, payment or file fields, on blocked pages, or without a key. "Show what will be sent" shows the exact content first.
 
 The provider (Google for Gemini, Groq for Groq) receives that description and your key under its own terms and may keep it. We do not run any server and receive nothing.

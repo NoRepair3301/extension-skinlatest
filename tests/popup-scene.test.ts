@@ -25,7 +25,6 @@ const flow = vi.hoisted(() => ({ runTransform: vi.fn(), applyTheme: vi.fn(), app
 vi.mock("../src/extension/flow.ts", () => ({ runTransform: flow.runTransform, createPageClient: () => ({ applyTheme: flow.applyTheme, applyPlan: flow.applyPlan }) }));
 
 import { Popup } from "../src/extension/popup/Popup.tsx";
-import { encodeThemeCode } from "../src/extension/themeCode.ts";
 import { planFor } from "./plan/helpers.ts";
 
 const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
@@ -43,7 +42,7 @@ const click = async (root: HTMLElement, label: string) => {
   await flush();
   await flush();
 };
-const preview = () => ({ kind: "preview" as const, source: "ai" as const, plan: { ...planFor("ocean"), sceneId: "space" as const }, baselineThemeId: "calm-light", fingerprint: { hash: "0123abcd", seq: "hnm" }, providerId: "groq", model: "m" });
+const preview = () => ({ kind: "preview" as const, source: "ai" as const, plan: planFor("midnight"), baselineThemeId: "calm-light", fingerprint: { hash: "0123abcd", seq: "hnm" }, providerId: "groq", model: "m" });
 
 describe("popup: scene art after Change my page", () => {
   beforeEach(() => {
@@ -73,7 +72,7 @@ describe("popup: scene art after Change my page", () => {
     expect(call[2]).toMatchObject({ scene: { sceneId: "ocean", density: "normal", lane: "both" }, asset: null });
   });
 
-  it("an AI plan that picked a scene uses it", async () => {
+  it("an AI plan's scene follows its theme (midnight shows space)", async () => {
     flow.runTransform.mockResolvedValue(preview());
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
     const root = await mount();
@@ -96,52 +95,36 @@ describe("popup: scene art after Change my page", () => {
     expect(api.injectFile).not.toHaveBeenCalledWith(7, "scene.js");
   });
 
-  it("Keep on this site saves the scene with the site and registers scene.js too", async () => {
+  it("the kept site saves the scene with it and registers scene.js too", async () => {
     flow.runTransform.mockResolvedValue(preview());
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
     const root = await mount();
     await click(root, "Change my page");
-    await click(root, "Keep on this site");
     const sites = store.get("sites") as Record<string, { look?: { scene?: { id: string } } }>;
     expect(sites["https://example.org"]!.look!.scene!.id).toBe("space");
     expect(api.registerAutoScript).toHaveBeenCalledWith(expect.any(String), ["https://example.org/*"], ["applier.js", "applier-auto.js", "scene.js"]);
   });
 
-  it("changing the scene in the popup updates art that is already showing, and Restore forgets it", async () => {
+  it("the Show art switch updates art that is already showing, and Restore forgets it; there is no scene choice, density or theme code", async () => {
     flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "ocean", why: "no-key", message: "Applied." });
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
     const root = await mount();
     await click(root, "Change my page");
-    const sel = Array.from(root.querySelectorAll("label")).find((l) => l.textContent?.startsWith("Scene"))!.querySelector("select") as HTMLSelectElement;
-    sel.value = "paper";
-    await act(() => void sel.dispatchEvent(new Event("change", { bubbles: true })));
+    expect(root.textContent).not.toContain("Import");
+    expect(root.textContent).not.toContain("theme code");
+    const labels = Array.from(root.querySelectorAll("label")).map((l) => l.textContent ?? "");
+    expect(labels.some((l) => l.startsWith("Amount") || l.startsWith("Where"))).toBe(false);
+    const box = Array.from(root.querySelectorAll("label")).find((l) => l.textContent?.includes("Show art"))!.querySelector("input") as HTMLInputElement;
+    box.checked = false;
+    await act(() => void box.dispatchEvent(new Event("change", { bubbles: true })));
     await flush();
     const upd = api.runScene.mock.calls.filter((c) => c[1] === "update");
     expect(upd).toHaveLength(1);
-    expect(upd[0]![2]).toMatchObject({ scene: { sceneId: "paper" } });
-    expect((store.get("settings") as { scene: { choice: string } }).scene.choice).toBe("paper");
+    expect(upd[0]![2]).toBeNull();
     await click(root, "Restore original");
-    sel.value = "space";
-    await act(() => void sel.dispatchEvent(new Event("change", { bubbles: true })));
+    box.checked = true;
+    await act(() => void box.dispatchEvent(new Event("change", { bubbles: true })));
     await flush();
     expect(api.runScene.mock.calls.filter((c) => c[1] === "update")).toHaveLength(1);
-  });
-
-  it("theme code: a bad code is refused with no page call; a good one goes through applyPlan", async () => {
-    const root = await mount();
-    const input = root.querySelector('textarea.import-box') as HTMLTextAreaElement;
-    const type = async (v: string) => {
-      input.value = v;
-      await act(() => { input.dispatchEvent(new Event("input", { bubbles: true })); });
-    };
-    await type("nonsense");
-    await click(root, "Import");
-    expect(root.textContent).toContain("isn't a valid theme code");
-    expect(flow.applyPlan).not.toHaveBeenCalled();
-    flow.applyPlan.mockResolvedValue({ ok: true, themeId: "ocean", regions: 0 });
-    await type(encodeThemeCode(planFor("ocean")));
-    await click(root, "Import");
-    expect(flow.applyPlan).toHaveBeenCalledTimes(1);
-    expect(root.textContent).toContain("Theme code applied");
   });
 });

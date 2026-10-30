@@ -121,7 +121,7 @@ describe("popup pet button (I)", () => {
   const petOn = (over: Record<string, unknown> = {}) =>
     store.set("settings", { theme: "calm-light", blocklist: [], pet: { enabled: true, kind: "pebble", size: "medium", corner: "bottom-right", disabledOrigins: [], ...over } });
   const button = (root: HTMLElement) => Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Show pet on this page")!;
-  const petNote = (root: HTMLElement) => root.querySelector('fieldset [aria-live="polite"]')!.textContent;
+  const petNote = (root: HTMLElement) => root.querySelector('details.acc [aria-live="polite"]')!.textContent;
   const click = async (b: HTMLElement) => {
     await act(() => b.click());
     await flush();
@@ -200,7 +200,7 @@ describe("popup pet button (I)", () => {
   it("changing a pet setting only updates a pet already on the page, and never injects", async () => {
     petOn();
     const root = await mount();
-    await act(() => root.querySelector<HTMLInputElement>('fieldset input[type="checkbox"]')!.click());
+    await act(() => root.querySelector<HTMLInputElement>('.quick input[type="checkbox"]')!.click());
     await flush();
     expect(api.runInPage).toHaveBeenCalledWith(7, "updatePet", expect.objectContaining({ enabled: false }));
     expect(api.runInPage).not.toHaveBeenCalledWith(7, "syncPet", expect.anything());
@@ -209,6 +209,6 @@ describe("popup pet button (I)", () => {
 
   it("the pet is off by default", async () => {
     const root = await mount();
-    expect(root.querySelector<HTMLInputElement>('fieldset input[type="checkbox"]')!.checked).toBe(false);
+    expect(root.querySelector<HTMLInputElement>('.quick input[type="checkbox"]')!.checked).toBe(false);
   });
 });

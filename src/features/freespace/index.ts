@@ -2,6 +2,57 @@
 export interface ContentRect {
   x: number;
   w: number;
+  /** Vertical extent, when known (used to choose a corner). */
+  y?: number;
+  h?: number;
+}
+
+/** A box in viewport coordinates. */
+export interface CornerBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/** The small strip scene art may use when a page has no usable gutter. */
+export const CORNER_W = 120;
+export const CORNER_H = 160;
+const CORNER_INSET = 8;
+
+/**
+ * Pure. Of the four viewport corners, the box (CORNER_W by CORNER_H) that covers the least content, or undefined when the window is too small.
+ * Rectangles without a vertical extent count as full height. Ties go to the bottom right.
+ */
+export function pickCorner(rects: readonly ContentRect[], vw: number, vh: number): CornerBox | undefined {
+  if (vw < CORNER_W * 3 || vh < CORNER_H * 2) return undefined;
+  const boxes: CornerBox[] = [
+    { x: vw - CORNER_W - CORNER_INSET, y: vh - CORNER_H - CORNER_INSET, w: CORNER_W, h: CORNER_H },
+    { x: CORNER_INSET, y: vh - CORNER_H - CORNER_INSET, w: CORNER_W, h: CORNER_H },
+    { x: vw - CORNER_W - CORNER_INSET, y: CORNER_INSET, w: CORNER_W, h: CORNER_H },
+    { x: CORNER_INSET, y: CORNER_INSET, w: CORNER_W, h: CORNER_H },
+  ];
+  const overlap = (c: CornerBox): number => {
+    let sum = 0;
+    for (const r of rects) {
+      const ry = r.y ?? 0;
+      const rh = r.h ?? vh;
+      const ox = Math.max(0, Math.min(c.x + c.w, r.x + r.w) - Math.max(c.x, r.x));
+      const oy = Math.max(0, Math.min(c.y + c.h, ry + rh) - Math.max(c.y, ry));
+      sum += ox * oy;
+    }
+    return sum;
+  };
+  let best = boxes[0]!;
+  let bestScore = overlap(best);
+  for (const c of boxes.slice(1)) {
+    const s = overlap(c);
+    if (s < bestScore) {
+      best = c;
+      bestScore = s;
+    }
+  }
+  return best;
 }
 
 export interface Gutter {
@@ -15,6 +66,8 @@ export type GutterState = "ok" | "narrow" | "none";
 export interface Gutters {
   left?: Gutter;
   right?: Gutter;
+  /** Set by the watcher when no gutter is usable: the least covered corner. */
+  corner?: CornerBox;
   state: GutterState;
 }
 

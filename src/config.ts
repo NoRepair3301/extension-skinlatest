@@ -63,6 +63,8 @@ export const MIN_CALL_GAP_MS = 3000;
 
 /** Bump to ask for consent again (SPEC 11). */
 export const CONSENT_VERSION = 1;
+/** Version of the second consent: colour details of unreadable parts (src/ai/repair.ts). Asked once per site. */
+export const REPAIR_CONSENT_VERSION = 1;
 
 export const PROVIDER_NAMES: Record<ProviderId, string> = { gemini: "Gemini", groq: "Groq" };
 

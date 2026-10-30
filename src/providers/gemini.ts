@@ -37,7 +37,7 @@ export function createGemini(getKey: () => Promise<string | undefined>, deps: Ht
             model: req.model,
             system_instruction: req.system,
             input: req.user,
-            response_format: { type: "text", mime_type: "application/json", schema: STYLE_PLAN_SCHEMA },
+            response_format: { type: "text", mime_type: "application/json", schema: req.schema ?? STYLE_PLAN_SCHEMA },
           },
           extractText: extractGeminiText,
         },

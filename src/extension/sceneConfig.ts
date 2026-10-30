@@ -25,43 +25,43 @@ export interface SceneRequest {
 export interface SceneSource {
   /** A built-in theme id or "custom" (an AI plan with its own tokens). */
   themeId: string;
-  /** The plan's own sceneId, when an AI plan chose one. */
-  planSceneId?: SceneId | undefined;
+  /** The popup theme choice was Auto: the scene follows the browser's colour scheme. */
+  auto?: boolean;
+  /** Dark colour scheme (only read when auto). */
+  dark?: boolean;
   accent: string;
 }
 
 /**
- * Pure. Which built-in scene shows. Off means none. High contrast never shows art, whatever else is chosen.
- * "theme" uses the plan's own scene when it picked one, otherwise the theme's default (a custom theme has none).
+ * Pure. Which built-in scene shows: the one that belongs to the theme (calm-light calm, midnight space, ocean ocean, warm-paper paper,
+ * field field). Auto shows calm in light and midnight-stars in dark. High contrast and the off switch show none. There is no scene choice.
  */
-export function effectiveScene(scene: Settings["scene"], themeId: string, planSceneId?: SceneId): SceneId {
-  if (!scene.enabled || scene.choice === "none") return "none";
-  if (themeId === "high-contrast") return "none";
-  if (scene.choice !== "theme") return scene.choice;
-  if (planSceneId !== undefined && planSceneId !== "none") return planSceneId;
+export function effectiveScene(scene: Pick<Settings["scene"], "enabled">, themeId: string, auto = false, dark = false): SceneId {
+  if (!scene.enabled || themeId === "high-contrast") return "none";
+  if (auto) return dark ? "midnight-stars" : "calm";
   return isBuiltinThemeId(themeId) ? DEFAULT_SCENE_BY_THEME[themeId] : "none";
 }
 
 /** The request for the page, or null when there is nothing to show. */
 export function sceneRequest(settings: Settings, source: SceneSource): SceneRequest | null {
-  const sceneId = effectiveScene(settings.scene, source.themeId, source.planSceneId);
+  const sceneId = effectiveScene(settings.scene, source.themeId, source.auto, source.dark);
   const hasAsset = settings.asset.assetId !== null && source.themeId !== "high-contrast";
   if (sceneId === "none" && !hasAsset) return null;
   const make = (id: SceneId): SceneConfig | null => (id === "none" ? null : { sceneId: id, density: settings.scene.density, lane: settings.scene.lane, accent: source.accent });
-  const fallbackId = effectiveScene({ ...settings.scene, enabled: true, choice: "theme" }, source.themeId, source.planSceneId);
+  const fallbackId = effectiveScene({ enabled: true }, source.themeId, source.auto, source.dark);
   return { scene: make(sceneId), asset: hasAsset ? settings.asset : null, fallback: hasAsset && sceneId === "none" ? make(fallbackId) : null };
 }
 
 /** The source for a built-in theme choice ("auto" resolves with the browser's colour scheme). */
 export function sourceForTheme(choice: Settings["theme"], prefersDark: boolean): SceneSource {
   const id = resolveTheme(choice, prefersDark);
-  return { themeId: id, accent: getTheme(id).tokens.accent };
+  return { themeId: id, accent: getTheme(id).tokens.accent, ...(choice === "auto" ? { auto: true, dark: prefersDark } : {}) };
 }
 
 /** What to save with a site: the scene that is showing, the pet look (when the pet is on) and the chosen asset. Undefined when there is nothing. */
 export function lookFor(settings: Settings, source: SceneSource): SiteLook | undefined {
   const look: SiteLook = {};
-  const id = effectiveScene(settings.scene, source.themeId, source.planSceneId);
+  const id = effectiveScene(settings.scene, source.themeId, source.auto, source.dark);
   if (id !== "none") look.scene = { id, density: settings.scene.density, lane: settings.scene.lane };
   if (settings.pet.enabled) {
     const p = settings.pet;

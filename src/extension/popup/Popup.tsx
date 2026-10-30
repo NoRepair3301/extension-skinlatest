@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { applyUiTheme } from "../../ui/theme.ts";
 import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { S } from "../../ui/strings.ts";
-import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
+import { MSG, applyFailureMessage, consentText, repairConsentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
-import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
+import { checkUrl } from "../../analyzer/eligibility.ts";
+import { storableRepairCss } from "../../plan/readability.ts";
+import { themeToPlan } from "../../plan/themeToPlan.ts";
+import { browserHints, getCommands, queryActiveTab, requestOrigins, runInPage, setBadge } from "../api.ts";
+import { ensureApplier } from "../inject.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings } from "../settings.ts";
 import { showPetHere } from "../petActions.ts";
@@ -18,10 +22,9 @@ import { lookFor, sceneRequest, sourceForTheme, type SceneSource } from "../scen
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
 import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
-import { enableAuto, forgetSite, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { enableAuto, forgetSite, matchFor, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
-import { decodeThemeCode, encodeThemeCode } from "../themeCode.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -43,11 +46,12 @@ export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
-  const [codeText, setCodeText] = useState("");
-  const [codeError, setCodeError] = useState("");
   /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
+  const [kept, setKept] = useState(false);
+  /** What the last run put on the page, for the success line. */
+  const [applied, setApplied] = useState<{ name: string; fixes: number } | undefined>(undefined);
+  const [notice, setNotice] = useState("");
   const [keepable, setKeepable] = useState<{ tabId: number; origin: string | undefined; kept: KeptPlan } | undefined>(undefined);
-  const [copyNote, setCopyNote] = useState("");
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
@@ -138,7 +142,19 @@ export function Popup() {
     void saveSettings(next);
   };
 
+  const askPermission = (origin: string): Promise<boolean> => {
+    try {
+      return Promise.resolve(requestOrigins(matchFor(origin))).catch(() => false);
+    } catch {
+      return Promise.resolve(false);
+    }
+  };
+
   const start = async () => {
+    // The browser only shows its permission prompt for a call made inside the click, so this is the first thing that happens: before any
+    // await. If it is already granted there is no prompt. The auto script is registered once the theme is on (see below).
+    const grant: Promise<boolean> =
+      site && checkUrl(`${site.origin}/`, settings.blocklist).allowed ? askPermission(site.origin) : Promise.resolve(false);
     try {
       const tab = await queryActiveTab();
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
@@ -147,7 +163,7 @@ export function Popup() {
       setPetNote("");
       setSceneNote("");
       setKeepable(undefined);
-      setCopyNote("");
+      setNotice("");
       setShowPayload(false);
       setView({ state: "working", step: "checking" });
       const outcome = await runTransform(
@@ -164,10 +180,23 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
-      setKeepable(keepFrom(outcome, tab.id, tab.url));
+      if (outcome.kind === "baseline" || outcome.kind === "preview") setApplied({ name: themeName(outcome.kind === "baseline" ? outcome.themeId : outcome.plan.themeId), fixes: outcome.fixes ?? 0 });
+      else setApplied(undefined);
+      const k = keepFrom(outcome, tab.id, tab.url);
+      setKeepable(k);
+      setKept(false);
+      if (k?.origin) {
+        // One prompt, one flow: with the permission the theme is kept for the whole site right away; without it, this document only.
+        if ((await grant) && (await commitKeep(k))) {
+          setKept(true);
+          setKeepable(undefined);
+          badge(tab.id, "ON");
+          void refreshSite();
+        } else setNotice(S.popup.keepDenied);
+      }
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
-      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
+      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
@@ -203,8 +232,17 @@ export function Popup() {
     try {
       const tab = await queryActiveTab();
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
+      // A fresh script instance (popup reopened, page navigated) still cleans up by markers; make sure there is one to ask.
+      await ensureApplier(tab.id, true).catch(() => undefined);
       await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
+      // Restore also pauses automatic theming for this site until the user applies again, so a reload does not bring the theme back.
+      const origin = tab.url ? originOf(tab.url) : undefined;
+      if (origin && (await getSite(origin).catch(() => undefined))?.mode === "auto") await pauseSite(origin).catch(() => undefined);
+      setKept(false);
+      setApplied(undefined);
+      setNotice("");
+      void refreshSite();
       setKeepable(undefined);
       artSource.current = undefined;
       setSceneNote("");
@@ -217,8 +255,13 @@ export function Popup() {
   /** Undo puts the built-in baseline back. Keep leaves the preview on the page (held in memory only until Phase 5). */
   const undo = async (tabId: number, baseline: BuiltinThemeId) => {
     try {
-      await createPageClient(tabId).applyTheme(baseline);
-      badge(tabId, "");
+      const applied = await createPageClient(tabId).applyTheme(baseline);
+      // A theme already kept for this site goes back to the built-in one there too.
+      if (kept && site?.origin && applied?.ok) {
+        await enableAuto(site.origin, { plan: themeToPlan(baseline), fingerprint: site.record?.fingerprint ?? { hash: "00000000", seq: "" }, provider: "builtin", model: "builtin" }, tabId).catch(() => undefined);
+        await refreshSite();
+      }
+      badge(tabId, kept ? "ON" : "");
       setKeepable(undefined);
       void showArt(tabId, settings, sourceForTheme(baseline, prefersDark()));
       setView({ state: "idle", note: "Back to the built-in theme." });
@@ -241,7 +284,7 @@ export function Popup() {
   const keepFrom = (outcome: Outcome, tabId: number, url: string | undefined): { tabId: number; origin: string | undefined; kept: KeptPlan } | undefined => {
     const origin = url ? originOf(url) : undefined;
     if (outcome.kind === "preview") {
-      const look = lookFor(settings, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
+      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
       return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: outcome.providerId ?? "builtin", model: outcome.model ?? "builtin", look } };
     }
     if (outcome.kind === "baseline" && outcome.plan && outcome.fingerprint) {
@@ -252,49 +295,40 @@ export function Popup() {
   };
 
   /** One click: asks for this origin only, saves the theme and registers the auto script for it (the click is the user gesture). */
+  /** Saves the theme and the repair rules found for it with the site and registers the auto script. True when it worked. */
+  const commitKeep = async (k: { tabId: number; origin: string | undefined; kept: KeptPlan }): Promise<boolean> => {
+    if (!k.origin) return false;
+    let css = "";
+    try {
+      css = storableRepairCss((await runInPage<string>(k.tabId, "repairRules")) ?? "");
+    } catch {
+      css = "";
+    }
+    const r = await enableAuto(k.origin, css ? { ...k.kept, repairCss: css } : k.kept, k.tabId).catch(() => ({ ok: false }));
+    return r.ok;
+  };
+
+  /** The button that stays after a refused permission: asks again, from this click. */
   const keepOnSite = async () => {
     if (!keepable) return;
     if (!keepable.origin) return setView({ state: "idle", note: S.popup.keepNoOrigin });
     const k = keepable;
-    await siteAction(() => enableAuto(k.origin!, k.kept, k.tabId), S.popup.keepDone, S.popup.keepDenied);
-    const r = await getSite(k.origin!).catch(() => undefined);
-    if (r?.mode === "auto") {
+    if (await commitKeep(k)) {
       badge(k.tabId, "ON");
       setKeepable(undefined);
-    }
-  };
-
-  const copyCode = async (plan: KeptPlan["plan"]) => {
-    try {
-      await navigator.clipboard.writeText(encodeThemeCode(plan));
-      setCopyNote(S.popup.copyDone);
-    } catch {
-      setView({ state: "idle", note: S.popup.copyFailed });
-    }
-  };
-
-  /** An imported code is a validated, contrast-checked StylePlan with no regions; it is shown, not remembered. */
-  const importCode = async () => {
-    setCodeError("");
-    const r = decodeThemeCode(codeText);
-    if (!r.ok) return setCodeError(r.message);
-    try {
-      const tab = await queryActiveTab();
-      if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
-      const res = await createPageClient(tab.id).applyPlan(r.plan);
-      if (!res || !res.ok) return setView({ state: "error", kind: "error", message: applyFailureMessage(res) });
-      badge(tab.id, "ON");
-      setCodeText("");
-      void showArt(tab.id, settings, { themeId: r.plan.themeId, planSceneId: r.plan.sceneId, accent: r.plan.tokens.accent });
-      setView({ state: "idle", note: "Theme code applied. Use Restore to undo." });
-    } catch {
-      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
-    }
+      setKept(true);
+      setNotice("");
+      setView({ state: "idle", note: S.popup.keepDone });
+    } else setNotice(S.popup.keepDenied);
+    await refreshSite();
   };
 
   const busy = view.state === "working" || view.state === "consent";
   const hints = browserHints();
   const page = shortcutsPage(hints.userAgent, hints.brave);
+
+  const stage = view.state === "working" ? STAGE_OF[view.step] : -1;
+  const headBanner = view.state === "error" || view.state === "blocked" ? "banner banner-error status-bad" : "banner banner-info";
 
   return (
     <main class="popup">
@@ -302,17 +336,31 @@ export function Popup() {
         <h1>
           <Logo size={28} /> Skinly AI
         </h1>
-        <p role="status" class={view.state === "error" || view.state === "blocked" ? "status-bad" : ""}>{statusText(view) || pageLine(site, settings)}</p>
+        <p role="status" class={headBanner}>{statusText(view) || pageLine(site, settings)}</p>
       </header>
+
+      {notice && <p class="banner banner-info" role="status">{notice}</p>}
 
       {view.state !== "consent" && (
         <div class="primary-actions">
           <Button kind="primary" onClick={() => void start()} disabled={busy}>{S.popup.change}</Button>
-          <Button onClick={() => void restore()} disabled={busy}>{S.popup.restore}</Button>
+          <Button kind="quiet" onClick={() => void restore()} disabled={busy}>{S.popup.restore}</Button>
           {view.state === "working" && <Button kind="quiet" onClick={cancel}>{S.popup.cancel}</Button>}
         </div>
       )}
-      {view.state === "working" && <Spinner label="Working" />}
+      {view.state === "working" && (
+        <>
+          <Spinner label="Working" />
+          <ol class="stages" aria-label="Progress">
+            {S.popup.stages.map((label, i) => (
+              <li key={label} class={i < stage ? "done" : i === stage ? "now" : ""} aria-current={i === stage ? "step" : undefined}>
+                {label}
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
+      {applied && (view.state === "idle" || view.state === "preview") && <p class="banner banner-success" role="status">{S.popup.applied(applied.name, applied.fixes)}</p>}
 
       <fieldset class="themes">
         <legend>{S.popup.themeLegend}</legend>
@@ -321,9 +369,13 @@ export function Popup() {
             <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}`}>
               <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => pickTheme(t.id)} />
               <span class="mini" aria-hidden="true" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
-                <i style={{ background: t.tokens.surface }} />
-                <i style={{ background: t.tokens.accent, width: "40%" }} />
-                <i style={{ background: t.tokens.text, width: "60%", height: "3px" }} />
+                <i class="m-head" style={{ background: t.tokens.text }} />
+                <i class="m-line" style={{ background: t.tokens.muted }} />
+                <i class="m-line short" style={{ background: t.tokens.muted }} />
+                <span class="m-row">
+                  <i class="m-card" style={{ background: t.tokens.surface, borderColor: t.tokens.border }} />
+                  <i class="m-btn" style={{ background: t.tokens.accent }} />
+                </span>
               </span>
               <span class="theme-name">{t.name}</span>
             </label>
@@ -336,9 +388,14 @@ export function Popup() {
         </div>
       </fieldset>
 
-      <fieldset>
-        <legend>{S.popup.petLegend}</legend>
+      <section class="quick" aria-label={S.popup.quick}>
         <Toggle label={S.popup.petToggle} checked={settings.pet.enabled} onChange={(on) => updatePet({ ...settings.pet, enabled: on })} />
+        <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
+        <p class="note" aria-live="polite">{sceneNote}</p>
+      </section>
+
+      <details class="acc" open={settings.pet.enabled}>
+        <summary>{S.popup.petLegend}</summary>
         {site && settings.pet.enabled && (
           <label>
             <input
@@ -356,10 +413,7 @@ export function Popup() {
         <PetOptions pet={settings.pet} onChange={updatePet} />
         <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
         <p class="note" aria-live="polite">{petNote}</p>
-      </fieldset>
-
-      <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
-      <p class="note" aria-live="polite">{sceneNote}</p>
+      </details>
 
       {site && view.state !== "consent" && (
         <AssetHere
@@ -370,11 +424,13 @@ export function Popup() {
       )}
 
       {view.state === "consent" && (
-        <section aria-label="Consent">
-          <p>{consentText(view.req.providerNames.join(" or "))}</p>
-          <button type="button" onClick={() => answer(true)}>Send</button>
-          <button type="button" onClick={cancel}>Cancel</button>
-          <button type="button" onClick={() => setShowPayload(!showPayload)}>Show what will be sent</button>
+        <section aria-label="Consent" class="consent">
+          <p>{(view.req.purpose === "repair" ? repairConsentText : consentText)(view.req.providerNames.join(" or "))}</p>
+          <div class="row">
+            <Button kind="primary" onClick={() => answer(true)}>Send</Button>
+            <Button onClick={cancel}>Cancel</Button>
+            <Button kind="quiet" onClick={() => setShowPayload(!showPayload)}>Show what will be sent</Button>
+          </div>
           {showPayload && <textarea readOnly aria-label="Payload" rows={8} value={view.req.payload} />}
         </section>
       )}
@@ -382,59 +438,51 @@ export function Popup() {
       {view.state === "preview" && (
         <section aria-label="Preview">
           <p>{view.outcome.message ?? "Here is the AI-improved theme."}</p>
-          <button type="button" onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</button>
-          <button type="button" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</button>
-          <button type="button" onClick={() => void start()}>Try another</button>
+          <div class="row">
+            {kept ? <p class="note">{S.popup.keepDone}</p> : <Button onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</Button>}
+            <Button kind="quiet" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</Button>
+            <Button kind="quiet" onClick={() => void start()}>Try another</Button>
+          </div>
         </section>
       )}
 
       {keepable && view.state === "idle" && (
         <section aria-label="Keep">
-          <button type="button" onClick={() => void keepOnSite()}>{S.popup.keep}</button>
+          <Button onClick={() => void keepOnSite()}>{S.popup.keep}</Button>
           <p class="note">{S.popup.keepNote}</p>
         </section>
       )}
-      {keepable && (view.state === "idle" || view.state === "preview") && (
-        <section aria-label="Share">
-          <button type="button" onClick={() => void copyCode(keepable.kept.plan)}>Copy theme code</button>
-          {copyNote && <p role="status">{copyNote}</p>}
-        </section>
-      )}
-
-      {view.state === "idle" && (
-        <section aria-label="Theme code">
-          <label>
-            {S.popup.importTitle}
-            <textarea class="import-box" rows={3} value={codeText} maxLength={2000} spellcheck={false} aria-describedby="import-format" onInput={(e) => setCodeText((e.target as HTMLTextAreaElement).value)} />
-          </label>
-          <p class="note" id="import-format">{S.popup.importFormat}</p>
-          <button type="button" disabled={codeText.trim() === ""} onClick={() => void importCode()}>{S.popup.importButton}</button>
-          {codeError && <p role="alert" class="status-bad">{codeError}</p>}
-        </section>
-      )}
-
       {site?.record && view.state !== "consent" && view.state !== "working" && (
         <section aria-label="This site">
           <p>{site.record.mode === "auto" ? `Automatic on this site (${providerLabel(site.record.provider)}).` : `Saved for this site (${providerLabel(site.record.provider)}).`}</p>
-          {site.record.mode === "auto" && <button type="button" onClick={() => void siteAction(() => pauseSite(site.origin), "Paused on this site.", "Couldn't pause.")}>Pause on this site</button>}
-          <button type="button" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), "Forgotten.", "Couldn't forget this site.")}>Forget this site</button>
+          <div class="row">
+            {site.record.mode === "auto" && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), "Paused on this site.", "Couldn't pause.")}>Pause on this site</Button>}
+            <Button kind="quiet" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), "Forgotten.", "Couldn't forget this site.")}>Forget this site</Button>
+          </div>
         </section>
       )}
 
-      {site && view.state !== "consent" && <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} onToolUsed={() => void showPetHere()} />}
+      {site && view.state !== "consent" && (
+        <details class="acc">
+          <summary>{S.privacy.title}</summary>
+          <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} onToolUsed={() => void showPetHere()} />
+        </details>
+      )}
 
-      <section aria-label="Shortcuts">
-        <h2>Keyboard shortcuts</h2>
-        {commands.length > 0 && (
-          <ul>
-            {commands.map((c) => (
-              <li key={c.name}>{shortcutLine(c, page)}</li>
-            ))}
-          </ul>
-        )}
-        <p class="note">To set or change a key, open {page} in the address bar.</p>
-      </section>
-      <details class="sent">
+      <details class="acc" aria-label="Shortcuts">
+        <summary>Keyboard shortcuts</summary>
+        <section aria-label="Shortcuts">
+          {commands.length > 0 && (
+            <ul>
+              {commands.map((c) => (
+                <li key={c.name}>{shortcutLine(c, page)}</li>
+              ))}
+            </ul>
+          )}
+          <p class="note">To set or change a key, open {page} in the address bar.</p>
+        </section>
+      </details>
+      <details class="acc sent">
         <summary>{S.popup.sentSummary}</summary>
         <p class="note">{S.popup.sentBody}</p>
       </details>
@@ -442,6 +490,11 @@ export function Popup() {
     </main>
   );
 }
+
+/** Which of the three visible stages each step belongs to: Reading the page, Checking readability, Applying. */
+const STAGE_OF: Record<Step, number> = { checking: 0, analysing: 0, consent: 1, asking: 1, repairing: 1, baseline: 2, applying: 2 };
+
+const themeName = (id: string): string => THEMES.find((t) => t.id === id)?.name ?? "your theme";
 
 const providerLabel = (id: string): string => (id in PROVIDER_NAMES ? PROVIDER_NAMES[id as ProviderId] : "built-in theme");
 
