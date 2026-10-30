@@ -12,6 +12,8 @@ const api = vi.hoisted(() => {
 });
 vi.mock("../src/extension/api.ts", () => api);
 vi.mock("../src/extension/settings.ts", () => ({ loadSettings: vi.fn() }));
+const sites = vi.hoisted(() => ({ refreshAutoScripts: vi.fn(async () => 0) }));
+vi.mock("../src/extension/siteActions.ts", () => sites);
 
 describe("background first run", () => {
   beforeEach(() => api.openOptionsPage.mockClear());
@@ -23,5 +25,14 @@ describe("background first run", () => {
     expect(api.openOptionsPage).not.toHaveBeenCalled();
     api.handlers.installed!("install");
     expect(api.openOptionsPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("an update re-registers the auto files of kept sites (so scene.js reaches sites kept by an older version)", async () => {
+    await import("../src/extension/background.ts");
+    sites.refreshAutoScripts.mockClear();
+    api.handlers.installed!("install");
+    expect(sites.refreshAutoScripts).not.toHaveBeenCalled();
+    api.handlers.installed!("update");
+    expect(sites.refreshAutoScripts).toHaveBeenCalledTimes(1);
   });
 });

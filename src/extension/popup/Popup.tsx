@@ -18,7 +18,7 @@ import { Logo } from "../Logo.tsx";
 import { PetOptions } from "./PetOptions.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
 import { artStatus, showArtHere, updateArtHere } from "../sceneActions.ts";
-import { lookFor, sceneRequest, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
+import { lookFor, sceneRequest, sourceForPlan, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
 import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
@@ -196,7 +196,7 @@ export function Popup() {
       }
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
-      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      else if (outcome.kind === "preview") void showArt(tab.id, fresh, sourceForPlan(outcome.plan));
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
@@ -284,11 +284,11 @@ export function Popup() {
   const keepFrom = (outcome: Outcome, tabId: number, url: string | undefined): { tabId: number; origin: string | undefined; kept: KeptPlan } | undefined => {
     const origin = url ? originOf(url) : undefined;
     if (outcome.kind === "preview") {
-      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      const look = lookFor(settings, sourceForPlan(outcome.plan));
       return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: outcome.providerId ?? "builtin", model: outcome.model ?? "builtin", look } };
     }
     if (outcome.kind === "baseline" && outcome.plan && outcome.fingerprint) {
-      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      const look = lookFor(settings, sourceForPlan(outcome.plan));
       return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: "builtin", model: "builtin", look } };
     }
     return undefined;

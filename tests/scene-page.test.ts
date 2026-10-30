@@ -151,7 +151,7 @@ describe("scene.js page script", () => {
     expect(hostEls().some((h) => h.getAttribute("data-skinly-scene") === "")).toBe(true);
   });
 
-  it("the auto script hook restores the saved look of a site", async () => {
+  it("the auto script hook restores the art of a site: the scene follows the stored plan's theme, not a saved scene id", async () => {
     expect(typeof slot.skinlyOnApplied).toBe("function");
     const { requestFromSite } = await import("../src/extension/scene.ts");
     const site = {
@@ -167,11 +167,13 @@ describe("scene.js page script", () => {
       blurImages: false,
       look: { scene: { id: "ocean" as const, density: "high" as const, lane: "right" as const } },
     };
-    expect(requestFromSite(site as never)).toEqual({ scene: { sceneId: "ocean", density: "high", lane: "right", accent: "#0a7ea4" }, asset: null, fallback: null });
-    expect(requestFromSite({ ...site, look: undefined } as never)).toBeNull();
+    expect(requestFromSite(site as never)).toEqual({ scene: { sceneId: "ocean", density: "normal", lane: "both", accent: "#0a7ea4" }, asset: null, fallback: null });
+    // a site kept without a look still shows the theme's art while Show art is on; kept with art off, it shows none
+    expect(requestFromSite({ ...site, look: undefined } as never)!.scene!.sceneId).toBe("ocean");
+    expect(requestFromSite({ ...site, look: { art: false } } as never)).toBeNull();
     slot.skinlyOnApplied!(site);
     await new Promise((res) => setTimeout(res, 5));
     expect(hostEls()).toHaveLength(1);
-    expect(hostEls()[0]!.shadowRoot!.querySelectorAll(".lane")).toHaveLength(1);
+    expect(hostEls()[0]!.shadowRoot!.querySelectorAll(".lane").length).toBeGreaterThan(0);
   });
 });

@@ -9,12 +9,13 @@ const api = vi.hoisted(() => ({
   registerAutoScript: vi.fn(),
   unregisterAutoScript: vi.fn(),
   setBadge: vi.fn(),
+  hasOrigins: vi.fn(async (_m: string[]) => true),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 
-import { effectiveScene, lookFor, sceneRequest, sourceForTheme } from "../src/extension/sceneConfig.ts";
+import { effectiveScene, lookFor, sceneRequest, siteRequest, sourceForPlan, sourceForTheme } from "../src/extension/sceneConfig.ts";
 import { petFor } from "../src/extension/applier-auto.ts";
-import { APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE, enableAuto, hasArt, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
+import { APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE, enableAuto, hasArt, refreshAutoScripts, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
 import { defaultSettings, type Settings } from "../src/extension/settings.ts";
 import { getSite, parseLook, parseSite } from "../src/extension/sites.ts";
 import { planFor } from "./plan/helpers.ts";
@@ -64,8 +65,8 @@ describe("sceneRequest and lookFor", () => {
     expect(r.fallback!.sceneId).toBe("ocean");
     expect(sceneRequest(st, sourceForTheme("high-contrast", false))).toBeNull();
   });
-  it("lookFor saves the effective scene, the pet look when the pet is on, and the asset", () => {
-    expect(lookFor(settings(), src)).toEqual({ scene: { id: "ocean", density: "normal", lane: "both" } });
+  it("lookFor saves art on (never a scene id), the pet look when the pet is on, and the asset", () => {
+    expect(lookFor(settings(), src)).toEqual({ art: true });
     const st = settings({ pet: { ...defaultSettings().pet, enabled: true, kind: "owl", motion: "horizontal" }, asset: { ...defaultSettings().asset, assetId: "0a1b2c3d" } });
     const look = lookFor(st, src)!;
     expect(look.pet).toMatchObject({ kind: "owl", motion: "horizontal" });
@@ -73,6 +74,36 @@ describe("sceneRequest and lookFor", () => {
     expect(look.pet).not.toHaveProperty("disabledOrigins");
     expect(look.asset!.assetId).toBe("0a1b2c3d");
     expect(lookFor(settings({ scene: { ...defaultSettings().scene, enabled: false } }), src)).toBeUndefined();
+  });
+});
+
+describe("art follows the stored plan (stage 1a)", () => {
+  it("a built-in plan brings its theme's scene; an AI plan follows its own page colour", () => {
+    expect(sourceForPlan(planFor("ocean"))).toEqual({ themeId: "ocean", accent: planFor("ocean").tokens.accent });
+    const dark = { ...planFor("midnight"), themeId: "custom" as const };
+    const light = { ...planFor("calm-light"), themeId: "custom" as const };
+    expect(sceneRequest(settings(), sourceForPlan(dark))!.scene!.sceneId).toBe("midnight-stars");
+    expect(sceneRequest(settings(), sourceForPlan(light))!.scene!.sceneId).toBe("calm");
+    expect(lookFor(settings(), sourceForPlan(dark))).toEqual({ art: true });
+  });
+  it("siteRequest: the switch and a saved art off both turn the scene off; an older saved scene id is ignored for the choice", () => {
+    const plan = planFor("ocean");
+    expect(siteRequest(settings(), { plan, look: { scene: { id: "space", density: "low", lane: "left" }, art: true } })!.scene!.sceneId).toBe("ocean");
+    expect(siteRequest(settings(), { plan })!.scene!.sceneId).toBe("ocean");
+    expect(siteRequest(settings(), { plan, look: { art: false } })).toBeNull();
+    expect(siteRequest(settings({ scene: { ...defaultSettings().scene, enabled: false } }), { plan, look: { art: true } })).toBeNull();
+    expect(siteRequest(settings(), { plan: planFor("high-contrast"), look: { art: true } })).toBeNull();
+  });
+  it("refreshAutoScripts re-registers the auto files for kept sites whose permission is still granted", async () => {
+    store.clear();
+    api.registerAutoScript.mockClear();
+    const rec = (mode: string) => ({ v: 1, plan: planFor("ocean"), fingerprint: { hash: "0123abcd", seq: "h" }, provider: "builtin", model: "builtin", promptVersion: "5", savedAt: "2026-10-30T10:00:00.000Z", mode, blur: [], blurImages: false });
+    store.set("sites", { "https://a.example": rec("auto"), "https://b.example": rec("ask"), "https://c.example": rec("auto") });
+    api.hasOrigins.mockImplementation(async (m: string[]) => m[0] !== "https://c.example/*");
+    expect(await refreshAutoScripts()).toBe(1);
+    expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId("https://a.example"), ["https://a.example/*"], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE]);
+    api.hasOrigins.mockImplementation(async () => true);
   });
 });
 
@@ -129,16 +160,17 @@ describe("site actions and scene.js registration", () => {
 
   it("Remember saves the look; the script is not registered", async () => {
     await rememberSite(A, kept(withScene));
-    expect((await getSite(A))!.look).toEqual(withScene);
+    // an older saved scene id counts as art on
+    expect((await getSite(A))!.look).toEqual({ ...withScene, art: true });
     expect(api.registerAutoScript).not.toHaveBeenCalled();
   });
   it("a site with saved art gets scene.js after the auto script", async () => {
     await enableAuto(A, kept(withScene), 5);
     expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE]);
   });
-  it("a site with no saved art keeps the small single-file registration", async () => {
+  it("a site with no saved art still gets scene.js: it reads the Show art switch itself after a reload", async () => {
     await enableAuto(A, kept(), 5);
-    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE]);
     expect(hasArt(undefined)).toBe(false);
     expect(hasArt({ pet: { kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, edgeFallback: true } })).toBe(false);
     expect(hasArt(withScene)).toBe(true);
@@ -146,6 +178,6 @@ describe("site actions and scene.js registration", () => {
   it("keeping a plan without a look does not erase the look saved earlier", async () => {
     await rememberSite(A, kept(withScene));
     await rememberSite(A, kept());
-    expect((await getSite(A))!.look).toEqual(withScene);
+    expect((await getSite(A))!.look).toEqual({ ...withScene, art: true });
   });
 });

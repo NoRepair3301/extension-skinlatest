@@ -7,7 +7,8 @@ import { getScene } from "../features/scenes/index.ts";
 import { createSceneEngine, type SceneEngine } from "../features/scenes/engine.ts";
 import type { PageApplier } from "./applier.ts";
 import { getAsset } from "./assetStore.ts";
-import type { SceneRequest } from "./sceneConfig.ts";
+import { siteRequest, type SceneRequest } from "./sceneConfig.ts";
+import { defaultSettings, loadSettings, type Settings } from "./settings.ts";
 import { getSite, originOf, type SiteRecord } from "./sites.ts";
 
 /** What the popup learns: whether there was room, and what is showing. Fixed words only. */
@@ -32,15 +33,12 @@ type Slot = typeof globalThis & {
   skinlyOnApplied?: (site: SiteRecord) => void;
 };
 
-/** The request the auto script restores from a site record: its saved scene and asset, on the saved plan's accent. */
-export function requestFromSite(site: SiteRecord): SceneRequest | null {
-  const look = site.look;
-  if (!look) return null;
-  const accent = typeof site.plan.tokens?.accent === "string" ? site.plan.tokens.accent : "#2f6fdb";
-  const scene = look.scene && look.scene.id !== "none" ? { sceneId: look.scene.id, density: look.scene.density, lane: look.scene.lane, accent } : null;
-  const asset = look.asset && look.asset.assetId !== null ? look.asset : null;
-  if (!scene && !asset) return null;
-  return { scene, asset, fallback: null };
+/**
+ * The request the auto script restores for a kept site: the scene of the stored plan's theme (art follows the theme, not a saved scene
+ * id) while "Show art" is on, and the saved or chosen asset. Settings default when they cannot be read.
+ */
+export function requestFromSite(site: SiteRecord, settings: Settings = defaultSettings()): SceneRequest | null {
+  return siteRequest(settings, site);
 }
 
 /** The box around the text an element itself holds (not its children's), when the browser can measure it. */
@@ -219,10 +217,10 @@ function install(): void {
     slot.skinlyScene = undefined;
   });
 
-  // The auto script (applier-auto.js) calls this once the saved theme is on the page.
-  // A saved look already holds the choices, so the global scene and asset settings are not read here.
+  // The auto script (applier-auto.js) calls this once the saved theme is on the page; the art follows that theme and the "Show art" switch.
   const fromSite = async (site: SiteRecord) => {
-    const base = requestFromSite(site);
+    const settings = await loadSettings().catch(() => defaultSettings());
+    const base = requestFromSite(site, settings);
     if (base) await slot.skinlyScene?.sync(base);
   };
   slot.skinlyOnApplied = (site) => void fromSite(site);

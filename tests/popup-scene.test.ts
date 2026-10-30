@@ -95,13 +95,15 @@ describe("popup: scene art after Change my page", () => {
     expect(api.injectFile).not.toHaveBeenCalledWith(7, "scene.js");
   });
 
-  it("the kept site saves the scene with it and registers scene.js too", async () => {
+  it("the kept site saves art on with it and registers scene.js too", async () => {
     flow.runTransform.mockResolvedValue(preview());
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
     const root = await mount();
     await click(root, "Change my page");
-    const sites = store.get("sites") as Record<string, { look?: { scene?: { id: string } } }>;
-    expect(sites["https://example.org"]!.look!.scene!.id).toBe("space");
+    const sites = store.get("sites") as Record<string, { look?: { art?: boolean; scene?: unknown } }>;
+    // art is saved as on; the scene itself follows the theme when the page loads again
+    expect(sites["https://example.org"]!.look!.art).toBe(true);
+    expect(sites["https://example.org"]!.look!.scene).toBeUndefined();
     expect(api.registerAutoScript).toHaveBeenCalledWith(expect.any(String), ["https://example.org/*"], ["applier.js", "applier-auto.js", "scene.js"]);
   });
 

@@ -118,7 +118,104 @@ describe("manual path: the real apply flow, then scene.js", () => {
   });
 });
 
-describe("auto path: applier-auto applies the stored plan and the saved scene", () => {
+/** A kept site as siteActions saves it. */
+async function keep(plan: unknown, look?: unknown) {
+  store.set("sites", {
+    [location.origin]: {
+      v: 1,
+      plan,
+      fingerprint: { hash: "0123abcd", seq: "hnm" },
+      provider: "builtin",
+      model: "builtin",
+      promptVersion: "5",
+      savedAt: "2026-10-30T10:00:00.000Z",
+      mode: "auto",
+      blur: [],
+      blurImages: false,
+      ...(look === undefined ? {} : { look }),
+    },
+  });
+}
+
+/** What the browser does on every page load of a kept site: the three registered files at document_start, in order. */
+async function load(page: PageName) {
+  document.body.innerHTML = PAGES[page];
+  await import("../src/extension/applier.ts");
+  await import("../src/extension/scene.ts");
+  await import("../src/extension/applier-auto.ts");
+  for (let i = 0; i < 4; i++) await tick();
+}
+
+/** A reload: the old document and its scripts go away (their hosts with them), then the page loads again from storage. */
+async function reload(page: PageName) {
+  slot.skinlyApplier?.restore();
+  slot.skinlyScene?.destroy();
+  document.querySelectorAll("[data-skinly-ui]").forEach((n) => n.remove());
+  delete slot.skinlyApplier;
+  slot.skinlyScene = undefined;
+  slot.skinlyOnApplied = undefined;
+  vi.resetModules();
+  await load(page);
+}
+
+const petHosts = () => Array.from(document.querySelectorAll('[data-skinly-ui="pet"]'));
+
+describe("auto path after a reload: art follows the stored plan's theme, not a saved scene id", () => {
+  it.each(Object.keys(PAGES) as PageName[])("%s: a built-in theme kept with art on comes back with its scene, and again after a reload", async (page) => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    await keep(themeToPlan("ocean"), { art: true });
+    await load(page);
+    expect(document.documentElement.getAttribute("data-skinly")).toBe("on");
+    expect(hosts()).toHaveLength(1);
+    expect(actors().length).toBeGreaterThan(0);
+    await reload(page);
+    expect(document.documentElement.getAttribute("data-skinly")).toBe("on");
+    expect(hosts()).toHaveLength(1);
+    expect(actors().length).toBeGreaterThan(0);
+  });
+
+  it.each(Object.keys(PAGES) as PageName[])("%s: an AI plan (custom, dark page) kept without any look shows midnight art", async (page) => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    await keep({ ...themeToPlan("midnight"), themeId: "custom" });
+    await load(page);
+    expect(document.documentElement.getAttribute("data-skinly")).toBe("on");
+    expect(hosts()).toHaveLength(1);
+    expect(actors().length).toBeGreaterThan(0);
+  });
+
+  it("the host is the last child of the html element after the page finished parsing", async () => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    await keep(themeToPlan("ocean"), { art: true });
+    await load("wiki-like");
+    const host = hosts()[0]!;
+    expect(host.parentElement).toBe(document.documentElement);
+    expect(document.documentElement.lastElementChild).toBe(host);
+  });
+
+  it("Show art off: the theme comes back, the art does not", async () => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    const { defaultSettings } = await import("../src/extension/settings.ts");
+    store.set("settings", { ...defaultSettings(), scene: { ...defaultSettings().scene, enabled: false } });
+    await keep(themeToPlan("ocean"), { art: true });
+    await load("claude-like");
+    expect(document.documentElement.getAttribute("data-skinly")).toBe("on");
+    expect(hosts()).toHaveLength(0);
+  });
+
+  it("the pet comes back with the theme after a reload", async () => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    const { defaultSettings } = await import("../src/extension/settings.ts");
+    store.set("settings", { ...defaultSettings(), pet: { ...defaultSettings().pet, enabled: true } });
+    await keep(themeToPlan("ocean"), { art: true });
+    await load("sidebar");
+    expect(petHosts()).toHaveLength(1);
+    await reload("sidebar");
+    expect(petHosts()).toHaveLength(1);
+    expect(hosts()).toHaveLength(1);
+  });
+});
+
+describe("auto path: applier-auto applies the stored plan and an older saved scene", () => {
   it.each(Object.keys(PAGES) as PageName[])("%s", async (page) => {
     document.body.innerHTML = PAGES[page];
     const { themeToPlan } = await import("../src/plan/themeToPlan.ts");

@@ -2,6 +2,7 @@ import { getPageUrl, injectFile, onCommand, onInstalled, openOptionsPage, onMess
 import { handleCommand, isCommand, type CommandDeps } from "./commands.ts";
 import { loadSettings } from "./settings.ts";
 import { isBadgeMessage } from "./messages.ts";
+import { refreshAutoScripts } from "./siteActions.ts";
 
 onMessage((message, senderTabId) => {
   if (message === "ping") return "pong";
@@ -25,6 +26,8 @@ const deps: CommandDeps = {
 // First install opens the settings page, which shows the welcome once (settings.welcomeDone). No extra permission.
 onInstalled((reason) => {
   if (reason === "install") void openOptionsPage().catch(() => undefined);
+  // Sites kept by an older version get the current auto files (scene.js for every kept site), so art comes back after a reload.
+  if (reason === "update") void refreshAutoScripts().catch(() => undefined);
 });
 
 onCommand((command, tab) => {
