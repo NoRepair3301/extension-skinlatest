@@ -92,7 +92,7 @@ export const openPaletteInPage = async (tabId: number): Promise<void> => {
   });
 };
 
-export type ToolMethod = "blurTargets" | "blurShare" | "blurState" | "pickStart" | "pickStop" | "tablesEnable" | "tablesFilter" | "tablesRestoreOrder";
+export type ToolMethod = "blurTargets" | "blurShare" | "blurPage" | "blurState" | "pickStart" | "pickStop" | "tablesEnable" | "tablesFilter" | "tablesRestoreOrder";
 
 /** Calls a privacy or table tool of the applier script already injected in the tab. */
 export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ...args: unknown[]): Promise<R | undefined> => {

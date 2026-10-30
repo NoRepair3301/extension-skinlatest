@@ -28,7 +28,7 @@ C14. Docs honesty: every [auto] Acceptance item of the phase maps to a named tes
 - P5: site keys are origins only. Cap 200 with eviction. Only the active origin is requested for permission, from a click. Forget removes record, content script registration and permission. The auto path has no provider import (check the import graph).
 - P6: disabled pet leaves nothing behind. Host has pointer-events none. No innerHTML, no network in src/features/pet. The art is original (no copied paths or names).
 - P7: palette module has no storage, network or click calls. Labels never leave memory. Focus restore works.
-- P8: the only use of `filter` is the blur template. Screenshot never leaves the browser and restores Share mode on failure. Table tools skip tables with controls or inside forms. Selectors never contain ids or text.
+- P8: the only uses of CSS blur are the picked-element template (`filter:blur(6px)`, src/features/blur/apply.ts) and the whole-page veil added in rc4 (`backdrop-filter:blur(12px)`, src/features/blur/page.ts). The scanner (scripts/rules.ts) fails on `backdrop-filter` or `blur(<n>)` anywhere else in src/. The veil host and veil have pointer-events none, only the Unblur button receives the pointer, it is re-attached by a bounded observer if the page removes it, and Restore removes it. Screenshot never leaves the browser and restores Share mode on failure. Table tools skip tables with controls or inside forms. Selectors never contain ids or text.
 - P9: release zip contains only dist files (list it). Version is identical everywhere. Privacy text matches the manifest and payload test. No source map leaks developer paths. LICENSES.md lists every asset.
 
 ## Output format

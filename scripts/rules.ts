@@ -11,6 +11,9 @@ export interface Violation {
 const API_FILE = "src/extension/api.ts";
 const CONFIG_FILE = "src/config.ts";
 const PROVIDERS_DIR = "src/providers/";
+/** CSS blur is the privacy feature only: the picked-element template (apply.ts) and the whole-page veil (page.ts). */
+const BLUR_DIR = "src/features/blur/";
+const BLUR_RE = /\b(?:-webkit-)?backdrop-filter\b|\bblur\s*\(\s*\d/;
 
 /** Forbidden anywhere in src/. */
 const FORBIDDEN: ReadonlyArray<readonly [string, RegExp]> = [
@@ -61,6 +64,7 @@ export function scanSource(path: string, text: string, allowedHosts: readonly st
     for (const [rule, re] of FORBIDDEN) if (re.test(line)) add(rule);
     if (p !== API_FILE && /\b(?:chrome|browser)\s*\.\s*[A-Za-z_$]/.test(line)) add("chrome./browser. outside src/extension/api.ts");
     if (!p.startsWith(PROVIDERS_DIR) && /\bfetch\s*\(/.test(line)) add("fetch( outside src/providers/");
+    if (!p.startsWith(BLUR_DIR) && BLUR_RE.test(line)) add("CSS blur outside src/features/blur/");
     if (p !== CONFIG_FILE) {
       for (const m of line.matchAll(URL_RE)) {
         const host = (m[1] ?? "").toLowerCase();
