@@ -1,4 +1,4 @@
-import { hasOrigins, injectFiles, runInPage, setBadge } from "./api.ts";
+import { getPageUrl, hasOrigins, injectFiles, popupOpen, runInPage, setBadge } from "./api.ts";
 import { clearIntent, readIntent, type PendingIntent } from "./intent.ts";
 import { siteKey } from "./origin.ts";
 import { AUTO_FILES, ensureRegistered, record, resumeSite } from "./siteActions.ts";
@@ -27,10 +27,13 @@ export function serial<T>(job: () => Promise<T>): Promise<T> {
 
 /**
  * Puts the kept theme on an open tab the way a page load would: the auto files, in order, in the top frame. Skipped when the page already
- * shows a theme (the popup is alive and themed it). A tab that has left the site refuses the injection; that is fine.
+ * shows a theme (the popup is alive and themed it) or when the tab has left the site since the click (a stale tab id never gets the
+ * files of another origin). The URL is compared in memory only, never stored.
  */
-export async function applyToTab(tabId: number): Promise<boolean> {
+export async function applyToTab(tabId: number, origin: string): Promise<boolean> {
   try {
+    const url = await getPageUrl(tabId).catch(() => undefined);
+    if (!url || siteKey(url)?.key !== origin) return false;
     const active = await runInPage<boolean>(tabId, "isActive").catch(() => undefined);
     if (active === true) return true;
     await injectFiles(tabId, [...AUTO_FILES]);
@@ -49,7 +52,9 @@ async function keep(intent: PendingIntent): Promise<KeepResult> {
     if (!(await saveSite(intent.origin, record(intent.kept, "auto", previous)))) return "error";
     if (!(await ensureRegistered(intent.origin))) return "error";
   }
-  if (!intent.popupApplies) await applyToTab(intent.tabId);
+  // Chrome keeps the popup open over the prompt: it is running the flow and themes the tab itself, so a second apply would only flicker.
+  const popupThemes = intent.popupApplies === true || (intent.stage === "click" && (await popupOpen().catch(() => false)));
+  if (!popupThemes) await applyToTab(intent.tabId, intent.origin);
   await setBadge(intent.tabId, "ON").catch(() => undefined);
   return "kept";
 }

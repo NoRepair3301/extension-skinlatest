@@ -30,6 +30,16 @@ export const onOriginsRemoved = (handler: (origins: string[]) => void): void => 
   chrome.permissions.onRemoved.addListener((p) => handler(p.origins ?? []));
 };
 
+/**
+ * True while our popup is open. Chrome keeps the popup open over the permission prompt (it then themes the tab itself); Edge closes it.
+ * Browsers without runtime.getContexts count as closed, so the background themes the tab.
+ */
+export const popupOpen = async (): Promise<boolean> => {
+  if (typeof chrome.runtime.getContexts !== "function") return false;
+  const ctx = await chrome.runtime.getContexts({ contextTypes: ["POPUP" as chrome.runtime.ContextType] });
+  return ctx.length > 0;
+};
+
 export const onStartup = (handler: () => void): void => {
   chrome.runtime.onStartup.addListener(handler);
 };
@@ -135,8 +145,13 @@ export const showToast = async (tabId: number, text: string): Promise<void> => {
 };
 
 /** The address of the tab as the page sees it, for the gate when the browser did not pass a URL with a command. Needs the activeTab grant. */
+/** Runs in the page: its address (read in memory by the caller, never stored). */
+function pageHref(): string {
+  return location.href;
+}
+
 export const getPageUrl = async (tabId: number): Promise<string | undefined> => {
-  const [res] = await chrome.scripting.executeScript({ target: { tabId }, func: () => location.href });
+  const [res] = await chrome.scripting.executeScript({ target: { tabId }, func: pageHref });
   return typeof res?.result === "string" ? res.result : undefined;
 };
 

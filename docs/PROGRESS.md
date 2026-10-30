@@ -216,3 +216,9 @@ Full task text is in prompt-launch.txt (the starting message was cut off inside 
 
 ### A2: Why not themed here? (done)
 - Fixed state words (src/core/diag.ts `AUTO_STATES`); the auto script reports its word, the popup adds what it can see (no record, paused, no permission, not registered); one line each in `S.popup.why`; the word is in Copy diagnostics (`auto:`). Tests: tests/persistence.test.ts "A2", tests/diag.test.ts "A2: auto state words", tests/auto.test.ts "reports one state word".
+
+### A3: review passes (done)
+- Seven passes one after another, each with its own checklist (no subagents: CLAUDE.md forbids them; the task allows passes in sequence). Findings in docs/REVIEW.md.
+- Fixed (Medium): R1-1 Chrome double apply under the open popup (`popupOpen` through runtime.getContexts, no new permission); R1-2 stale tab id injecting into another origin; R3-1 print got the theme (sheet is now screen media only). Fixed (Low): R2-1 onMessage sender check.
+- Tests: tests/persistence.test.ts ("Chrome", "a stale tab id", "A3 pass 2: messages"), tests/compat.test.ts (print, rule coverage, no focus/autofill/iframe/shadow selectors), tests/auto.test.ts (no page script reaches keys, intent or keeper).
+- Low items listed as known in docs/REVIEW.md.

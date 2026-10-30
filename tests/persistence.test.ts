@@ -186,6 +186,22 @@ describe("A1a: the popup only writes the intent and asks; the background keeps t
     expect(sites()![ORIGIN]).toMatchObject({ provider: "gemini", plan: { themeId: "ocean" } });
     expect(await registration()).toBeDefined();
     expect(fake.store.has("intent")).toBe(false);
+    // the popup was open over the prompt: the background did not put the built-in theme on underneath the AI flow (no double apply)
+    expect(fake.exec.filter((c) => c.files?.includes("applier-auto.js"))).toEqual([]);
+  });
+
+  it("a stale tab id: the tab left the site before the background acted, so nothing is injected into the other page", async () => {
+    await boot({ popupDies: true, prompt: "allow", granted: ["https://de.wikipedia.org/*"] });
+    await openPopup();
+    const b = button("Change my page");
+    await act(() => {
+      b!.click();
+      // the user follows a link to another site at once
+      fake.tabs.set(TAB, "https://de.wikipedia.org/wiki/Sonne");
+    });
+    await flush();
+    expect(sites()![ORIGIN]).toBeDefined();
+    expect(fake.exec.filter((c) => c.files?.includes("applier-auto.js"))).toEqual([]);
   });
 
   it("an expired intent is never completed", async () => {
@@ -320,5 +336,21 @@ describe("A2: Why not themed here?", () => {
     fake.registered.clear();
     await click("Why not themed here?");
     expect(root!.textContent).toContain("the browser has not loaded it");
+  });
+});
+
+describe("A3 pass 2: messages", () => {
+  it("the background answers only its own extension, and only the exact badge message from a tab", async () => {
+    await boot();
+    const reply: unknown[] = [];
+    await fake.events.onMessage.fire({ type: "skinly-badge-on" }, { id: "another-extension", tab: { id: TAB } }, (r) => reply.push(r));
+    await fake.events.onMessage.fire("ping", { id: "another-extension" }, (r) => reply.push(r));
+    expect(fake.badges.get(TAB)).toBeUndefined();
+    expect(reply).toEqual([]);
+    await fake.events.onMessage.fire({ type: "skinly-badge-on", extra: 1 }, { id: "skinly-test", tab: { id: TAB } }, (r) => reply.push(r));
+    expect(fake.badges.get(TAB)).toBeUndefined();
+    await fake.events.onMessage.fire({ type: "skinly-badge-on" }, { id: "skinly-test", tab: { id: TAB } }, (r) => reply.push(r));
+    await fake.settle();
+    expect(fake.badges.get(TAB)).toBe("ON");
   });
 });

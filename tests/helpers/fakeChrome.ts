@@ -50,6 +50,8 @@ export interface FakeChromeOptions {
   tabs?: Record<number, string>;
   /** Called for `executeScript({files})`; may throw to simulate a refused injection. */
   onFiles?: (tabId: number, files: string[]) => void;
+  /** Whether the popup is open at first (default: yes). With `popupDies` it closes when the prompt shows. */
+  popupOpen?: boolean;
   /** Called for `executeScript({func})`; its return value is the top frame's result. */
   onFunc?: (tabId: number, func: (...a: unknown[]) => unknown, args: unknown[]) => unknown;
 }
@@ -65,6 +67,7 @@ export function createFakeChrome(opts: FakeChromeOptions = {}) {
   const badges = new Map<number, string>();
   const tabs = new Map<number, string>(Object.entries(opts.tabs ?? {}).map(([k, v]) => [Number(k), v]));
   const pending: Array<Promise<unknown>> = [];
+  const ui = { popupOpen: opts.popupOpen ?? true };
 
   const onChanged = new Ev<[Record<string, { oldValue?: unknown; newValue?: unknown }>, string]>();
   const onAdded = new Ev<[{ origins?: string[]; permissions?: string[] }]>();
@@ -92,6 +95,7 @@ export function createFakeChrome(opts: FakeChromeOptions = {}) {
         return reply;
       },
       openOptionsPage: async () => undefined,
+      getContexts: async () => (ui.popupOpen ? [{ contextType: "POPUP" }] : []),
     },
     storage: {
       onChanged,
@@ -148,7 +152,10 @@ export function createFakeChrome(opts: FakeChromeOptions = {}) {
             later(() => onAdded.fire({ origins }));
           }
         }
-        if (!already && opts.popupDies) return new Promise<boolean>(() => undefined);
+        if (!already && opts.popupDies) {
+          ui.popupOpen = false;
+          return new Promise<boolean>(() => undefined);
+        }
         return Promise.resolve(answer);
       },
     },
@@ -180,6 +187,8 @@ export function createFakeChrome(opts: FakeChromeOptions = {}) {
           opts.onFiles?.(d.target.tabId, d.files);
           return d.files.map(() => ({ frameId: 0, result: undefined }));
         }
+        // the page's own address (api.ts pageHref) is the tab's URL, not the test document's
+        if (d.func?.name === "pageHref") return [{ frameId: 0, result: url }];
         const result = d.func ? (opts.onFunc ? opts.onFunc(d.target.tabId, d.func, d.args ?? []) : d.func(...(d.args ?? []))) : undefined;
         return [{ frameId: 0, result }];
       },
@@ -213,6 +222,7 @@ export function createFakeChrome(opts: FakeChromeOptions = {}) {
     badges,
     tabs,
     activeTab,
+    ui,
     events: { onChanged, onAdded, onRemoved, onInstalled, onStartup, onMessage, onCommand },
     /** Waits until every event fired so far, and every event those listeners fired, has run. */
     async settle(): Promise<void> {
