@@ -1,5 +1,6 @@
 import { useEffect, useState } from "preact/hooks";
 import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
+import { Logo } from "../Logo.tsx";
 import { deleteKey, keyStatus, MASK, saveKey, testKey } from "../keys.ts";
 import { entryHost } from "../../analyzer/eligibility.ts";
 import { PET_CORNERS, PET_KINDS, PET_SIZES, callsOn, defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
@@ -97,7 +98,9 @@ export function Options() {
 
   return (
     <main>
-      <h1>Skinly AI settings</h1>
+      <h1>
+        <Logo size={32} /> Skinly AI settings
+      </h1>
       <p class="note">Skinly AI is not affiliated with any website.</p>
 
       <section>

@@ -68,6 +68,9 @@ export function validateDist(dist: string): string[] {
   for (const f of [bg, popup, options, "applier.js", "palette.js", ...icons]) {
     if (!f || !existsSync(join(dist, f))) out.push(`missing built file: ${f ?? "(unset in manifest)"}`);
   }
+  const shipped = allFiles(dist).map((f) => f.split("\\").join("/")).filter((f) => f.includes("/icons/")).map((f) => f.slice(f.lastIndexOf("/") + 1)).sort();
+  const wanted = ["icon-128.png", "icon-16.png", "icon-32.png", "icon-48.png"];
+  if (shipped.join() !== wanted.join()) out.push(`dist/icons must hold exactly ${wanted.join(", ")}, found: ${shipped.join(", ") || "nothing"}`);
   if (allFiles(dist).some((f) => f.endsWith(".map"))) out.push("source map files must not ship");
   for (const file of jsFiles(dist)) {
     for (const rule of scanBuiltJs(readFileSync(file, "utf8"))) out.push(`${file}: ${rule}`);

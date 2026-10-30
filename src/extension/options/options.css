@@ -1,7 +1,7 @@
 :root { color-scheme: light dark; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
 body { margin: 0; }
 main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: grid; gap: 16px; }
-h1 { font-size: 20px; margin: 0; }
+h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
 section { border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; }
 h2 { font-size: 15px; margin: 0; }
 label { display: grid; gap: 4px; font-size: 13px; }

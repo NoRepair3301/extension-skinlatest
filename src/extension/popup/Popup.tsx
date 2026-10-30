@@ -7,6 +7,7 @@ import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
 import { showPetHere } from "../petActions.ts";
+import { Logo } from "../Logo.tsx";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
@@ -198,7 +199,9 @@ export function Popup() {
 
   return (
     <main>
-      <h1>Skinly AI</h1>
+      <h1>
+        <Logo size={24} /> Skinly AI
+      </h1>
       <fieldset>
         <legend>Theme</legend>
         {THEMES.map((t) => (
