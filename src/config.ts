@@ -13,6 +13,16 @@ export const DEFAULT_MODELS: Record<ProviderId, string> = {
   groq: "openai/gpt-oss-120b",
 };
 
+/**
+ * Per-provider time limits (rc4). `callMs` is one HTTP call; `overallMs` covers everything for that provider
+ * (its calls, one retry and one repair request) before the next provider is tried. Gemini spends seconds on thinking
+ * tokens (docs/providers/gemini.md), so it gets more room than Groq.
+ */
+export const PROVIDER_TIMEOUTS: Record<ProviderId, { callMs: number; overallMs: number }> = {
+  groq: { callMs: 15_000, overallMs: 20_000 },
+  gemini: { callMs: 25_000, overallMs: 30_000 },
+};
+
 /** Hosts that source files and built JS may mention as URLs or call with fetch: the provider hosts only. */
 export const ALLOWED_URL_HOSTS: readonly string[] = PROVIDER_IDS.map((id) => new URL(PROVIDER_ENDPOINTS[id]).hostname);
 

@@ -7,6 +7,7 @@ export const MSG = {
   noAi: "This page has a sign-in or payment form, so only the built-in theme is used",
   tooLarge: "This page is too large for AI, so only the built-in theme is used",
   allFailed: "AI unavailable; kept the built-in theme",
+  coloursAdjusted: "Some of the AI's colours were adjusted so the text stays readable",
   fallbackTheme: "The AI suggestion was not usable, so the closest built-in theme is shown",
   applyFailed: "The AI style could not be applied safely; kept the built-in theme",
   declined: "Nothing was sent. The built-in theme is kept",

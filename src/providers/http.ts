@@ -13,7 +13,8 @@ export interface HttpDeps {
   sleep?: (ms: number) => Promise<void>;
 }
 
-export const CALL_TIMEOUT_MS = 40_000;
+/** Used only when an adapter passes no timeout; the real limits are PROVIDER_TIMEOUTS in src/config.ts. */
+export const CALL_TIMEOUT_MS = 25_000;
 export const MAX_RETRY_AFTER_MS = 5_000;
 
 const defaultFetch: FetchFn = (url, init) => fetch(url, init);
@@ -74,7 +75,7 @@ export interface Call {
 }
 
 /**
- * One request with a 40 s timeout and at most one retry (429 or 5xx with a retry-after of 5 s or less).
+ * One request with the provider's call timeout and at most one retry (429 or 5xx with a retry-after of 5 s or less).
  * Never throws, and never puts the URL, headers or any error text into the result.
  */
 export async function callJson(call: Call, req: GenerateRequest, deps: HttpDeps = {}): Promise<Result> {

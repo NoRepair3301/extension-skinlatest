@@ -1,12 +1,13 @@
 import { checkUrl } from "../analyzer/eligibility.ts";
 import { decideGate } from "../analyzer/gate.ts";
-import { CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, type ProviderId } from "../config.ts";
+import { CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, PROVIDER_TIMEOUTS, type ProviderId } from "../config.ts";
 import type { BlockReason, Fingerprint, StructuralSummary } from "../core/types.ts";
 import { debug } from "../core/log.ts";
 import type { ApplyResult, PageAnalysis } from "../extension/applier-core.ts";
 import { callsOn, type Settings } from "../extension/settings.ts";
 import { contrastFailures } from "../plan/contrast.ts";
 import { nearestTheme } from "../plan/nearestTheme.ts";
+import { repairTokens } from "../plan/repair.ts";
 import { validatePlan, type StylePlan } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
@@ -59,14 +60,20 @@ export type Outcome =
   | { kind: "error"; errorKind: ErrorKind | "baseline"; message: string; themeId: BuiltinThemeId }
   | { kind: "cancelled"; themeId: BuiltinThemeId };
 
-export type PlanCheck = { ok: true; plan: StylePlan } | { ok: false; codes: string[] };
+export type PlanCheck = { ok: true; plan: StylePlan; repaired: boolean } | { ok: false; codes: string[] };
 
-/** Validator (schema, eligibility) then contrast targets. Reason codes are paths only and never contain plan values. */
+/**
+ * Validator (schema, eligibility) then contrast targets. A plan whose colours miss a target is first repaired by nudging
+ * its foreground colours (src/plan/repair.ts); only when that cannot work are reason codes returned, which lead to the
+ * repair request and then the nearest built-in theme. Reason codes are paths only and never contain plan values.
+ */
 export function checkPlan(json: unknown, summary: StructuralSummary): PlanCheck {
   const v = validatePlan(json, summary);
   if (!v.ok) return { ok: false, codes: v.errors.slice(0, 10).map((e) => e.split(":")[0] ?? "plan") };
   const bad = contrastFailures(v.plan.themeId, v.plan.tokens);
-  if (bad.length === 0) return { ok: true, plan: v.plan };
+  if (bad.length === 0) return { ok: true, plan: v.plan, repaired: false };
+  const fixed = repairTokens(v.plan.themeId, v.plan.tokens);
+  if (fixed) return { ok: true, plan: { ...v.plan, tokens: fixed }, repaired: true };
   const codes = bad.map((f) => {
     const m = /(\w+)\/(\w+)/.exec(f);
     return m ? `contrast.${m[1]}.${m[2]}` : "contrast";
@@ -132,8 +139,9 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
 
   step("asking", PROVIDER_NAMES[order[0]!]);
   let validPlan: StylePlan | undefined;
+  let coloursAdjusted = false;
   let rejectedBg: unknown;
-  const entries: ProviderEntry[] = order.map((id) => ({ provider: deps.providers[id], model: current.models[id] }));
+  const entries: ProviderEntry[] = order.map((id) => ({ provider: deps.providers[id], model: current.models[id], overallMs: PROVIDER_TIMEOUTS[id].overallMs }));
   const result = await generate({ system: SYSTEM_PROMPT, user: payload }, entries, {
     budgetMs: Math.max(1000, (deps.budgetMs ?? PIPELINE_BUDGET_MS) - (now() - started)),
     ...(signal ? { signal } : {}),
@@ -141,6 +149,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       const checked = checkPlan(json, summary);
       if (checked.ok) {
         validPlan = checked.plan;
+        coloursAdjusted = checked.repaired;
         return null;
       }
       rejectedBg = (json as { tokens?: { bg?: unknown } } | null)?.tokens?.bg;
@@ -172,5 +181,5 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
     await deps.page.applyTheme(baselineId);
     return baseline("apply-failed", MSG.applyFailed);
   }
-  return { kind: "preview", source: "ai", plan: validPlan, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model };
+  return { kind: "preview", source: "ai", plan: validPlan, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model, ...(coloursAdjusted ? { message: MSG.coloursAdjusted } : {}) };
 }
