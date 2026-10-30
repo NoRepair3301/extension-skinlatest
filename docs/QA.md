@@ -1,7 +1,7 @@
 # Manual QA matrix
 
 Fill the result columns yourself. Use public pages only; never a page where you are signed in to something important. Write failures as one line in docs/BUGS.md (page type, what you saw).
-Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.1.0.zip) on each browser.
+Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each browser.
 
 | # | Check | Steps | Edge | Chrome | Brave |
 |---|---|---|---|---|---|
@@ -27,3 +27,14 @@ Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.1.0.zip) on each 
 | 20 | Shortcuts (rc4) | The popup's list matches edge://extensions/shortcuts. Each assigned key shows a 2 s toast: theme applied, restored, blur on/off, palette open. On edge://extensions the badge shows "!" | | | |
 | 21 | Pet button (rc4) | Pet on: "Show pet on this page" shows it, Restore removes it; on a page where the theme is rolled back the pet still shows; on a blocked page the one-line message says why | | | |
 | 22 | Failure message (rc4) | Force a rollback (a page where the theme cannot apply): the popup gives a plain-words reason, no page text | | | |
+
+## Keyboard-only walkthrough (Phase 11)
+Do this once per browser with the mouse put away. Every step needs a visible focus ring; nothing may be cut off at 100 % and at 200 % zoom.
+1. Popup: Tab goes to Change my page, Restore original, then the theme cards (arrow keys move between themes), the Pet switch (Space toggles), Pet options, Scene options, "What gets sent" (Enter opens it), the shortcuts list. Shift+Tab goes back in the same order.
+2. Press Enter on Change my page. The status line (top) announces each step. If consent appears, Tab reaches Send, Cancel and Show what will be sent; Enter works on each.
+3. In the preview, Tab to Keep, Undo, Try another. After Keep, Tab to Remember, Always on this site, Copy theme code, Done.
+4. Options: Tab reaches the tab list as one stop; Left and Right arrows (and Home, End) move between the nine tabs; Tab then enters the panel.
+5. AI providers: key field, model, Save key, Test key, Remove key are all reachable; Up and Down buttons reorder providers.
+6. Privacy: Enter on Erase all Skinly data opens a dialog with focus inside; Tab stays inside it; Escape closes it and focus returns to the button.
+7. About: Show the welcome again opens the welcome with focus inside; Skip closes it and focus returns.
+8. With the screen reader off, turn on Windows high contrast (forced colors): all text, borders and focus rings stay visible.

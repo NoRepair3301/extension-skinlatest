@@ -25,6 +25,7 @@ declare const process: {
 declare module "node:zlib" {
   export function crc32(data: Uint8Array | string, value?: number): number;
   export function deflateSync(data: Uint8Array, options?: { level?: number }): Uint8Array;
+  export function gzipSync(data: Uint8Array, options?: { level?: number }): Uint8Array;
   export function deflateRawSync(data: Uint8Array, options?: { level?: number }): Uint8Array;
   export function inflateRawSync(data: Uint8Array): Uint8Array;
 }

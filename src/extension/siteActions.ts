@@ -3,10 +3,12 @@ import type { Fingerprint } from "../core/types.ts";
 import { PROMPT_VERSION } from "../ai/prompt.ts";
 import { fnv1a } from "../analyzer/fingerprint.ts";
 import type { StylePlan } from "../plan/schema.ts";
-import { registerAutoScript, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
+import { clearAllStorage, registerAutoScript, removeAllOrigins, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
 import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
 
 export const AUTO_SCRIPT_FILE = "applier-auto.js";
+/** The applier itself; the auto script needs it loaded first. */
+export const APPLIER_SCRIPT_FILE = "applier.js";
 /** Registered after the auto script, only for a site that has a saved scene or asset, so the document_start script stays small. */
 export const SCENE_SCRIPT_FILE = "scene.js";
 
@@ -64,7 +66,7 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
     else if (previous) await saveSite(o, { ...previous, mode: "auto" });
     else return { ok: false, reason: "no-record" };
     const saved = await getSite(o);
-    await registerAutoScript(scriptId(o), matchFor(o), hasArt(saved?.look) ? [AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE] : AUTO_SCRIPT_FILE);
+    await registerAutoScript(scriptId(o), matchFor(o), hasArt(saved?.look) ? [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE] : [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
     if (tabId !== undefined) await setBadge(tabId, "ON");
     return { ok: true };
   } catch {
@@ -114,4 +116,16 @@ export async function forgetSite(origin: string, tabId?: number): Promise<Action
 export async function forgetAll(): Promise<void> {
   for (const o of Object.keys(await loadSites())) await forgetSite(o);
   await clearSites();
+}
+
+/** "Erase all Skinly data": every site (with its script and permission), then every host permission, then all of storage (settings, keys, assets, sites). */
+export async function eraseEverything(): Promise<ActionResult> {
+  try {
+    await forgetAll();
+    await removeAllOrigins();
+    await clearAllStorage();
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
 }

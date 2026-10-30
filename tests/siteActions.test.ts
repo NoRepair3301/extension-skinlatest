@@ -12,7 +12,7 @@ const api = vi.hoisted(() => ({
 }));
 vi.mock("../src/extension/api.ts", () => api);
 
-import { AUTO_SCRIPT_FILE, enableAuto, forgetAll, forgetSite, matchFor, pauseSite, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
+import { APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, enableAuto, forgetAll, forgetSite, matchFor, pauseSite, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
 import { getSite, loadSites } from "../src/extension/sites.ts";
 import { planFor } from "./plan/helpers.ts";
 
@@ -44,7 +44,7 @@ describe("site actions", () => {
     expect(api.requestOrigins).toHaveBeenCalledTimes(1);
     expect(api.requestOrigins).toHaveBeenCalledWith([`${A}/*`]);
     expect((await getSite(A))!.mode).toBe("auto");
-    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], AUTO_SCRIPT_FILE);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
     expect(api.setBadge).toHaveBeenCalledWith(5, "ON");
   });
 

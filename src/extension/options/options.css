@@ -1,8 +1,8 @@
-:root { color-scheme: light dark; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
-body { margin: 0; }
-main { max-width: 640px; margin: 0 auto; padding: 20px 16px; display: grid; gap: 16px; }
+
+
+main { max-width: 720px; margin: 0 auto; padding: 20px 16px; display: grid; gap: 16px; }
 h1 { font-size: 20px; margin: 0; display: flex; align-items: center; gap: 10px; }
-section { border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 8px; padding: 12px 14px; display: grid; gap: 8px; }
+section { border: 1px solid var(--ui-border); border-radius: var(--r-3); padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-2); background: var(--ui-surface); }
 h2 { font-size: 15px; margin: 0; }
 label { display: grid; gap: 4px; font-size: 13px; }
 input[type="text"], input[type="password"] { font: inherit; padding: 6px 8px; }
@@ -10,3 +10,9 @@ input[type="text"], input[type="password"] { font: inherit; padding: 6px 8px; }
 button { font: inherit; padding: 6px 10px; border-radius: 6px; cursor: pointer; }
 .note { font-size: 12px; opacity: 0.85; margin: 0; }
 [role="status"] { min-height: 1.2em; font-size: 12px; margin: 0; }
+.panel { display: grid; gap: var(--sp-3); padding-top: var(--sp-3); }
+[hidden] { display: none !important; }
+main > h1 + .note { margin-top: calc(var(--sp-1) * -1); }
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: var(--sp-2); }
+.theme-card { display: flex; gap: var(--sp-2); align-items: center; padding: var(--sp-2); border: 1px solid var(--ui-border); border-radius: var(--r-2); }
+fieldset.default-theme { border: 1px solid var(--ui-border); border-radius: var(--r-3); padding: var(--sp-3) var(--sp-4); background: var(--ui-surface); }

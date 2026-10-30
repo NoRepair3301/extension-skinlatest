@@ -109,3 +109,10 @@ Real Edge feedback: only the page background changed, the ERP changed nothing, b
 - `npm run check` green (61 files, 950 tests), `npm run release` ok. scene.js is 67 KB (limit 150 KB). Safety greps C1, C2, C6, C7, C9, C10, C12 clean (C2 hits are the palette's own input and the pet's own button; C9/C10 hits are field names or user-facing words; package.json only gained the scene build mode and the preview script).
 - Weapon props are behind ARMY_WEAPON_PROPS in src/config.ts (store review may be sensitive).
 - UNVERIFIED: how the art looks and moves, gutters on real sites, CSP fallback of uploaded media. Human items are in docs/HUMAN_CHECKS.md. Run `npm run preview` then open private/preview.html.
+
+## Phase 11: product polish (v0.2.0-rc2, 2026-10-30)
+- Done in order 1, 2, 3, 4, 6, 9, 5, 7, 8, 10 (one commit each): design system (src/ui tokens, 11 components, theme-driven roles, forced-colors, reduced motion), popup redesign, options with nine tabs plus Erase all behind a dialog, first-run welcome (onInstalled, settings.welcomeDone), error boundary, docs (README, ARCHITECTURE, CHANGELOG, store text, version 0.2.0), strings table, budgets enforced by validate-dist, accessibility tests.
+- `npm run check` green (998 tests), `npm run release` ok, safety greps clean. Budgets: popup 23/60 KB gz, applier 23/50, auto 5/20, scene 67/150.
+- Auto script was over budget (26.6 KB gz); it is now registered as applier.js + applier-auto.js (+ scene.js). Four test expectations name the extra file.
+- NOT DONE / partial: strings extraction is partial (PetOptions, SceneOptions, MyAssets, PrivacyTools, SPEC 11 messages keep their own text); no art thumbnails in the Scene and Pet pickers; no fresh-clone run (rules said no fresh clone).
+- UNVERIFIED: everything visual and the real-browser behaviour; see docs/FINAL_REPORT.md and docs/HUMAN_CHECKS.md.

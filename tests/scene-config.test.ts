@@ -14,7 +14,7 @@ vi.mock("../src/extension/api.ts", () => api);
 
 import { effectiveScene, lookFor, sceneRequest, sourceForTheme } from "../src/extension/sceneConfig.ts";
 import { petFor } from "../src/extension/applier-auto.ts";
-import { AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE, enableAuto, hasArt, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
+import { APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE, enableAuto, hasArt, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
 import { defaultSettings, type Settings } from "../src/extension/settings.ts";
 import { getSite, parseLook, parseSite } from "../src/extension/sites.ts";
 import { planFor } from "./plan/helpers.ts";
@@ -130,11 +130,11 @@ describe("site actions and scene.js registration", () => {
   });
   it("a site with saved art gets scene.js after the auto script", async () => {
     await enableAuto(A, kept(withScene), 5);
-    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE]);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE]);
   });
   it("a site with no saved art keeps the small single-file registration", async () => {
     await enableAuto(A, kept(), 5);
-    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], AUTO_SCRIPT_FILE);
+    expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId(A), [`${A}/*`], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE]);
     expect(hasArt(undefined)).toBe(false);
     expect(hasArt({ pet: { kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true } })).toBe(false);
     expect(hasArt(withScene)).toBe(true);

@@ -1,0 +1,27 @@
+/* Design tokens for Skinly's own UI (popup and options). Colour roles are overridden per theme by src/ui/theme.ts. */
+:root {
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --r-1: 4px; --r-2: 8px; --r-3: 12px; --r-pill: 999px;
+  --fs-1: 11px; --fs-2: 12px; --fs-3: 13px; --fs-4: 15px; --fs-5: 18px; --fs-6: 22px;
+  --lh-tight: 1.25; --lh-body: 1.45;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --dur-1: 120ms; --dur-2: 180ms; --dur-3: 240ms; --ease: cubic-bezier(0.2, 0, 0, 1);
+  --elev-1: 0 1px 2px rgba(0, 0, 0, 0.12); --elev-2: 0 4px 12px rgba(0, 0, 0, 0.16); --elev-3: 0 12px 32px rgba(0, 0, 0, 0.28);
+  --ui-bg: #f6f5fb; --ui-surface: #ffffff; --ui-surface-alt: #eeebf7; --ui-text: #1b1830; --ui-muted: #55516b;
+  --ui-border: #cfcae0; --ui-accent: #5b3fc4; --ui-on-accent: #ffffff; --ui-focus: #3b24a0;
+  --ui-link: #4a2fb0; --ui-danger: #a3162a; --ui-ok: #166534;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-ui-themed]) {
+    --ui-bg: #14122a; --ui-surface: #1e1b3a; --ui-surface-alt: #29254d; --ui-text: #eeeaff; --ui-muted: #b6b0d6;
+    --ui-border: #443f73; --ui-accent: #b79cff; --ui-on-accent: #170f3a; --ui-focus: #d6c6ff;
+    --ui-link: #c9b6ff; --ui-danger: #ff9aa8; --ui-ok: #7ee2a0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-1: 0ms; --dur-2: 0ms; --dur-3: 0ms; }
+}
+@media (forced-colors: active) {
+  :root { --ui-bg: Canvas; --ui-surface: Canvas; --ui-surface-alt: Canvas; --ui-text: CanvasText; --ui-muted: CanvasText; --ui-border: CanvasText; --ui-accent: Highlight; --ui-on-accent: HighlightText; --ui-focus: Highlight; --ui-link: LinkText; --ui-danger: CanvasText; --ui-ok: CanvasText; }
+}

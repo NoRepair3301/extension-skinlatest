@@ -1,3 +1,34 @@
+# Final report: v0.2.0-rc1 (Phase 10) and v0.2.0-rc2 (Phase 11), 2026-10-30
+
+Not run in a fresh clone (the session rules said no fresh clone); everything below was run in the working tree.
+
+## PASS (evidence: command output in this session)
+| Check | Result |
+| --- | --- |
+| `npm run check` (typecheck, lint, tests, build, validate-dist, contrast) | green: 998 tests, 6 themes contrast ok |
+| `npm run release` | `release/skinly-ai-0.2.0.zip` |
+| Budgets (validate-dist): popup 23 KB of 60 gz, applier 23 of 50 gz, auto 5 of 20 gz, scene 67 of 150 min, no maps | pass |
+| Versions: package.json, manifest.json, store text, QA.md all 0.2.0 (tests) | pass |
+| C1 no skip/only; C6 no key patterns, no env file tracked; C7 permissions activeTab, scripting, storage, optional hosts only, no content_scripts; C9 no fetch outside src/providers, no eval, no innerHTML | clean |
+| C2 click/focus hits | only on our own elements (palette input, pet button, our tab list and dialog focus handling) |
+| C10 chrome.* outside api.ts | only the word "browser." in prose |
+| C12 scope: package.json changed only in version (and the preview/scene scripts of Phase 10); no new dependency, no new permission, no new network call, no new storage key (`welcomeDone` is a field of `settings`) | pass |
+| Accessibility audit for every popup state (idle, working, consent, preview, kept, blocked, error, offline) and every options tab; error boundary shows Restore this page | pass (tests/a11y.test.ts, tests/ui) |
+
+## Decisions and changes to know about
+- The auto script is now registered as `applier.js` + `applier-auto.js` (+ `scene.js` for sites with saved art). Reason: the old combined bundle was 26.6 KB gzip, over the 20 KB budget. Four test expectations (popup-scene, scene-config x2, siteActions) now list `applier.js` as well; they still assert the exact file list.
+- Step 5 (strings) is partial: popup, options, welcome, error boundary and the new components use `src/ui/strings.ts`. `PetOptions`, `SceneOptions`, `MyAssets`, `PrivacyTools` and the SPEC 11 messages in `src/ai/messages.ts` still hold their own text.
+- Popup: the Pet and Scene pickers have no art thumbnails (Phase 11 step 2 asked for them); theme cards have mini previews. Scene thumbnails would need the scene art built in the popup bundle, which is over the idea of keeping it small.
+- "What gets sent" in the popup idle state is an explanation; the exact payload is shown in the consent step (it only exists for a real page).
+- Fresh-clone run (step 10) not done; do it before submitting.
+
+## UNVERIFIED (needs a human and a real browser)
+Everything visual: scene and pet art quality and motion, popup and options look, theme cards, focus rings, forced-colors, dark mode, that the first install opens Settings with the welcome once, that registering applier.js + applier-auto.js behaves the same as before on a real site, Erase all clears everything, gutters on real sites, custom asset upload and CSP fallback, shortcut keys.
+
+## Human checklist
+See docs/HUMAN_CHECKS.md sections "Phase 10" and "Phase 11" (private/preview.html review, walk the popup and every options tab with keyboard then mouse, first install in a fresh profile, Erase all, heavy page CPU numbers into docs/PERF.md, full docs/QA.md on Edge, Chrome and Brave, decide on the Field scene's weapon props before submitting).
+
+---
 # FINAL REPORT
 
 Date: 2026-10-30. Subject: main at tag v0.1.0-rc1 (all phases 0 to 9 merged and tagged).

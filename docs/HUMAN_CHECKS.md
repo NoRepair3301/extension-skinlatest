@@ -100,3 +100,14 @@ Items are added per step; the full list is printed at the end of the final repor
 - [ ] Upload a PNG, a GIF and a short video in My assets; an oversized video and an SVG are rejected with a clear message; Restore removes everything.
 - [ ] Store: the field scene has weapon props (ARMY_WEAPON_PROPS in src/config.ts). Decide before submission; set to false to remove them.
 - [ ] Copy theme code, import it on another page: it applies readably; a garbage code is refused.
+
+## Phase 11 (v0.2.0-rc2)
+- [ ] Popup: click through idle, working, consent (with Show what will be sent), preview, kept, blocked and error with the keyboard only, then the mouse. Nothing is cut off, every control shows a focus ring, the copy reads well. Check light, dark and a themed popup (pick Midnight).
+- [ ] Options: every one of the nine tabs, keyboard only (arrows move between tabs), then mouse. Shortcuts matches edge://extensions/shortcuts.
+- [ ] First install in a fresh profile: Settings opens with the welcome once. Skip, reopen from About. Reinstall shows it again only on a new install.
+- [ ] Privacy, Erase all Skinly data: confirm dialog, then keys, sites, assets, permissions and settings are gone (check edge://extensions details for site access).
+- [ ] Auto sites still theme on load after the script split (applier.js + applier-auto.js): remember a site with Always on, reload, theme appears; with a saved scene the art appears too.
+- [ ] Heavy page with a scene on: Task Manager for a minute; write the numbers in docs/PERF.md.
+- [ ] Run the full docs/QA.md (including the keyboard-only walkthrough) on Edge, Chrome and Brave.
+- [ ] Run `npm ci`, `npm run check`, `npm run release` in a fresh clone before submitting (not done in this session).
+- [ ] Windows high contrast (forced colors): popup and options stay readable.

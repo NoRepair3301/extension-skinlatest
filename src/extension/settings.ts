@@ -59,6 +59,8 @@ export interface Settings {
   scene: SceneSettings;
   /** Which saved picture or video to show, and how (Phase 10). Only an id: the file lives under the `assets` key. */
   asset: AssetPlacement;
+  /** True once the first-run welcome was finished or skipped (Phase 11). */
+  welcomeDone: boolean;
 }
 
 const KEY = "settings";
@@ -75,6 +77,7 @@ export const defaultSettings = (): Settings => ({
   pet: { enabled: false, kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, disabledOrigins: [] },
   scene: { enabled: true, choice: "theme", density: "normal", lane: "both" },
   asset: defaultPlacement(),
+  welcomeDone: false,
 });
 
 const isProviderId = (v: unknown): v is ProviderId => typeof v === "string" && (PROVIDER_IDS as readonly string[]).includes(v);
@@ -140,6 +143,7 @@ export function parseSettings(raw: unknown): Settings {
     if (isLaneChoice(sc["lane"])) out.scene.lane = sc["lane"];
   }
   out.asset = parsePlacement(r["asset"]);
+  if (r["welcomeDone"] === true) out.welcomeDone = true;
   return out;
 }
 
