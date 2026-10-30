@@ -27,12 +27,27 @@ const page = (over: Partial<PageDiag> = {}): PageDiag => ({
   mount: "html",
   htmlEffect: "none",
   reattached: 1,
+  auto: "applied",
   ...over,
 });
 
 beforeEach(() => {
   store.clear();
   resetDiag();
+});
+
+describe("A2: auto state words", () => {
+  it("every state word has one plain line with a next step in strings.ts; an unknown word reads as not-run", async () => {
+    const { AUTO_STATES } = await import("../src/core/diag.ts");
+    const { S } = await import("../src/ui/strings.ts");
+    for (const s of AUTO_STATES) {
+      const line = S.popup.why[s];
+      expect(line, s).toMatch(/\.$/);
+      expect(line.length, s).toBeLessThan(140);
+    }
+    expect(parsePageDiag({ ...page(), auto: "https://bank.example" })!.auto).toBe("not-run");
+    expect(diagReport("0.2.1", { v: 1, errors: [], page: page({ auto: "paused" }) }, {})).toContain("auto: paused");
+  });
 });
 
 describe("diagnostics content (stage 2)", () => {

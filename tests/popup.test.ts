@@ -20,6 +20,10 @@ const api = vi.hoisted(() => ({
   getCommands: vi.fn(),
   runScene: vi.fn(),
   browserHints: vi.fn(),
+  hasOrigins: vi.fn(),
+  registeredScripts: vi.fn(),
+  storageRemove: vi.fn(),
+  injectFiles: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 
@@ -30,6 +34,7 @@ vi.mock("../src/extension/flow.ts", () => ({
 }));
 
 import { MSG, applyFailureMessage } from "../src/ai/messages.ts";
+import { wireBackground } from "./helpers/popupBackground.ts";
 import { planFor } from "./plan/helpers.ts";
 import { BLOCKED_MESSAGE, Popup } from "../src/extension/popup/Popup.tsx";
 
@@ -52,7 +57,14 @@ const mount = async () => {
   await act(() => new Promise<void>((r) => setTimeout(r, 0)));
   return root;
 };
-const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
+let bg = { settled: (): Promise<unknown> => Promise.resolve() };
+const tick = () => new Promise<void>((r) => setTimeout(r, 0));
+const flush = () =>
+  act(async () => {
+    await tick();
+    await bg.settled();
+    await tick();
+  });
 const find = (root: HTMLElement, label: string) => Array.from(root.querySelectorAll("button")).find((b) => b.textContent === label);
 const click = async (root: HTMLElement, label: string) => {
   const btn = find(root, label);
@@ -78,6 +90,7 @@ describe("popup", () => {
     api.queryActiveTab.mockResolvedValue(TAB);
     api.getCommands.mockResolvedValue([]);
     api.browserHints.mockReturnValue({ userAgent: "Chrome/130 Edg/130", brave: false });
+    bg = wireBackground(api, store);
   });
 
   it("idle: shows the title, six themes plus Auto and the not-affiliated line, and calls nothing yet", async () => {
@@ -337,7 +350,7 @@ describe("popup", () => {
       await click(root, "Change my page");
       return root;
     };
-    const sites = () => store.get("sites") as Record<string, { mode: string }> | undefined;
+    const sites = () => store.get("sites") as Record<string, { mode: string; paused?: boolean }> | undefined;
 
     it("Change my page keeps the site automatically: one permission request, one registered script", async () => {
       const root = await keep();
@@ -351,19 +364,22 @@ describe("popup", () => {
       api.runInPage.mockResolvedValue({ ok: true });
       const root = await keep();
       await click(root, "Restore original");
-      expect(sites()!["https://example.org"]!.mode).toBe("ask");
+      expect(sites()!["https://example.org"]!.paused).toBe(true);
+      expect(root.textContent).toContain("Paused on this site");
+      expect(find(root, "Resume")).toBeDefined();
       expect(api.unregisterAutoScript).toHaveBeenCalled();
       api.registerAutoScript.mockClear();
       flow.runTransform.mockResolvedValue(previewOutcome());
       await click(root, "Change my page");
       expect(sites()!["https://example.org"]!.mode).toBe("auto");
+      expect(sites()!["https://example.org"]!.paused).toBeUndefined();
       expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
     });
 
-    it("Pause switches to ask; Forget removes record, script and permission", async () => {
+    it("Pause marks the site paused; Forget removes record, script and permission", async () => {
       const root = await keep();
       await click(root, "Pause on this site");
-      expect(sites()!["https://example.org"]!.mode).toBe("ask");
+      expect(sites()!["https://example.org"]!.paused).toBe(true);
       expect(find(root, "Pause on this site")).toBeUndefined();
       await click(root, "Forget this site");
       expect(sites()).toEqual({});

@@ -4,12 +4,12 @@ import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { S } from "../../ui/strings.ts";
 import { MSG, applyFailureMessage, consentText, repairConsentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
-import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
+import { THEMES, resolveTheme, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { checkUrl } from "../../analyzer/eligibility.ts";
 import { storableRepairCss } from "../../plan/readability.ts";
 import { themeToPlan } from "../../plan/themeToPlan.ts";
-import { browserHints, getCommands, queryActiveTab, requestOrigins, runInPage, setBadge } from "../api.ts";
+import { browserHints, getCommands, hasOrigins, queryActiveTab, registeredScripts, requestOrigins, runInPage, setBadge, type RegisteredScript } from "../api.ts";
 import { ensureApplier } from "../inject.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings } from "../settings.ts";
@@ -26,9 +26,11 @@ import { lookFor, sceneRequest, sourceForPlan, sourceForTheme, type SceneSource 
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
 import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
-import { enableAuto, forgetSite, matchFor, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { AUTO_FILES, forgetSite, matchFor, pauseSite, scriptId, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { NO_LAYOUT, makeIntent, readIntent, writeIntent, type IntentStage } from "../intent.ts";
+import type { AutoState } from "../../core/diag.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
-import { getSite, originOf, type SiteRecord } from "../sites.ts";
+import { getSite, isAutoOn, originOf, type SiteRecord } from "../sites.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -41,6 +43,15 @@ export type View =
   | { state: "consent"; req: ConsentRequest }
   | { state: "preview"; outcome: Extract<Outcome, { kind: "preview" }>; tabId: number }
   | { state: "error"; kind: string; message: string };
+
+/** True when this origin's host permission is granted; false on any error. */
+async function isGranted(origin: string): Promise<boolean> {
+  try {
+    return (await hasOrigins(matchFor(origin))) === true;
+  } catch {
+    return false;
+  }
+}
 
 const badge = (tabId: number, text: string): void => {
   void setBadge(tabId, text).catch(() => undefined);
@@ -62,6 +73,11 @@ export function Popup() {
   const [petNote, setPetNote] = useState("");
   const [sceneNote, setSceneNote] = useState("");
   const [whyArt, setWhyArt] = useState("");
+  const [whyThemed, setWhyThemed] = useState("");
+  /** The reopened popup found this origin's permission refused (A1a): Change my page then themes this page only, without asking again. */
+  const deniedHere = useRef<string | undefined>(undefined);
+  /** This origin's permission was already there when the popup opened: no prompt will show, so the popup themes the tab itself. */
+  const grantedAtOpen = useRef<string | undefined>(undefined);
   const online = useOnline();
   /** What the page shows now (theme, plan scene, accent), so a changed setting can reach the art that is already there. */
   const artSource = useRef<SceneSource | undefined>(undefined);
@@ -69,20 +85,42 @@ export function Popup() {
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
 
-  const refreshSite = async () => {
+  const refreshSite = async (): Promise<{ origin: string; tabId: number } | undefined> => {
     try {
       const tab = await queryActiveTab();
       const origin = tab?.url ? originOf(tab.url) : undefined;
       setSite(tab && origin ? { origin, tabId: tab.id, record: await getSite(origin) } : undefined);
+      if (origin) grantedAtOpen.current = (await isGranted(origin)) ? origin : undefined;
+      return tab && origin ? { origin, tabId: tab.id } : undefined;
     } catch {
       setSite(undefined);
+      return undefined;
+    }
+  };
+
+  /**
+   * A1a: Edge closed the popup to show the permission prompt. If the user said no, the intent is still there without the permission:
+   * say once, in one line, that the theme is for this page only, and do not ask again on the next click (Keep on this site asks).
+   */
+  const checkPendingIntent = async (here: { origin: string; tabId: number } | undefined) => {
+    if (!here) return;
+    try {
+      const intent = await readIntent();
+      if (!intent || intent.origin !== here.origin || intent.stage === "resume") return;
+      if (await isGranted(here.origin)) return;
+      deniedHere.current = here.origin;
+      setNotice(S.popup.thisPageOnly);
+      if (intent.kept) setKeepable({ tabId: here.tabId, origin: here.origin, kept: intent.kept });
+      if (!intent.denied) await writeIntent({ ...intent, denied: true });
+    } catch {
+      // nothing pending
     }
   };
 
   useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
   useEffect(() => {
     void loadSettings().then(setSettings).catch(() => recordErrors(["popup-error"]));
-    void refreshSite();
+    void refreshSite().then(checkPendingIntent);
     // The keys the browser really assigned (a suggested key is dropped when something else already uses it).
     void (async () => {
       try {
@@ -170,11 +208,28 @@ export function Popup() {
     }
   };
 
+  /** The built-in theme the user picked, as a plan: all that is known inside the click, before the page is read. */
+  const clickKept = (s: Settings): KeptPlan => {
+    const plan = themeToPlan(resolveTheme(s.theme, prefersDark()));
+    return { plan, fingerprint: NO_LAYOUT, provider: "builtin", model: "builtin", look: lookFor(s, sourceForPlan(plan)) };
+  };
+
+  /**
+   * A1a. Inside the click the popup does two things only: it writes the pending intent (not awaited, so the request stays inside the user's
+   * gesture) and requests this origin's permission as its first awaited call. Edge may close the popup right here; the background then
+   * saves the site, registers the auto files and themes the tab (src/extension/keeper.ts). True when the permission is there.
+   */
+  const handOver = async (here: { origin: string; tabId: number }, stage: IntentStage, keptPlan: KeptPlan | undefined, popupApplies = grantedAtOpen.current === here.origin): Promise<boolean> => {
+    const intent = makeIntent(here.origin, here.tabId, stage, keptPlan, Date.now(), popupApplies);
+    if (!intent) return false;
+    void writeIntent(intent).catch(() => recordErrors(["popup-error"]));
+    return askPermission(here.origin);
+  };
+
   const start = async () => {
-    // The browser only shows its permission prompt for a call made inside the click, so this is the first thing that happens: before any
-    // await. If it is already granted there is no prompt. The auto script is registered once the theme is on (see below).
-    const grant: Promise<boolean> =
-      site && checkUrl(`${site.origin}/`, settings.blocklist).allowed ? askPermission(site.origin) : Promise.resolve(false);
+    const here = site && checkUrl(`${site.origin}/`, settings.blocklist).allowed ? { origin: site.origin, tabId: site.tabId } : undefined;
+    // Refused once already (reopened popup): this page only, no second prompt. Keep on this site asks again.
+    const grant = here && deniedHere.current !== here.origin ? await handOver(here, "click", clickKept(settings)) : false;
     try {
       const tab = await queryActiveTab();
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
@@ -207,13 +262,12 @@ export function Popup() {
       setKeepable(k);
       setKept(false);
       if (k?.origin) {
-        // One prompt, one flow: with the permission the theme is kept for the whole site right away; without it, this document only.
-        if ((await grant) && (await commitKeep(k))) {
+        // One prompt, one flow: with the permission the background keeps what is on the page now for the whole site; without it, this page only.
+        if (grant && (await commitKeep(k))) {
           setKept(true);
           setKeepable(undefined);
-          badge(tab.id, "ON");
-          void refreshSite();
-        } else setNotice(S.popup.keepDenied);
+          setSite((cur) => (cur && cur.origin === k.origin ? { ...cur, record: keptRecord(k.kept, cur.record) } : cur));
+        } else setNotice(deniedHere.current === k.origin ? S.popup.thisPageOnly : S.popup.keepDenied);
       }
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
@@ -259,7 +313,7 @@ export function Popup() {
       badge(tab.id, "");
       // Restore also pauses automatic theming for this site until the user applies again, so a reload does not bring the theme back.
       const origin = tab.url ? originOf(tab.url) : undefined;
-      if (origin && (await getSite(origin).catch(() => undefined))?.mode === "auto") await pauseSite(origin).catch(() => undefined);
+      if (origin && isAutoOn(await getSite(origin).catch(() => undefined))) await pauseSite(origin).catch(() => undefined);
       setKept(false);
       setApplied(undefined);
       setNotice("");
@@ -279,8 +333,8 @@ export function Popup() {
       const applied = await createPageClient(tabId).applyTheme(baseline);
       // A theme already kept for this site goes back to the built-in one there too.
       if (kept && site?.origin && applied?.ok) {
-        await enableAuto(site.origin, { plan: themeToPlan(baseline), fingerprint: site.record?.fingerprint ?? { hash: "00000000", seq: "" }, provider: "builtin", model: "builtin" }, tabId).catch(() => undefined);
-        await refreshSite();
+        const plan = themeToPlan(baseline);
+        await commitKeep({ tabId, origin: site.origin, kept: { plan, fingerprint: NO_LAYOUT, provider: "builtin", model: "builtin", look: lookFor(settings, sourceForPlan(plan)) } });
       }
       badge(tabId, kept ? "ON" : "");
       setKeepable(undefined);
@@ -315,8 +369,10 @@ export function Popup() {
     return undefined;
   };
 
-  /** One click: asks for this origin only, saves the theme and registers the auto script for it (the click is the user gesture). */
-  /** Saves the theme and the repair rules found for it with the site and registers the auto script. True when it worked. */
+  /**
+   * Hands what is on the page now (the plan and the repair rules found for it) to the background as the final intent; the background
+   * saves it with the site. The permission is already there (asked inside the click). True when the intent was written.
+   */
   const commitKeep = async (k: { tabId: number; origin: string | undefined; kept: KeptPlan }): Promise<boolean> => {
     if (!k.origin) return false;
     let css = "";
@@ -325,23 +381,76 @@ export function Popup() {
     } catch {
       css = "";
     }
-    const r = await enableAuto(k.origin, css ? { ...k.kept, repairCss: css } : k.kept, k.tabId).catch(() => ({ ok: false }));
-    return r.ok;
+    const intent = makeIntent(k.origin, k.tabId, "final", css ? { ...k.kept, repairCss: css } : k.kept, Date.now(), true);
+    if (!intent) return false;
+    try {
+      await writeIntent(intent);
+      return true;
+    } catch {
+      return false;
+    }
   };
 
-  /** The button that stays after a refused permission: asks again, from this click. */
+  /** The button that stays after a refused permission: asks again, from this click (the same two steps as Change my page). */
   const keepOnSite = async () => {
     if (!keepable) return;
-    if (!keepable.origin) return setView({ state: "idle", note: S.popup.keepNoOrigin });
     const k = keepable;
-    if (await commitKeep(k)) {
-      badge(k.tabId, "ON");
+    if (!k.origin) return setView({ state: "idle", note: S.popup.keepNoOrigin });
+    deniedHere.current = undefined;
+    if (await handOver({ origin: k.origin, tabId: k.tabId }, "final", k.kept, true)) {
       setKeepable(undefined);
       setKept(true);
       setNotice("");
       setView({ state: "idle", note: S.popup.keepDone });
+      setSite((cur) => (cur && cur.origin === k.origin ? { ...cur, record: keptRecord(k.kept, cur.record) } : cur));
     } else setNotice(S.popup.keepDenied);
-    await refreshSite();
+  };
+
+  /** Resume (A1e): the background applies the paused record again and brings its registration back. */
+  const resume = async () => {
+    if (!site?.record) return;
+    deniedHere.current = undefined;
+    const ok = await handOver({ origin: site.origin, tabId: site.tabId }, "resume", undefined, false).catch(() => false);
+    setView({ state: "idle", note: ok ? S.popup.resumed : S.popup.resumeFailed });
+    if (ok) setSite((cur) => (cur && cur.record ? { ...cur, record: { ...cur.record, mode: "auto", paused: false } } : cur));
+  };
+
+  /**
+   * A2 "Why not themed here?": one line with a next step, from fixed state words only. What the popup can see (record, pause, permission,
+   * registration) comes first; otherwise the page's auto script reports its own word. The word goes into Copy diagnostics.
+   */
+  const explainThemed = async () => {
+    let state: AutoState = "not-run";
+    let page: PageDiag | undefined;
+    let errors: DiagKind[] = [];
+    try {
+      const tab = await queryActiveTab();
+      const origin = tab?.url ? originOf(tab.url) : undefined;
+      const record = origin ? await getSite(origin) : undefined;
+      if (!tab || !origin || !record) state = "no-record";
+      else if (!isAutoOn(record)) state = "paused";
+      else if (!(await isGranted(origin))) state = "no-permission";
+      else {
+        let reg: RegisteredScript | undefined;
+        try {
+          [reg] = await registeredScripts([scriptId(origin)]);
+        } catch {
+          reg = undefined;
+        }
+        if (!reg || AUTO_FILES.some((f) => !reg.js.includes(f))) state = "not-registered";
+        else {
+          const d = await runInPage<{ page: PageDiag; errors: DiagKind[] }>(tab.id, "diag").catch(() => undefined);
+          page = parsePageDiag(d?.page);
+          errors = d && Array.isArray(d.errors) ? d.errors : [];
+          state = page?.auto ?? "not-run";
+        }
+      }
+    } catch {
+      state = "not-run";
+    }
+    setWhyThemed(S.popup.why[state]);
+    const snap = parsePageDiag({ ...(page ?? { theme: "none", art: "not-loaded" }), auto: state });
+    if (snap) void savePageDiag(snap, errors).catch(() => undefined);
   };
 
   const busy = view.state === "working" || view.state === "consent";
@@ -416,6 +525,8 @@ export function Popup() {
         <p class="note" aria-live="polite">{sceneNote}</p>
         <Button kind="quiet" onClick={() => void explainArt()}>{S.popup.whyArt}</Button>
         {whyArt && <p class="note" role="status">{whyArt}</p>}
+        <Button kind="quiet" onClick={() => void explainThemed()}>{S.popup.whyThemed}</Button>
+        {whyThemed && <p class="note" role="status">{whyThemed}</p>}
       </section>
 
       <details class="acc" open={settings.pet.enabled}>
@@ -478,9 +589,10 @@ export function Popup() {
       )}
       {site?.record && view.state !== "consent" && view.state !== "working" && (
         <section aria-label={S.popup.thisSite}>
-          <p>{site.record.mode === "auto" ? S.popup.siteAutoWith(providerLabel(site.record.provider)) : S.popup.siteSavedWith(providerLabel(site.record.provider))}</p>
+          <p>{site.record.paused ? S.popup.pausedLine : site.record.mode === "auto" ? S.popup.siteAutoWith(providerLabel(site.record.provider)) : S.popup.siteSavedWith(providerLabel(site.record.provider))}</p>
           <div class="row">
-            {site.record.mode === "auto" && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), S.popup.paused, S.popup.pauseFailed)}>{S.popup.pause}</Button>}
+            {site.record.paused && <Button onClick={() => void resume()}>{S.popup.resume}</Button>}
+            {isAutoOn(site.record) && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), S.popup.paused, S.popup.pauseFailed)}>{S.popup.pause}</Button>}
             <Button kind="quiet" onClick={() => void siteAction(() => forgetSite(site.origin, site.tabId), S.popup.forgotten, S.popup.forgetFailed)}>{S.popup.forget}</Button>
           </div>
         </section>
@@ -515,6 +627,11 @@ export function Popup() {
   );
 }
 
+/** What the popup shows for the site right after handing a keep to the background (the background writes the real record). */
+function keptRecord(k: KeptPlan, previous: SiteRecord | undefined): SiteRecord {
+  return { v: 1, plan: k.plan, fingerprint: k.fingerprint, provider: k.provider, model: k.model, promptVersion: previous?.promptVersion ?? "", savedAt: new Date().toISOString(), mode: "auto", blur: previous?.blur ?? [], blurImages: previous?.blurImages ?? false };
+}
+
 /** Which of the three visible stages each step belongs to: Reading the page, Checking readability, Applying. */
 const STAGE_OF: Record<Step, number> = { checking: 0, analysing: 0, consent: 1, asking: 1, repairing: 1, baseline: 2, applying: 2 };
 
@@ -540,7 +657,7 @@ function toView(o: Outcome, tabId: number): View {
 /** One plain line for the header when nothing else needs saying. */
 function pageLine(site: { origin: string; record: SiteRecord | undefined } | undefined, settings: Settings): string {
   if (!site) return S.popup.readyNoPage;
-  if (site.record) return site.record.mode === "auto" ? S.popup.siteAuto : S.popup.siteSaved;
+  if (site.record) return site.record.paused ? S.popup.pausedLine : site.record.mode === "auto" ? S.popup.siteAuto : S.popup.siteSaved;
   return settings.theme === "auto" ? S.popup.readyAuto : S.popup.ready;
 }
 

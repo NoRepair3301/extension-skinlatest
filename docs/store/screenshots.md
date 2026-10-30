@@ -13,5 +13,6 @@
 11. A pet in a corner, and the pet pickers in the popup.
 12. Settings, Scenes and pets, and My assets with a free-space meter.
 13. The first-run welcome.
+14. The popup on a paused site: "Paused on this site" with Resume, and the one line from "Why not themed here?".
 
 Every shot: public pages only, no personal data, popup and settings in the same theme. Do not show a weapon-prop scene unless the Field scene has been cleared by the publisher (docs/HUMAN_CHECKS.md).

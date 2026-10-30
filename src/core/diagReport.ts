@@ -1,4 +1,4 @@
-import { DIAG_MAX, parseKinds, type DiagFlags, type DiagKind, type MountReason } from "./diag.ts";
+import { AUTO_STATES, DIAG_MAX, parseKinds, type AutoState, type DiagFlags, type DiagKind, type MountReason } from "./diag.ts";
 
 /**
  * Diagnostics for "Copy diagnostics" (Settings, About) and the popup's "Why no art?". Pure: fixed field names, enums and bounded
@@ -61,6 +61,8 @@ export interface PageDiag {
   mount: (typeof MOUNTS)[number];
   htmlEffect: (typeof EFFECTS)[number];
   reattached: number;
+  /** A2: why this page is (not) themed by itself, one fixed word. */
+  auto: AutoState;
 }
 
 export interface DiagRecord {
@@ -91,6 +93,7 @@ export function parsePageDiag(raw: unknown): PageDiag | undefined {
     mount: oneOf(MOUNTS, raw["mount"], "unknown"),
     htmlEffect: oneOf(EFFECTS, raw["htmlEffect"], "none"),
     reattached: count(raw["reattached"], 1000),
+    auto: oneOf(AUTO_STATES, raw["auto"], "not-run"),
   };
 }
 
@@ -137,6 +140,7 @@ export function joinPageDiag(applier: { theme?: string | undefined; strategy?: s
     mount: flags.mount ?? "unknown",
     htmlEffect: effect,
     reattached: flags.reattached,
+    auto: flags.auto ?? "not-run",
   })!;
 }
 
@@ -177,6 +181,7 @@ export function diagReport(version: string, rec: DiagRecord, extra: { online?: b
     `adopted stylesheets: ${p?.sheets ?? "unknown"}`,
     `mount: ${p?.mount ?? "unknown"} (html effect: ${p?.htmlEffect ?? "none"})`,
     `re-attached: ${p?.reattached ?? 0}`,
+    `auto: ${p?.auto ?? "not-run"}`,
     `last provider result: ${rec.provider ?? "none"}`,
     ...(extra.online === undefined ? [] : [`online: ${yes(extra.online)}`]),
     `errors (last ${DIAG_MAX}, oldest first): ${rec.errors.length ? rec.errors.join(", ") : "none"}`,

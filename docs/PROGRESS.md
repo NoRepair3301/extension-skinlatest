@@ -200,3 +200,37 @@ Full task text is in prompt-final.txt (the message that started this run was cut
 - Stage results: 1 PASS, 2 PASS, 3 PASS, 4 PASS. UNVERIFIED (no browser here): how the art looks and where it lands on real sites, the CSP behaviour of real strict sites, the clipboard in a real Settings page, re-registration after a real extension update, the offline banner timing.
 - This entry is written last on fix/final-1; the branch is then merged into main with --no-ff and the merge is tagged v0.2.0-rc6 (no direct commit on main).
 FINAL DONE
+
+## fix/launch-1 (v0.2.1-rc1)
+Full task text is in prompt-launch.txt (the starting message was cut off inside A1a; the file has both parts). A previous run had left A1 uncommitted; this run finished and committed it.
+
+### A1: persistence (done)
+- Root cause (reproduced on tests/helpers/fakeChrome.ts, which keeps the browser's event order): Edge closes the popup when it shows the permission prompt, so the popup's own save, registration and apply after `requestOrigins` never ran; the theme stayed on the first page only. Second cause: Restore turned a site into `ask` and nothing brought it back, and a registration made by an older version was never corrected.
+- a. done. Popup writes a pending intent (`intent`: origin, tab id, stage, plan, created, expires in 5 min) and calls `requestOrigins` as its first awaited call. src/extension/keeper.ts in the background completes it on permissions.onAdded, on the intent write (permission already there) or on worker start: saves the record, registers applier.js, applier-auto.js, scene.js, applies to the tab. Denied: the reopened popup says "This page only" once and does not prompt again; Keep on this site asks. Test: tests/persistence.test.ts "Edge: the popup dies at the prompt".
+- b. done. `reconcile()` on worker start, browser start, install and update; idempotent; storage `schema` v2 migrates old records (missing `paused` reads as false). Test: tests/persistence.test.ts "A1b", tests/background-install.test.ts.
+- c. done. `siteKey()` in src/extension/origin.ts (scheme, subdomain, port, IPv6, punycode, credentials refused). Test: tests/origin.test.ts.
+- d. done. Colours at document_start through the adopted sheet; guards, repair, pet and art after DOMContentLoaded. Test: tests/auto.test.ts "applier-auto at document_start (A1d)".
+- e. done. Restore and Pause set `paused`; popup shows "Paused on this site" with Resume; Change my page clears it. Tests: tests/persistence.test.ts "A1e", tests/popup.test.ts "Restore pauses the site".
+- f. done. Full page: the registration covers every path of the origin. Single page: re-read record, bounded by NAV_REAPPLY_MAX, listeners removed on Restore. Tests: tests/auto.test.ts "applier-auto on a single-page app".
+- Decision: the popup tests now run the real keeper behind a mocked api (tests/helpers/popupBackground.ts) instead of expecting the popup to register.
+
+### A2: Why not themed here? (done)
+- Fixed state words (src/core/diag.ts `AUTO_STATES`); the auto script reports its word, the popup adds what it can see (no record, paused, no permission, not registered); one line each in `S.popup.why`; the word is in Copy diagnostics (`auto:`). Tests: tests/persistence.test.ts "A2", tests/diag.test.ts "A2: auto state words", tests/auto.test.ts "reports one state word".
+
+### A3: review passes (done)
+- Seven passes one after another, each with its own checklist (no subagents: CLAUDE.md forbids them; the task allows passes in sequence). Findings in docs/REVIEW.md.
+- Fixed (Medium): R1-1 Chrome double apply under the open popup (`popupOpen` through runtime.getContexts, no new permission); R1-2 stale tab id injecting into another origin; R3-1 print got the theme (sheet is now screen media only). Fixed (Low): R2-1 onMessage sender check.
+- Tests: tests/persistence.test.ts ("Chrome", "a stale tab id", "A3 pass 2: messages"), tests/compat.test.ts (print, rule coverage, no focus/autofill/iframe/shadow selectors), tests/auto.test.ts (no page script reaches keys, intent or keeper).
+- Low items listed as known in docs/REVIEW.md.
+
+### A4: launch readiness (done)
+- Manifest: name, description and icons unchanged, version 0.2.1, permissions activeTab, scripting, storage, optional hosts only (no new permission; runtime.getContexts needs none). Versions match in package.json, manifest.json, listing.md, privacy.md and QA.md (tests/release.test.ts).
+- Store texts: permissions.md (the origin is asked on Change my page and kept until Restore), privacy.md and data-use.md (pending request for at most 5 minutes, the diagnostics word), screenshots.md (paused popup shot), listing.md and single-purpose.md unchanged. README, CHANGELOG 0.2.1, QA "0.2.1: the Wikipedia scenario" (W1 to W9). assets/LICENSES.md unchanged (no new asset).
+- AUDIT, run here: C1 PASS (`grep .skip/.only/xit/xdescribe` gives no output; check green). C2 PASS (only `.focus(` hits: palette input, pet, tabs and dialog in our own UI). C3, C4, C5, C8 PASS ("Test Files 5 passed (5), Tests 154 passed (154)" for flow-safety, repair, applier, gate, pipeline). C6 PASS (key scan of src, tests, fixtures, dist gives no output; `git ls-files | grep -i env` gives no output). C7 PASS (`{"p":["activeTab","scripting","storage"],"o":["https://*/*","http://*/*"],"v":"0.2.1"}`, no host_permissions, no content_scripts). C9 PASS (no fetch outside src/providers; no XHR, WebSocket, sendBeacon, eval, new Function or innerHTML). C10 PASS (the only `browser.`/`chrome.` hits outside api.ts are words in prose strings). C11 PASS (no .scrub-terms.local.json; no e-mail or phone outside reserved example domains). C12 PASS (45 files, all named by A1 to A4 or the prompt files; package.json changes only the version). C13 PASS (`@types/chrome, eslint, jsdom, typescript, typescript-eslint, vite, vitest`). C14 PASS (each A item maps to the tests named above).
+- Fresh clone (C:/Users/Ashutosh Tanguria/AppData/Local/Temp/skinly-fresh-021-20261031050612, kept): `npm ci` ok, `npm run check` "Test Files 81 passed (81), Tests 1253 passed (1253)", validate-dist ok, contrast ok (6 themes). `npm run release` produced release/skinly-ai-0.2.1.zip with 20 entries, all dist files (applier-auto.js, applier.js, assets/intent, options css, popup css, siteActions, ui js and css, background.js, 4 icons, manifest.json, options/index.html, options.js, palette.js, popup/index.html, popup.js, scene.js).
+- Budgets (gzip): popup.js 16.0 KB of 60, applier.js 29.1 KB of 50, applier-auto.js 6.6 KB of 20, scene.js 73.5 KB minified of 150. validate-dist ok.
+
+### A5: merge (done)
+- Stage results: A1 PASS, A2 PASS, A3 PASS, A4 PASS. UNVERIFIED (no browser here): the real Edge prompt closing the popup, onAdded timing in a real service worker, runtime.getContexts in Edge, print preview, the look of the paused popup.
+- This entry is written last on fix/launch-1; the branch is then merged into main with --no-ff and the merge is tagged v0.2.1-rc1 (no direct commit on main).
+PART A COMPLETE

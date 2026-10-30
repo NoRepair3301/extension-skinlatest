@@ -245,6 +245,8 @@ describe("auto path after a reload: art follows the stored plan's theme, not a s
     // what applier-auto runs after the theme went on (a same-document navigation re-runs it the same way)
     vi.resetModules();
     document.documentElement.removeAttribute("data-skinly");
+    // a fresh run, as on a new document (the live-run flag guards against a second injection into the same document)
+    (slot as { skinlyAutoLive?: boolean }).skinlyAutoLive = false;
     await import("../src/extension/applier-auto.ts");
     for (let i = 0; i < 4; i++) await tick();
     const after = await import("../src/core/diag.ts");

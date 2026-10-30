@@ -19,6 +19,10 @@ const api = vi.hoisted(() => ({
   unregisterAutoScript: vi.fn(),
   getCommands: vi.fn(),
   browserHints: vi.fn(),
+  hasOrigins: vi.fn(),
+  registeredScripts: vi.fn(),
+  storageRemove: vi.fn(),
+  injectFiles: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 const flow = vi.hoisted(() => ({ runTransform: vi.fn(), applyTheme: vi.fn(), applyPlan: vi.fn() }));
@@ -26,8 +30,14 @@ vi.mock("../src/extension/flow.ts", () => ({ runTransform: flow.runTransform, cr
 
 import { Popup } from "../src/extension/popup/Popup.tsx";
 import { planFor } from "./plan/helpers.ts";
+import { wireBackground } from "./helpers/popupBackground.ts";
 
-const flush = () => act(() => new Promise<void>((r) => setTimeout(r, 0)));
+let bg = { settled: (): Promise<unknown> => Promise.resolve() };
+const flush = () =>
+  act(async () => {
+    await new Promise<void>((r) => setTimeout(r, 0));
+    await bg.settled();
+  });
 const mount = async () => {
   const root = document.createElement("div");
   document.body.appendChild(root);
@@ -59,6 +69,7 @@ describe("popup: scene art after Change my page", () => {
     api.setBadge.mockResolvedValue(undefined);
     api.registerAutoScript.mockResolvedValue(undefined);
     api.requestOrigins.mockResolvedValue(true);
+    bg = wireBackground(api, store);
   });
 
   it("a built-in theme brings its default scene: scene.js is injected into the top frame and asked to show it", async () => {

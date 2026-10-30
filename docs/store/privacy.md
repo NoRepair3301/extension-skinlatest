@@ -1,6 +1,6 @@
 # Privacy policy (draft; the human hosts it at a public URL)
 
-Version: 0.2.0
+Version: 0.2.1
 Permissions: activeTab, scripting, storage
 Provider hosts: generativelanguage.googleapis.com, api.groq.com
 
@@ -8,11 +8,11 @@ Skinly AI is not affiliated with any website.
 
 ## What stays on your computer
 - Your settings, the AI keys you paste, and the themes you choose to remember, stored in your browser profile (extension storage). Keys are not encrypted by the browser; anyone with access to your profile can read them.
-- Remembered themes are saved by site origin (for example https://example.org) and never include page text, titles, full addresses or query strings.
+- Remembered themes are saved by site origin (for example https://example.org) and never include page text, titles, full addresses or query strings. While the browser asks for permission, a pending request (the site origin, the tab number and the chosen theme) is kept for at most 5 minutes so the theme can be finished if the popup closes.
 - Images and videos you add under My assets are checked and re-encoded in your browser and stored here only. They never leave your device and are never sent to an AI provider.
 - Screenshots you take with the safe screenshot tool are made in your browser and are never uploaded.
 - The palette reads link and button labels in memory to let you search them and never stores or sends them.
-- Diagnostics: a short technical note kept on this device (version, theme name, whether the art showed and how much free space there was, short error names, and how the last AI request ended). It never includes page text, addresses, site names, keys or form values. It leaves your device only if you click Copy diagnostics in Settings and paste it somewhere yourself.
+- Diagnostics: a short technical note kept on this device (version, theme name, whether the art showed and how much free space there was, one word for why the page is or is not themed, short error names, and how the last AI request ended). It never includes page text, addresses, site names, keys or form values. It leaves your device only if you click Copy diagnostics in Settings and paste it somewhere yourself.
 
 ## What can leave your browser
 Optionally, and only after a second agreement per site, for the parts of a page that look hard to read after restyling, the extension also sends their tag names, up to three class names each, their colours and the colour rules of the page's stylesheets (never text, links, ids, form values, addresses or titles; at most 6 KB). "Show what will be sent" shows it first, and you can withdraw the agreement in Settings, Privacy.
@@ -27,7 +27,7 @@ No analytics, telemetry, accounts, ads, remote code or remote configuration. The
 ## Permissions
 - activeTab and scripting: to change the tab you are looking at after you click.
 - storage: to keep the settings above.
-- Optional host access: the provider host when you save a key, and one site's origin only if you choose "Always on this site". You can remove them with "Forget this site" or in your browser's extension settings.
+- Optional host access: the provider host when you save a key, and the current site's origin when you click "Change my page" and allow it, so every page of that site keeps the theme until you choose Restore. You can remove it with "Forget this site" or in your browser's extension settings.
 
 ## Your choices
 Remove a key, forget a site or forget all sites in the options page, use "Erase all Skinly data" under Privacy to wipe everything, or uninstall the extension to delete everything it stored.

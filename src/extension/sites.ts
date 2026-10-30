@@ -12,6 +12,9 @@ export { originOf, toOrigin };
 
 export const SITES_KEY = "sites";
 export const SITE_VERSION = 1;
+/** Storage layout version (A1b). 2 added `paused` and the pending intent; records written before it read as not paused. */
+export const SCHEMA_KEY = "schema";
+export const STORAGE_VERSION = 2;
 export const MAX_SITES = 200;
 const MAX_BLUR = 50;
 
@@ -41,6 +44,8 @@ export interface SiteRecord {
   look?: SiteLook;
   /** Colour-only repair rules found when the theme was kept (structural selectors, no text); applied before first paint. */
   repairCss?: string;
+  /** Restore paused the site: the record stays, nothing applies by itself until Resume or Change my page. Missing means false. */
+  paused?: boolean;
 }
 
 export type Sites = Record<string, SiteRecord>;
@@ -79,7 +84,7 @@ export function parseLook(raw: unknown): SiteLook | undefined {
 export function parseSite(input: unknown): SiteRecord | undefined {
   const raw = migrate(input);
   if (!isObj(raw)) return undefined;
-  const { plan, fingerprint, provider, model, promptVersion, savedAt, mode, blur, blurImages, look, repairCss } = raw;
+  const { plan, fingerprint, provider, model, promptVersion, savedAt, mode, blur, blurImages, look, repairCss, paused } = raw;
   if (!isObj(plan) || plan["v"] !== 1 || typeof plan["themeId"] !== "string" || !isObj(plan["tokens"]) || !Array.isArray(plan["regionRules"]) || !Array.isArray(plan["reasons"])) return undefined;
   if (!isObj(fingerprint) || typeof fingerprint["hash"] !== "string" || !/^[0-9a-f]{8}$/.test(fingerprint["hash"]) || typeof fingerprint["seq"] !== "string" || !/^[a-z]{0,40}$/.test(fingerprint["seq"])) return undefined;
   if (typeof provider !== "string" || provider.length === 0 || provider.length > 40) return undefined;
@@ -90,6 +95,7 @@ export function parseSite(input: unknown): SiteRecord | undefined {
   const blurList = blur === undefined ? [] : blur;
   if (!Array.isArray(blurList) || blurList.length > MAX_BLUR || blurList.some((s) => typeof s !== "string" || s.length === 0 || s.length > 200)) return undefined;
   if (blurImages !== undefined && typeof blurImages !== "boolean") return undefined;
+  if (paused !== undefined && typeof paused !== "boolean") return undefined;
   const parsedLook = parseLook(look);
   return {
     v: 1,
@@ -105,6 +111,7 @@ export function parseSite(input: unknown): SiteRecord | undefined {
     ...(parsedLook ? { look: parsedLook } : {}),
     // A stored sheet that is not exactly what we write is dropped, never applied.
     ...(typeof repairCss === "string" && repairCss !== "" && parseRepairCss(repairCss) ? { repairCss } : {}),
+    ...(paused === true ? { paused: true } : {}),
   };
 }
 
@@ -132,6 +139,9 @@ export function withSite(sites: Sites, origin: string, record: SiteRecord, cap: 
   return next;
 }
 
+/** True when the record should apply by itself on every page of its site. */
+export const isAutoOn = (r: SiteRecord | undefined): boolean => r !== undefined && r.mode === "auto" && r.paused !== true;
+
 export async function loadSites(): Promise<Sites> {
   return parseSites(await storageGet(SITES_KEY));
 }
@@ -141,19 +151,58 @@ export async function getSite(origin: string): Promise<SiteRecord | undefined> {
   return o ? (await loadSites())[o] : undefined;
 }
 
+/**
+ * Every read-modify-write of the sites map in this context runs one after another, so two saves (a keep and a blur save, a resume and a
+ * reconcile) never lose each other's update. The keep flow writes records only from the background, so contexts rarely overlap.
+ */
+let queue: Promise<unknown> = Promise.resolve();
+export function updateSites<T>(change: (sites: Sites) => { sites: Sites | undefined; result: T }): Promise<T> {
+  const run = queue.then(async () => {
+    const { sites, result } = change(await loadSites());
+    if (sites) await storageSet(SITES_KEY, sites);
+    return result;
+  });
+  queue = run.catch(() => undefined);
+  return run;
+}
+
 export async function saveSite(origin: string, record: SiteRecord): Promise<boolean> {
   const o = toOrigin(origin);
   if (!o) return false;
-  await storageSet(SITES_KEY, withSite(await loadSites(), o, record));
-  return true;
+  return updateSites((sites) => ({ sites: withSite(sites, o, record), result: true }));
+}
+
+/** Changes one record in one queued step. Returns the new record, or undefined when there is none. */
+export function patchSite(origin: string, change: (r: SiteRecord) => SiteRecord): Promise<SiteRecord | undefined> {
+  const o = toOrigin(origin);
+  if (!o) return Promise.resolve(undefined);
+  return updateSites((sites) => {
+    const r = sites[o];
+    if (!r) return { sites: undefined, result: undefined };
+    const next = change(r);
+    return { sites: { ...sites, [o]: next }, result: next };
+  });
 }
 
 export async function removeSite(origin: string): Promise<void> {
-  const sites = await loadSites();
-  delete sites[origin];
-  await storageSet(SITES_KEY, sites);
+  await updateSites((sites) => {
+    delete sites[origin];
+    return { sites, result: undefined };
+  });
 }
 
 export async function clearSites(): Promise<void> {
-  await storageSet(SITES_KEY, {});
+  await updateSites(() => ({ sites: {}, result: undefined }));
+}
+
+/**
+ * Brings stored data to STORAGE_VERSION: every record is read through parseSite (corrupt ones dropped, missing fields given their safe
+ * default) and written back once, then the version is stored. Running it again changes nothing.
+ */
+export async function migrateStorage(): Promise<boolean> {
+  const raw = await storageGet<{ v?: unknown }>(SCHEMA_KEY);
+  if (raw && raw.v === STORAGE_VERSION) return false;
+  await updateSites((sites) => ({ sites, result: undefined }));
+  await storageSet(SCHEMA_KEY, { v: STORAGE_VERSION });
+  return true;
 }

@@ -1,7 +1,7 @@
 # Store listing draft
 
 Name: Skinly AI (working name; the final name is a human decision, see docs/HUMAN_CHECKS.md)
-Version: 0.2.0
+Version: 0.2.1
 
 ## Short description (max 132 characters)
 Restyle the page you are on with calm built-in themes or an AI-suggested one. Not affiliated with any website.

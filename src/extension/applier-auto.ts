@@ -5,7 +5,7 @@ import type { SiteRecord } from "./sites.ts";
 import { sendMessage } from "./api.ts";
 import { runAuto } from "./auto-core.ts";
 import { BADGE_MESSAGE } from "./messages.ts";
-import { recordError } from "../core/diag.ts";
+import { recordError, setFlag } from "../core/diag.ts";
 import { savePageDiag } from "./diagStore.ts";
 
 /** The page snapshot is stored once per page load, after the last late re-measure of the art (3 s). */
@@ -15,10 +15,17 @@ import { getSite, originOf } from "./sites.ts";
 
 // Registered per origin by siteActions.ts after applier.js (same isolated world, so the applier is already on globalThis); runs at document_start.
 // Reads storage only, never calls a provider. Keeping the applier in its own file keeps this glue under its size budget.
-const applier = (globalThis as unknown as { skinlyApplier?: PageApplier }).skinlyApplier;
+const slot = globalThis as unknown as { skinlyApplier?: PageApplier; skinlyAutoLive?: boolean };
+const applier = slot.skinlyApplier;
 const origin = originOf(location.href);
 
-if (applier && origin) {
+// Injected again into an open tab (Resume, or the keep flow after the prompt) while an earlier run is still live: nothing to do. Restore
+// ends the live run, so a later injection starts a fresh one.
+if (applier && origin && !slot.skinlyAutoLive) {
+  slot.skinlyAutoLive = true;
+  applier.onRestore(() => {
+    slot.skinlyAutoLive = false;
+  });
   // Nothing here may throw into the page: every step records its short kind and stops.
   runAuto({
     doc: document,
@@ -41,6 +48,16 @@ if (applier && origin) {
       nav?.addEventListener("navigatesuccess", later);
       window.addEventListener("popstate", later);
       window.addEventListener("hashchange", later);
+      return () => {
+        if (timer !== undefined) clearTimeout(timer);
+        nav?.removeEventListener("navigatesuccess", later);
+        window.removeEventListener("popstate", later);
+        window.removeEventListener("hashchange", later);
+      };
+    },
+    report: (state) => {
+      setFlag("auto", state);
+      if (state.startsWith("error-")) recordError("auto-run");
     },
     onApplied: (site) => {
       void sendMessage(BADGE_MESSAGE).catch(() => undefined);

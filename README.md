@@ -7,7 +7,7 @@ Make the web page you are on easier on the eyes. Click **Change my page** and Sk
 - **AI suggestions (optional)**: paste your own Gemini or Groq key under Settings, AI providers. After you agree, a small description of the page's layout is sent to that provider. The AI only picks colours and a few layout options; the extension builds the styles itself.
 - **Scenes and pets**: original animated art in the empty side space of a page, and a small pet. Neither ever covers page content. Where a page has no free side space, the art uses one small corner strip. The art follows the theme and comes back with it after a reload.
 - **My assets**: add your own image or short video as side art. Files stay on this device.
-- **Remember a site**: save the look for one site, or let that one site change automatically.
+- **Every page of a site**: Change my page asks once for that one site and keeps the theme on every page of it, after reloads and browser restarts, until you choose Restore (which pauses the site; Resume brings it back). Deny the prompt and the theme stays on the current page only. "Why not themed here?" in the popup explains a page that is not themed.
 - **Tools**: find-a-link palette, privacy blur, a safe screenshot of what you see, table sort and filter.
 - **Shortcuts**: every command and its key are listed under Settings, Shortcuts.
 - **Diagnostics**: if art or a theme does not show, the popup's **Why no art?** says why in one line, and **Settings, About, Copy diagnostics** copies a short technical note (no page text, addresses, sites or keys) to paste into a bug report.

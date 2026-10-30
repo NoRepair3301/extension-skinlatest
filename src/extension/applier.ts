@@ -8,11 +8,14 @@ import { originOf } from "./origin.ts";
 import { diagFlags, takeErrors, type DiagKind } from "../core/diag.ts";
 import { joinPageDiag, type PageDiag, type SceneDiagPart } from "../core/diagReport.ts";
 
-/** One constructable stylesheet, adopted by the document. */
+/**
+ * One constructable stylesheet, adopted by the document. Screen only: printing a themed page prints the site's own colours (A3 pass 3).
+ */
+export const THEME_SHEET_MEDIA = "screen";
 const adoptedSheetHost = (doc: Document): StyleHost => ({
   add(css) {
     const win = doc.defaultView!;
-    const sheet = new win.CSSStyleSheet();
+    const sheet = new win.CSSStyleSheet({ media: THEME_SHEET_MEDIA });
     sheet.replaceSync(css);
     doc.adoptedStyleSheets = [...doc.adoptedStyleSheets, sheet];
     return {

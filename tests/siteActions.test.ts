@@ -74,10 +74,11 @@ describe("site actions", () => {
     expect(scriptId(A)).toMatch(/^skinly-[0-9a-f]{8}$/);
   });
 
-  it("Pause sets mode ask and unregisters the script but keeps the record", async () => {
+  it("Pause marks the record paused and unregisters the script but keeps the record", async () => {
     await enableAuto(A, kept());
     expect(await pauseSite(A)).toEqual({ ok: true });
-    expect((await getSite(A))!.mode).toBe("ask");
+    expect((await getSite(A))!.paused).toBe(true);
+    expect((await getSite(A))!.mode).toBe("auto");
     expect(api.unregisterAutoScript).toHaveBeenLastCalledWith(scriptId(A));
   });
 

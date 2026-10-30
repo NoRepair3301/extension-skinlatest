@@ -1,7 +1,7 @@
 # Manual QA matrix
 
 Fill the result columns yourself. Use public pages only; never a page where you are signed in to something important. Write failures as one line in docs/BUGS.md (page type, what you saw).
-Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each browser.
+Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.1.zip) on each browser.
 
 | # | Check | Steps | Edge | Chrome | Brave |
 |---|---|---|---|---|---|
@@ -61,3 +61,18 @@ Do this once per browser with the mouse put away. Every step needs a visible foc
 6. Privacy: Enter on Erase all Skinly data opens a dialog with focus inside; Tab stays inside it; Escape closes it and focus returns to the button.
 7. About: Show the welcome again opens the welcome with focus inside; Skip closes it and focus returns.
 8. With the screen reader off, turn on Windows high contrast (forced colors): all text, borders and focus rings stay visible.
+
+## 0.2.1: the Wikipedia scenario (launch)
+Edge first (it closes the popup when it shows the permission prompt), then Chrome. Public pages only.
+
+| # | Check | Steps | Edge | Chrome |
+|---|---|---|---|---|
+| W1 | First click | Open en.wikipedia.org/wiki/Solar_System, click Change my page. Allow the prompt once: the page is themed even though the popup closed. The prompt names only https://en.wikipedia.org | | |
+| W2 | Next pages | Click three links to other articles: each opens themed, with the art (if Show art is on), and without a second prompt | | |
+| W3 | Reload | Reload an article: theme and art come back before the page finishes loading, with no flash of the original colours longer than a moment | | |
+| W4 | Restore | Restore original: the page is exactly as before, and the popup says "Paused on this site" with Resume. Click a link: the next page is not themed | | |
+| W5 | Resume | Click Resume: the open tab and the next pages are themed again | | |
+| W6 | Denied | Forget this site, then Change my page and deny the prompt: the page is themed. Reopen the popup: one line says "This page only". A link opens unthemed, with no new prompt | | |
+| W7 | Why | On a themed article, "Why not themed here?" says the theme is on. On a paused site it says paused, with the next step. Copy diagnostics has an `auto:` line with no address in it | | |
+| W8 | Print | On a themed article, print preview shows the site's own colours | | |
+| W9 | Restart | Close and reopen the browser and open an article of the kept site: it is themed | | |

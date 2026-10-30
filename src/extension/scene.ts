@@ -11,7 +11,7 @@ import type { PageApplier } from "./applier.ts";
 import { getAsset } from "./assetStore.ts";
 import { siteRequest, type SceneRequest } from "./sceneConfig.ts";
 import { defaultSettings, loadSettings, type Settings } from "./settings.ts";
-import { getSite, originOf, type SiteRecord } from "./sites.ts";
+import { getSite, isAutoOn, originOf, type SiteRecord } from "./sites.ts";
 
 /** What the popup learns: whether there was room, and what is showing. Fixed words only. */
 export interface SceneStatusReport {
@@ -282,7 +282,7 @@ function install(): void {
   if (origin && applier.isActive())
     void getSite(origin)
       .then((site) => {
-        if (site && site.mode === "auto") void fromSite(site);
+        if (isAutoOn(site)) void fromSite(site!);
       })
       .catch(() => recordError("auto-art"));
 }

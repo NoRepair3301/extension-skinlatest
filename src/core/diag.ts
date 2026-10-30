@@ -26,6 +26,29 @@ export const DIAG_KINDS = [
 export type DiagKind = (typeof DIAG_KINDS)[number];
 export const DIAG_MAX = 20;
 
+/**
+ * A2: what the auto script did on this document, as one fixed word (the popup adds the states it can see itself: no record, no
+ * permission, not registered). Never a URL, origin or text.
+ */
+export const AUTO_STATES = [
+  "not-run",
+  "no-record",
+  "no-permission",
+  "not-registered",
+  "paused",
+  "blocked",
+  "applied",
+  "rolled-back-invalid-plan",
+  "rolled-back-too-large",
+  "rolled-back-invariants",
+  "rolled-back-error",
+  "error-storage",
+  "error-apply",
+  "error-other",
+] as const;
+export type AutoState = (typeof AUTO_STATES)[number];
+export const isAutoState = (v: unknown): v is AutoState => typeof v === "string" && (AUTO_STATES as readonly string[]).includes(v);
+
 /** Which mount point the art uses and why: the html element, or the body because html has an effect that breaks position fixed. */
 export type MountReason = "transform" | "filter" | "perspective" | "contain";
 
@@ -38,6 +61,8 @@ export interface DiagFlags {
   htmlEffect?: MountReason;
   /** c: times a host was put back after the page removed it. */
   reattached: number;
+  /** A2: the auto script's state word for this document. */
+  auto?: AutoState;
 }
 
 const ring: DiagKind[] = [];
