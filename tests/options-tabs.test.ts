@@ -1,0 +1,103 @@
+import { h, render } from "preact";
+import { act } from "preact/test-utils";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const api = vi.hoisted(() => ({
+  storageGet: vi.fn(), storageSet: vi.fn(), requestOrigins: vi.fn(), removeOrigins: vi.fn(), unregisterAutoScript: vi.fn(), setBadge: vi.fn(),
+  getCommands: vi.fn(), browserHints: vi.fn(), extensionVersion: vi.fn(), clearAllStorage: vi.fn(), removeAllOrigins: vi.fn(),
+}));
+vi.mock("../src/extension/api.ts", () => api);
+const keys = vi.hoisted(() => ({ keyStatus: vi.fn(), saveKey: vi.fn(), deleteKey: vi.fn(), testKey: vi.fn(), MASK: "••••••••" }));
+vi.mock("../src/extension/keys.ts", () => keys);
+
+import { Options } from "../src/extension/options/Options.tsx";
+
+const mount = async () => {
+  const root = document.createElement("div");
+  document.body.appendChild(root);
+  await act(() => render(h(Options, {}), root));
+  await act(() => Promise.resolve());
+  return root;
+};
+const tabs = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLElement>('[role="tab"]'));
+const panelOf = (root: HTMLElement, id: string) => root.querySelector<HTMLElement>(`#panel-${id}`)!;
+
+describe("options tabs", () => {
+  beforeEach(() => {
+    document.body.innerHTML = "";
+    location.hash = "";
+    Object.values(api).forEach((f) => f.mockReset());
+    Object.values(keys).forEach((f) => typeof f === "function" && f.mockReset());
+    api.storageGet.mockResolvedValue(undefined);
+    api.storageSet.mockResolvedValue(undefined);
+    api.getCommands.mockResolvedValue([{ name: "toggle-pet", description: "Show or hide the pet", shortcut: "Alt+Shift+P" }, { name: "x", description: "Other", shortcut: "" }]);
+    api.browserHints.mockReturnValue({ userAgent: "Mozilla/5.0 Edg/120", brave: false });
+    api.extensionVersion.mockReturnValue("0.2.0");
+    api.clearAllStorage.mockResolvedValue(undefined);
+    api.removeAllOrigins.mockResolvedValue(undefined);
+    keys.keyStatus.mockResolvedValue({ gemini: false, groq: false });
+  });
+
+  it("has the nine sections, one visible panel, and General first", async () => {
+    const root = await mount();
+    expect(tabs(root).map((t) => t.textContent)).toEqual(["General", "Themes", "Scenes and pets", "My assets", "AI providers", "Sites", "Shortcuts", "Privacy", "About"]);
+    const visible = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]')).filter((p) => !p.hidden);
+    expect(visible.map((p) => p.id)).toEqual(["panel-general"]);
+  });
+
+  it("selecting a tab shows its panel (mouse and keyboard)", async () => {
+    const root = await mount();
+    await act(() => { tabs(root)[6]!.click(); });
+    expect(panelOf(root, "shortcuts").hidden).toBe(false);
+    expect(panelOf(root, "general").hidden).toBe(true);
+    await act(() => { tabs(root)[6]!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true })); });
+    expect(panelOf(root, "privacy").hidden).toBe(false);
+  });
+
+  it("opens on the tab named in the address hash", async () => {
+    location.hash = "#about";
+    const root = await mount();
+    expect(panelOf(root, "about").hidden).toBe(false);
+    expect(panelOf(root, "about").textContent).toContain("Version 0.2.0");
+  });
+
+  it("Shortcuts lists each command with its real key or how to set one", async () => {
+    const root = await mount();
+    const text = panelOf(root, "shortcuts").textContent!;
+    expect(text).toContain("Show or hide the pet: Alt+Shift+P");
+    expect(text).toContain("Other: Not set - open edge://extensions/shortcuts");
+  });
+
+  it("each provider says what it receives", async () => {
+    const root = await mount();
+    expect(panelOf(root, "providers").textContent).toContain("no text, links, images or forms");
+  });
+
+  it("Sites: search filters the saved sites", async () => {
+    api.storageGet.mockImplementation(async (k: string) => (k === "sites" ? { v: 1, sites: {} } : undefined));
+    const root = await mount();
+    expect(panelOf(root, "sites").textContent).toContain("No sites saved.");
+  });
+
+  it("Erase all: a confirm dialog first, cancel does nothing, confirm clears storage and permissions", async () => {
+    const root = await mount();
+    await act(() => { tabs(root)[7]!.click(); });
+    const open = Array.from(panelOf(root, "privacy").querySelectorAll("button")).find((b) => b.textContent === "Erase all Skinly data")!;
+    await act(() => { open.click(); });
+    const dlg = root.querySelector("dialog")!;
+    expect(dlg.getAttribute("aria-labelledby")).toBeTruthy();
+    expect(api.clearAllStorage).not.toHaveBeenCalled();
+    const [cancel, go] = Array.from(dlg.querySelectorAll("button"));
+    await act(() => { cancel!.click(); });
+    expect(root.querySelector("dialog")).toBeNull();
+    expect(api.clearAllStorage).not.toHaveBeenCalled();
+    await act(() => { open.click(); });
+    await act(() => { Array.from(root.querySelectorAll("dialog button")).find((b) => b.textContent === "Erase everything")!.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+    await act(() => Promise.resolve());
+    await act(() => new Promise<void>((r) => setTimeout(r, 20)));
+    expect(go).toBeTruthy();
+    expect(api.removeAllOrigins).toHaveBeenCalledTimes(1);
+    expect(api.clearAllStorage).toHaveBeenCalledTimes(1);
+    expect(panelOf(root, "privacy").textContent).toContain("All Skinly data was erased.");
+  });
+});

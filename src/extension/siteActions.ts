@@ -3,7 +3,7 @@ import type { Fingerprint } from "../core/types.ts";
 import { PROMPT_VERSION } from "../ai/prompt.ts";
 import { fnv1a } from "../analyzer/fingerprint.ts";
 import type { StylePlan } from "../plan/schema.ts";
-import { registerAutoScript, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
+import { clearAllStorage, registerAutoScript, removeAllOrigins, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
 import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
 
 export const AUTO_SCRIPT_FILE = "applier-auto.js";
@@ -114,4 +114,16 @@ export async function forgetSite(origin: string, tabId?: number): Promise<Action
 export async function forgetAll(): Promise<void> {
   for (const o of Object.keys(await loadSites())) await forgetSite(o);
   await clearSites();
+}
+
+/** "Erase all Skinly data": every site (with its script and permission), then every host permission, then all of storage (settings, keys, assets, sites). */
+export async function eraseEverything(): Promise<ActionResult> {
+  try {
+    await forgetAll();
+    await removeAllOrigins();
+    await clearAllStorage();
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "error" };
+  }
 }

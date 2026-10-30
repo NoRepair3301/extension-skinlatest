@@ -179,3 +179,16 @@ export const runScene = async <R = unknown>(tabId: number, method: SceneMethod, 
   });
   return res?.result as R | undefined;
 };
+
+/** Wipes extension storage (settings, keys, sites, assets). Used only by "Erase all Skinly data". */
+export const clearAllStorage = (): Promise<void> => chrome.storage.local.clear();
+
+/** Drops every optional host permission the user granted. */
+export const removeAllOrigins = async (): Promise<void> => {
+  const p = await chrome.permissions.getAll();
+  if (p.origins && p.origins.length > 0) await chrome.permissions.remove({ origins: p.origins });
+};
+
+export const openOptionsPage = (): Promise<void> => chrome.runtime.openOptionsPage();
+
+export const extensionVersion = (): string => chrome.runtime.getManifest().version;

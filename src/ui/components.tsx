@@ -62,7 +62,8 @@ export function Tabs({ label, tabs, selected, onSelect }: { label: string; tabs:
   );
 }
 
-export const TabPanel = ({ id, selected, children }: { id: string; selected: string; children?: ComponentChildren }) =>
+export const TabPanel = ({ id, selected, children, keep }: { id: string; selected: string; children?: ComponentChildren; keep?: boolean }) =>
+  keep ? <div role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`} hidden={id !== selected}>{children}</div> :
   id === selected ? <div role="tabpanel" id={`panel-${id}`} aria-labelledby={`tab-${id}`}>{children}</div> : null;
 
 /** A short message that goes away by itself (2 s by default). A polite live region, so it is read out but never steals focus. */
