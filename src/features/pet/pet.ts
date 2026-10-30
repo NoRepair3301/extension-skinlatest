@@ -19,6 +19,7 @@ export interface PetConfig {
   speed?: Speed;
   sleepWhenIdle?: boolean;
   keepInFreeSpace?: boolean;
+  edgeFallback?: boolean;
   /** Theme accent (#rrggbb) for the scarf or bow. */
   accent?: string;
 }
@@ -73,6 +74,7 @@ const withDefaults = (cfg: PetConfig): Required<Omit<PetConfig, "accent">> & { a
   speed: cfg.speed ?? "normal",
   sleepWhenIdle: cfg.sleepWhenIdle ?? false,
   keepInFreeSpace: cfg.keepInFreeSpace ?? true,
+  edgeFallback: cfg.edgeFallback ?? true,
   accent: cfg.accent,
 });
 
@@ -120,7 +122,7 @@ export function createPetController(env: PetEnv): PetController {
 
     const walk = (): WalkPlan | undefined => {
       const v = vp();
-      const track = walkTrack({ motion: c.motion, keepInFreeSpace: c.keepInFreeSpace, corner: state.corner, edge: c.edge, px: SIZE_PX[cfg.size], margin: MARGIN_PX, vw: v.w, vh: v.h, gutters });
+      const track = walkTrack({ motion: c.motion, keepInFreeSpace: c.keepInFreeSpace, edgeFallback: c.edgeFallback, corner: state.corner, edge: c.edge, px: SIZE_PX[cfg.size], margin: MARGIN_PX, vw: v.w, vh: v.h, gutters });
       return track ? { track, direction: c.direction, speed: SPEED_PX[c.speed] } : undefined;
     };
 
@@ -220,7 +222,7 @@ export function createPetController(env: PetEnv): PetController {
   const same = (a: PetConfig, b: PetConfig) => {
     const x = withDefaults(a);
     const y = withDefaults(b);
-    return x.kind === y.kind && x.size === y.size && x.corner === y.corner && x.motion === y.motion && x.direction === y.direction && x.edge === y.edge && x.speed === y.speed && x.sleepWhenIdle === y.sleepWhenIdle && x.keepInFreeSpace === y.keepInFreeSpace && x.accent === y.accent;
+    return x.kind === y.kind && x.size === y.size && x.corner === y.corner && x.motion === y.motion && x.direction === y.direction && x.edge === y.edge && x.speed === y.speed && x.sleepWhenIdle === y.sleepWhenIdle && x.keepInFreeSpace === y.keepInFreeSpace && x.edgeFallback === y.edgeFallback && x.accent === y.accent;
   };
 
   return {

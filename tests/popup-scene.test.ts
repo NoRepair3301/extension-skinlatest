@@ -96,13 +96,12 @@ describe("popup: scene art after Change my page", () => {
     expect(api.injectFile).not.toHaveBeenCalledWith(7, "scene.js");
   });
 
-  it("Keep then Remember saves the scene with the site; Always on registers scene.js too", async () => {
+  it("Keep on this site saves the scene with the site and registers scene.js too", async () => {
     flow.runTransform.mockResolvedValue(preview());
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
     const root = await mount();
     await click(root, "Change my page");
-    await click(root, "Keep");
-    await click(root, "Always on this site");
+    await click(root, "Keep on this site");
     const sites = store.get("sites") as Record<string, { look?: { scene?: { id: string } } }>;
     expect(sites["https://example.org"]!.look!.scene!.id).toBe("space");
     expect(api.registerAutoScript).toHaveBeenCalledWith(expect.any(String), ["https://example.org/*"], ["applier.js", "applier-auto.js", "scene.js"]);
@@ -130,7 +129,7 @@ describe("popup: scene art after Change my page", () => {
 
   it("theme code: a bad code is refused with no page call; a good one goes through applyPlan", async () => {
     const root = await mount();
-    const input = root.querySelector('input[type="text"]') as HTMLInputElement;
+    const input = root.querySelector('textarea.import-box') as HTMLTextAreaElement;
     const type = async (v: string) => {
       input.value = v;
       await act(() => { input.dispatchEvent(new Event("input", { bubbles: true })); });

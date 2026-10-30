@@ -28,7 +28,7 @@ describe("themes", () => {
     expect(contrastRatio(t.text, t.bg)).toBeGreaterThanOrEqual(7);
   });
   it.each(THEMES.map((t) => [t.id, t] as const))("%s is a valid plan", (_id, t) => {
-    const summary = { v: 1, viewport: { w: 1, h: 1 }, palette: [], fonts: [], counts: { nodes: 0, links: 0, forms: 0, tables: 0, images: 0, headings: 0, iframes: 0 }, risk: [], regions: [] } as StructuralSummary;
+    const summary = { v: 1, viewport: { w: 1, h: 1 }, palette: [], fonts: [], counts: { nodes: 0, links: 0, forms: 0, tables: 0, images: 0, headings: 0, iframes: 0 }, risk: [], page: { tone: "light", bgImages: 0, largeMedia: 0, hasHeroMedia: false }, regions: [] } as StructuralSummary;
     expect(validatePlan({ v: 1, themeId: t.id, tokens: t.tokens, regionRules: [], reasons: [] }, summary).ok).toBe(true);
   });
 });

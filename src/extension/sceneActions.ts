@@ -1,6 +1,7 @@
 import { FREESPACE_WHY } from "../features/freespace/index.ts";
 import { ASSET_WHY } from "../features/assets/render.ts";
-import { injectFile, runScene } from "./api.ts";
+import { runScene } from "./api.ts";
+import { ensureScene } from "./inject.ts";
 import type { SceneStatusReport } from "./scene.ts";
 import { sceneRequest, type SceneSource } from "./sceneConfig.ts";
 import type { Settings } from "./settings.ts";
@@ -18,6 +19,18 @@ export function artNote(report: SceneStatusReport | undefined): string {
 }
 
 /**
+ * The exact state of the art for the popup, in one line of fixed words: off, not loaded, shown, narrow side space, no free side space,
+ * or a picture problem. Unlike artNote it also says so when everything works.
+ */
+export function artStatus(report: SceneStatusReport | undefined, wanted: boolean): string {
+  if (!wanted) return "Scene art is off for this theme.";
+  if (!report) return "Scene art is not loaded on this page (the browser did not allow it).";
+  const why = artNote(report);
+  if (why) return report.scene === "no-gutter" ? `Scene art is on. ${why}` : why;
+  return report.scene === "shown" || report.asset === "shown" ? "Scene art is showing in the empty side space." : "Scene art is on.";
+}
+
+/**
  * Puts the chosen scene and asset on the active page after a theme is applied (the user clicked Change my page).
  * Injects scene.js into the top frame only; nothing is injected when there is nothing to show.
  */
@@ -28,7 +41,7 @@ export async function showArtHere(tabId: number, settings: Settings, source: Sce
       // Nothing to show now; clear anything an earlier choice left, if the script is there.
       return await runScene<SceneStatusReport>(tabId, "sync", null);
     }
-    await injectFile(tabId, "scene.js");
+    await ensureScene(tabId);
     return await runScene<SceneStatusReport>(tabId, "sync", req);
   } catch {
     return undefined;

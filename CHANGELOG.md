@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.0 (rc4 fixes from real-browser testing)
+- Themes no longer break apps: a strategy ladder (full, safe, text-only), low-specificity CSS that lets a site's own classes win, page background on the root only, no background shorthand, nothing for media, every background paired with a text colour.
+- Visual guard: after applying, the page's text, typing fields and pictures are checked; on a failure the theme steps down once and re-checks, then rolls back with a one-line reason.
+- "Keep on this site" (one button) themes every page of a site, also after in-page navigation.
+- Popup: exact scene-art state, Motion and Speed for the pet, "Use my picture on this page", wrapping theme cards, theme code box with format hint, scene and pet thumbnails.
+- A rate limit with a long wait moves to the next provider or says how long to wait.
+
 ## 0.2.0
 - Scenes: original animated art for every theme, drawn only in measured empty side space, never over page content. Six scenes plus a Field theme and Auto.
 - Pets: five original pets (fox, cat, bunny, slime, owl), still by default, optional walking inside free space, hidden close button, `toggle-pet` shortcut.

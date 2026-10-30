@@ -208,17 +208,46 @@ describe("popup", () => {
   });
 
   describe("preview", () => {
-    it("shows Keep, Undo and Try another; Keep clears the controls", async () => {
+    it("shows Keep on this site, Undo and Try another; keeping asks for this origin only and clears the controls", async () => {
       flow.runTransform.mockResolvedValue(previewOutcome());
       const root = await mount();
       await click(root, "Change my page");
-      for (const b of ["Keep", "Undo", "Try another"]) expect(find(root, b)).toBeDefined();
+      for (const b of ["Keep on this site", "Undo", "Try another"]) expect(find(root, b)).toBeDefined();
       expect(root.querySelectorAll('input[type="radio"]')).toHaveLength(7);
-      await click(root, "Keep");
+      expect(api.requestOrigins).not.toHaveBeenCalled();
+      await click(root, "Keep on this site");
+      expect(api.requestOrigins).toHaveBeenCalledWith(["https://example.org/*"]);
       expect(find(root, "Undo")).toBeUndefined();
       expect(api.setBadge).toHaveBeenCalledWith(7, "ON");
-      await click(root, "Done");
-      expect(status(root)).toBe("Kept.");
+      expect(status(root)).toContain("Every page of this site");
+    });
+
+    it("a built-in theme applied without a key can be kept too", async () => {
+      flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "calm-light", why: "no-key", message: "Applied.", plan: planFor("calm-light"), fingerprint: { hash: "0123abcd", seq: "hnm" } });
+      const root = await mount();
+      await click(root, "Change my page");
+      expect(find(root, "Keep on this site")).toBeDefined();
+      await click(root, "Keep on this site");
+      expect((store.get("sites") as Record<string, { provider: string; mode: string }>)["https://example.org"]).toMatchObject({ provider: "builtin", mode: "auto" });
+    });
+
+    it("a refused permission says in one line that the theme lasts until reload, and the button stays", async () => {
+      api.requestOrigins.mockResolvedValue(false);
+      flow.runTransform.mockResolvedValue(previewOutcome());
+      const root = await mount();
+      await click(root, "Change my page");
+      await click(root, "Keep on this site");
+      expect(status(root)).toBe("Not kept: permission wasn't given. The theme lasts only until this page is reloaded.");
+      expect(store.get("sites")).toBeUndefined();
+    });
+
+    it("Copy theme code confirms in one line", async () => {
+      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
+      flow.runTransform.mockResolvedValue(previewOutcome());
+      const root = await mount();
+      await click(root, "Change my page");
+      await click(root, "Copy theme code");
+      expect(root.textContent).toContain("Theme code copied. It holds colours and scene only.");
     });
 
     it("shows the fallback message when a built-in theme replaced the AI plan", async () => {
@@ -284,31 +313,21 @@ describe("popup", () => {
       flow.runTransform.mockResolvedValue(previewOutcome());
       const root = await mount();
       await click(root, "Change my page");
-      await click(root, "Keep");
       return root;
     };
     const sites = () => store.get("sites") as Record<string, { mode: string }> | undefined;
 
-    it("after Keep offers Remember and Always, and does nothing until clicked", async () => {
+    it("offers one Keep button and does nothing until it is clicked", async () => {
       const root = await keep();
-      expect(find(root, "Remember this site")).toBeDefined();
-      expect(find(root, "Always on this site")).toBeDefined();
+      expect(find(root, "Keep on this site")).toBeDefined();
+      expect(find(root, "Remember this site")).toBeUndefined();
       expect(sites()).toBeUndefined();
       expect(api.requestOrigins).not.toHaveBeenCalled();
     });
 
-    it("Remember this site saves the origin only, with mode ask", async () => {
+    it("Keep on this site requests only the active origin and registers the script", async () => {
       const root = await keep();
-      await click(root, "Remember this site");
-      expect(Object.keys(sites()!)).toEqual(["https://example.org"]);
-      expect(sites()!["https://example.org"]!.mode).toBe("ask");
-      expect(api.requestOrigins).not.toHaveBeenCalled();
-      expect(find(root, "Forget this site")).toBeDefined();
-    });
-
-    it("Always on this site requests only the active origin and registers the script", async () => {
-      const root = await keep();
-      await click(root, "Always on this site");
+      await click(root, "Keep on this site");
       expect(api.requestOrigins).toHaveBeenCalledWith(["https://example.org/*"]);
       expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
       expect(sites()!["https://example.org"]!.mode).toBe("auto");
@@ -318,14 +337,14 @@ describe("popup", () => {
     it("a refused permission leaves nothing saved and says so", async () => {
       api.requestOrigins.mockResolvedValue(false);
       const root = await keep();
-      await click(root, "Always on this site");
+      await click(root, "Keep on this site");
       expect(sites()).toBeUndefined();
       expect(status(root)).toContain("permission");
     });
 
     it("Pause switches to ask; Forget removes record, script and permission", async () => {
       const root = await keep();
-      await click(root, "Always on this site");
+      await click(root, "Keep on this site");
       await click(root, "Pause on this site");
       expect(sites()!["https://example.org"]!.mode).toBe("ask");
       expect(find(root, "Pause on this site")).toBeUndefined();

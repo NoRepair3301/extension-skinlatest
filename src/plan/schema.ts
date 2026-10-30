@@ -14,6 +14,15 @@ export type Surface = (typeof SURFACES)[number];
 export const REASONS = ["repeated-links", "clear-nav", "dense-text", "low-contrast-source", "dark-source", "form-heavy", "unsure"] as const;
 export type Reason = (typeof REASONS)[number];
 
+/**
+ * How much of the page a theme may paint (the strategy ladder). full: element surfaces too. safe: page background, text, link
+ * and heading colours, accent on focus and borders only. text-only: text colours only. The visual guard steps down this list.
+ */
+export const STRATEGIES = ["full", "safe", "text-only"] as const;
+export type Strategy = (typeof STRATEGIES)[number];
+/** The next, more careful strategy; undefined after the last (the guard then rolls back). */
+export const stepDown = (s: Strategy): Strategy | undefined => STRATEGIES[STRATEGIES.indexOf(s) + 1];
+
 export const COLOR_KEYS = ["bg", "surface", "text", "muted", "link", "accent", "border", "focus"] as const;
 export type ColorKey = (typeof COLOR_KEYS)[number];
 
@@ -47,6 +56,10 @@ export interface StylePlan {
   reasons: Reason[];
   /** Optional in input (default "none"); the validator always returns it. */
   sceneId?: SceneId;
+  /** Optional in input (default "safe"); the validator always returns it. The compiler treats a missing value as "full". */
+  strategy?: Strategy;
+  /** Optional in input (default true): do not paint wrapper boxes, so images behind content stay visible. */
+  protectBackgrounds?: boolean;
 }
 
 declare const validated: unique symbol;
@@ -114,11 +127,16 @@ export function validatePlan(input: unknown, summary: StructuralSummary): Valida
   };
 
   if (!isRecord(input)) return { ok: false, errors: ["plan: must be an object"] };
-  exactKeys(input, ["v", "themeId", "tokens", "regionRules", "reasons"], "plan", ["sceneId"]);
+  exactKeys(input, ["v", "themeId", "tokens", "regionRules", "reasons"], "plan", ["sceneId", "strategy", "protectBackgrounds"]);
   if (input["v"] !== 1) err("v", "must be 1");
   if (!isEnum(THEME_IDS, input["themeId"])) err("themeId", "unknown theme");
   const sceneIn = input["sceneId"];
   if (sceneIn !== undefined && !isEnum(SCENE_IDS, sceneIn)) err("sceneId", "unknown scene");
+
+  const strategyIn = input["strategy"];
+  if (strategyIn !== undefined && !isEnum(STRATEGIES, strategyIn)) err("strategy", "unknown strategy");
+  const protectIn = input["protectBackgrounds"];
+  if (protectIn !== undefined && typeof protectIn !== "boolean") err("protectBackgrounds", "must be true or false");
 
   const tokensIn = input["tokens"];
   const tokens: Partial<Tokens> = {};
@@ -204,6 +222,6 @@ export function validatePlan(input: unknown, summary: StructuralSummary): Valida
   if (errors.length > 0) return { ok: false, errors };
   return {
     ok: true,
-    plan: { v: 1, themeId: input["themeId"] as ThemeId, tokens: tokens as Tokens, regionRules: rules, reasons, sceneId: (sceneIn as SceneId | undefined) ?? "none" } as ValidPlan,
+    plan: { v: 1, themeId: input["themeId"] as ThemeId, tokens: tokens as Tokens, regionRules: rules, reasons, sceneId: (sceneIn as SceneId | undefined) ?? "none", strategy: (strategyIn as Strategy | undefined) ?? "safe", protectBackgrounds: (protectIn as boolean | undefined) ?? true } as ValidPlan,
   };
 }

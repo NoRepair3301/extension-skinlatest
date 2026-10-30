@@ -28,6 +28,14 @@ Load the unpacked `dist/` folder (or unzip release/skinly-ai-0.2.0.zip) on each 
 | 21 | Pet button (rc4) | Pet on: "Show pet on this page" shows it, Restore removes it; on a page where the theme is rolled back the pet still shows; on a blocked page the one-line message says why | | | |
 | 22 | Failure message (rc4) | Force a rollback (a page where the theme cannot apply): the popup gives a plain-words reason, no page text | | | |
 
+## Real-browser pass (fix/real-browser-1)
+Run on a dark app site, Wikipedia, Hacker News, india.gov.in and a page with a hero image. For each: Change my page with every theme.
+- Text readable everywhere; buttons keep readable labels; typing in an editor is visible with a visible caret.
+- Pictures still show: hero image, picture behind content, CSS background cards.
+- If the theme steps down or is rolled back, the popup says so in one line; the page is never left half-themed.
+- Keep on this site, click a link, reload: the theme is still there. Restore removes everything; Forget removes the permission.
+- Scene art in the gutters (Field theme too); where there is none, the popup says why. Use my picture on this page. Pet bounces up and down inside a gutter.
+
 ## Keyboard-only walkthrough (Phase 11)
 Do this once per browser with the mouse put away. Every step needs a visible focus ring; nothing may be cut off at 100 % and at 200 % zoom.
 1. Popup: Tab goes to Change my page, Restore original, then the theme cards (arrow keys move between themes), the Pet switch (Space toggles), Pet options, Scene options, "What gets sent" (Enter opens it), the shortcuts list. Shift+Tab goes back in the same order.

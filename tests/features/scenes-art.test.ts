@@ -84,3 +84,21 @@ describe("built-in scenes", () => {
     }
   });
 });
+
+import { ARMY_WEAPON_PROPS } from "../../src/config.ts";
+import { FIELD } from "../../src/features/scenes/field.ts";
+import { actorCount } from "../../src/features/scenes/engine.ts";
+
+describe("Field scene shows its signature props at every density", () => {
+  it("has a tank, a helicopter and (when ARMY_WEAPON_PROPS is true) the rifle prop", () => {
+    const ids = FIELD.actors.map((a) => a.id);
+    expect(ids).toContain("tank");
+    expect(ids).toContain("helicopter");
+    expect(ARMY_WEAPON_PROPS).toBe(true);
+    expect(ids).toContain("rifle-prop");
+  });
+  it.each(["low", "normal", "high"] as const)("%s density keeps tank, helicopter and rifle", (density) => {
+    const shown = FIELD.actors.slice(0, actorCount(FIELD.actors.length, density)).map((a) => a.id);
+    for (const id of ["tank", "helicopter", "rifle-prop"]) expect(shown).toContain(id);
+  });
+});

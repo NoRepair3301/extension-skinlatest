@@ -183,3 +183,25 @@ describe("budget and abort", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 });
+
+describe("long retry-after (no probing)", () => {
+  it("moves straight to the next provider when one is rate limited for more than 5 s, without waiting or retrying", async () => {
+    const a = entry([{ type: "rate", retryAfterMs: 30_000 }]);
+    const b = entry([ok], "groq");
+    const r = await generate(REQ, [a.entry, b.entry]);
+    expect(r).toMatchObject({ ok: true, providerId: "groq" });
+    expect(a.provider.calls).toHaveLength(1);
+  });
+
+  it("reports the soonest retry-after when every provider is limited", async () => {
+    const a = entry([{ type: "rate", retryAfterMs: 30_000 }]);
+    const b = entry([{ type: "rate", retryAfterMs: 12_000 }], "groq");
+    expect(await generate(REQ, [a.entry, b.entry])).toMatchObject({ ok: false, error: { kind: "rate" }, retryAfterMs: 12_000 });
+  });
+
+  it("a provider that failed some other way last carries no wait time", async () => {
+    const a = entry([{ type: "rate", retryAfterMs: 30_000 }]);
+    const b = entry([{ type: "server" }], "groq");
+    expect(await generate(REQ, [a.entry, b.entry])).toEqual({ ok: false, error: { kind: "server" }, tried: ["gemini", "groq"] });
+  });
+});

@@ -3,18 +3,11 @@ import { browserMediaDeps } from "../../features/assets/media.ts";
 import { freeText, megabytes, prepareAsset, type MediaDeps } from "../../features/assets/prepare.ts";
 import { recordBytes, removeAsset } from "../../features/assets/store.ts";
 import { ASSET_SIZES, ASSET_SPEEDS, PLACEMENTS, PRESETS, type AssetPlacement, type AssetRecord } from "../../features/assets/types.ts";
+import { S } from "../../ui/strings.ts";
 import { loadAssets, saveAssets } from "../assetStore.ts";
 
 const ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm,image/png,image/jpeg,image/webp,image/gif,video/mp4,video/webm";
 
-const MODE_TEXT: Record<AssetPlacement["mode"], string> = {
-  lane: "In the empty side space (default)",
-  corner: "Small companion in a corner",
-  cover: "Background behind the page",
-};
-const SIZE_TEXT = { S: "Small", M: "Medium", L: "Large" } as const;
-const SPEED_TEXT = { slow: "Slow", normal: "Normal", fast: "Fast" } as const;
-const PRESET_TEXT: Record<AssetPlacement["preset"], string> = { none: "Still", spin: "Spin", float: "Float", orbit: "Orbit", sway: "Sway", slide: "Slide", pulse: "Pulse", drift: "Drift" };
 
 interface Props {
   placement: AssetPlacement;
@@ -34,16 +27,16 @@ export function MyAssets({ placement, onPlacement, deps }: Props) {
 
   const upload = async (file: File | undefined) => {
     if (!file) return;
-    setNote("Checking the file…");
+    setNote(S.assetsTab.checking);
     try {
       const r = await prepareAsset({ name: file.name, size: file.size, bytes: async () => new Uint8Array(await file.arrayBuffer()) }, list, deps ?? browserMediaDeps(document));
       if (!r.ok) return setNote(r.message);
       await saveAssets(r.list);
       setList(r.list);
-      setNote("Saved.");
+      setNote(S.assetsTab.saved);
       onPlacement({ ...placement, assetId: r.record.id });
     } catch {
-      setNote("Skinly could not save that file.");
+      setNote(S.assetsTab.saveFailed);
     }
   };
 
@@ -51,22 +44,23 @@ export function MyAssets({ placement, onPlacement, deps }: Props) {
     const next = removeAsset(list, id);
     await saveAssets(next);
     setList(next);
-    setNote("Deleted.");
+    setNote(S.assetsTab.deleted);
     if (placement.assetId === id) onPlacement({ ...placement, assetId: null });
   };
 
   const set = <K extends keyof AssetPlacement>(key: K, value: AssetPlacement[K]) => onPlacement({ ...placement, [key]: value });
 
   return (
-    <section aria-label="My assets">
-      <h2>My assets</h2>
-      <p class="note">Add your own picture or short video (PNG, JPG, WebP, GIF, MP4 or WebM). Files stay on this device. They are never sent anywhere, and never shown to an AI.</p>
+    <section aria-label={S.assetsTab.title}>
+      <h2>{S.assetsTab.title}</h2>
+      <p class="note">{S.assetsTab.intro}</p>
       <label>
-        Add a file
+        {S.assetsTab.add}
         <input type="file" accept={ACCEPT} onChange={(e) => void upload((e.currentTarget as HTMLInputElement).files?.[0])} />
       </label>
-      <p class="note">Pictures up to 25 MB are shrunk to fit (at most 1920 px). GIFs up to 3 MB. Videos up to 4 MB and 15 seconds, played without sound. SVG files are not accepted.</p>
+      <p class="note">{S.assetsTab.limits}</p>
       <p role="status">{note}</p>
+      <p class="note">{S.assetsTab.pagePointer}</p>
       <p class="note">
         {list.length} saved, {megabytes(list.reduce((n, r) => n + recordBytes(r), 0))} used, {freeText(list)}
       </p>
@@ -76,15 +70,15 @@ export function MyAssets({ placement, onPlacement, deps }: Props) {
             <span>
               {r.name} ({r.kind}, {megabytes(recordBytes(r))})
             </span>
-            <button type="button" onClick={() => void remove(r.id)} aria-label={`Delete ${r.name}`}>Delete</button>
+            <button type="button" onClick={() => void remove(r.id)} aria-label={`${S.assetsTab.del} ${r.name}`}>{S.assetsTab.del}</button>
           </li>
         ))}
       </ul>
 
       <label>
-        Show
+        {S.assetsTab.show}
         <select value={placement.assetId ?? ""} onChange={(e) => set("assetId", (e.currentTarget as HTMLSelectElement).value || null)}>
-          <option value="">Nothing</option>
+          <option value="">{S.assetsTab.nothing}</option>
           {list.map((r) => (
             <option key={r.id} value={r.id}>{r.name}</option>
           ))}
@@ -93,38 +87,38 @@ export function MyAssets({ placement, onPlacement, deps }: Props) {
       {placement.assetId !== null && (
         <>
           <label>
-            Where
+            {S.assetsTab.where}
             <select value={placement.mode} onChange={(e) => set("mode", (e.currentTarget as HTMLSelectElement).value as AssetPlacement["mode"])}>
               {PLACEMENTS.map((m) => (
-                <option key={m} value={m}>{MODE_TEXT[m]}</option>
+                <option key={m} value={m}>{S.assetsTab.modes[m]}</option>
               ))}
             </select>
           </label>
           <label>
-            Size
+            {S.assetsTab.size}
             <select value={placement.size} onChange={(e) => set("size", (e.currentTarget as HTMLSelectElement).value as AssetPlacement["size"])}>
               {ASSET_SIZES.map((s) => (
-                <option key={s} value={s}>{SIZE_TEXT[s]}</option>
+                <option key={s} value={s}>{S.assetsTab.sizes[s]}</option>
               ))}
             </select>
           </label>
           <label>
-            Opacity {placement.opacity}%
+            {S.assetsTab.opacity} {placement.opacity}%
             <input type="range" min={10} max={100} step={5} value={placement.opacity} onChange={(e) => set("opacity", Number((e.currentTarget as HTMLInputElement).value))} />
           </label>
           <label>
-            Movement
+            {S.assetsTab.movement}
             <select value={placement.preset} onChange={(e) => set("preset", (e.currentTarget as HTMLSelectElement).value as AssetPlacement["preset"])}>
               {PRESETS.map((p) => (
-                <option key={p} value={p}>{PRESET_TEXT[p]}</option>
+                <option key={p} value={p}>{S.assetsTab.presets[p]}</option>
               ))}
             </select>
           </label>
           <label>
-            Speed
+            {S.assetsTab.speed}
             <select value={placement.speed} onChange={(e) => set("speed", (e.currentTarget as HTMLSelectElement).value as AssetPlacement["speed"])}>
               {ASSET_SPEEDS.map((s) => (
-                <option key={s} value={s}>{SPEED_TEXT[s]}</option>
+                <option key={s} value={s}>{S.assetsTab.speeds[s]}</option>
               ))}
             </select>
           </label>

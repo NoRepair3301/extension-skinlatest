@@ -13,7 +13,7 @@ import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
 import type { ErrorKind, Provider } from "../providers/types.ts";
 import { resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
-import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG } from "./messages.ts";
+import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG, rateLimited } from "./messages.ts";
 import { buildUserMessage, SYSTEM_PROMPT } from "./prompt.ts";
 
 /** The page side, reached through scripting. Implemented in src/extension/flow.ts; faked in tests. */
@@ -57,7 +57,7 @@ export type BaselineWhy = "no-ai-page" | "too-large" | "no-key" | "consent-decli
 
 export type Outcome =
   | { kind: "blocked"; reason: BlockReason; message: string }
-  | { kind: "baseline"; themeId: BuiltinThemeId; why: BaselineWhy; message: string }
+  | { kind: "baseline"; themeId: BuiltinThemeId; why: BaselineWhy; message: string; plan?: StylePlan; fingerprint?: Fingerprint }
   | { kind: "preview"; source: "ai" | "fallback"; plan: StylePlan; baselineThemeId: BuiltinThemeId; fingerprint: Fingerprint; providerId?: ProviderId; model?: string; message?: string }
   | { kind: "error"; errorKind: ErrorKind | "baseline"; message: string; themeId: BuiltinThemeId }
   | { kind: "cancelled"; themeId: BuiltinThemeId };
@@ -102,7 +102,9 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   if (!elig.allowed) return { kind: "blocked", reason: elig.reason, message: blockedMessage(elig.reason) };
 
   const baselineId = resolveTheme(settings.theme, deps.prefersDark?.() ?? false);
-  const baseline = (why: BaselineWhy, message: string): Outcome => ({ kind: "baseline", themeId: baselineId, why, message });
+  /** Set once the page was analysed: the built-in theme as a plan, so the popup can offer to keep it. */
+  const known: { plan?: StylePlan; fingerprint?: Fingerprint } = {};
+  const baseline = (why: BaselineWhy, message: string): Outcome => ({ kind: "baseline", themeId: baselineId, why, message, ...known });
 
   step("baseline");
   const applied = await deps.page.applyTheme(baselineId);
@@ -114,8 +116,9 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   const gate = decideGate({ url, blocklist: settings.blocklist, risk: analysis.risk, tooLarge: analysis.status === "too-large" });
   if (gate.kind === "blocked") return { kind: "blocked", reason: gate.reason, message: blockedMessage(gate.reason) };
   if (analysis.status !== "ok") return baseline("too-large", MSG.tooLarge);
-  if (gate.kind === "no-ai") return baseline("no-ai-page", MSG.noAi);
   const summary = analysis.summary;
+  Object.assign(known, { plan: themeToPlan(baselineId, summary), fingerprint: analysis.fingerprint });
+  if (gate.kind === "no-ai") return baseline("no-ai-page", MSG.noAi);
 
   const keys = await deps.keyStatus();
   const order = settings.order.filter((id) => keys[id]);
@@ -173,6 +176,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       if (!r?.ok) return baseline("apply-failed", aiApplyFailureMessage(r));
       return { kind: "preview", source: "fallback", plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };
     }
+    if ((kind === "rate" || kind === "quota") && result.retryAfterMs !== undefined) return baseline("ai-unavailable", rateLimited(result.retryAfterMs));
     return baseline("ai-unavailable", MSG.allFailed);
   }
 

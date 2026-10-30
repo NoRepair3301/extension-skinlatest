@@ -21,6 +21,7 @@ export const sampleSummary = (risk: StructuralSummary["risk"] = []): StructuralS
   fonts: [],
   counts: { nodes: 10, links: 10, forms: 0, tables: 0, images: 0, headings: 0, iframes: 0 },
   risk,
+  page: { tone: "light", bgImages: 0, largeMedia: 0, hasHeroMedia: false },
   regions: [region("r1", "nav", 6), region("r2", "link-list", 2), region("r3", "main", 0), region("r4", "card-list", 8)],
 });
 

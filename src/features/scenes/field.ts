@@ -290,5 +290,6 @@ const camoBadge: Actor = {
 export const FIELD: SceneDef = {
   id: "field",
   name: "Field",
-  actors: [camo, tank, helicopter, camoBadge, radar, supply, jeep, compass, dogTags, ...(ARMY_WEAPON_PROPS ? [rifleProp] : [])],
+  // Camo ground, tank, helicopter and (when allowed) the rifle prop come first so even the lowest density shows them.
+  actors: [camo, tank, helicopter, ...(ARMY_WEAPON_PROPS ? [rifleProp] : []), camoBadge, radar, supply, jeep, compass, dogTags],
 };

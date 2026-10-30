@@ -39,3 +39,11 @@ a { color: var(--ui-link); }
 .ui-stack { display: grid; gap: var(--sp-3); }
 .ui-muted { color: var(--ui-muted); font-size: var(--fs-2); }
 .ui-boundary { display: grid; gap: var(--sp-3); padding: var(--sp-4); }
+
+/* Picture pickers (scene and pet): a row of small drawings made by the same builders the page uses. */
+.thumbs { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+.thumb-btn { width: 44px; height: 44px; padding: 2px; border: 2px solid transparent; border-radius: var(--r-2); background: transparent; cursor: pointer; }
+.thumb-btn[aria-pressed="true"] { border-color: var(--ui-accent); }
+.thumb-btn:focus-visible { outline: 2px solid var(--ui-focus); outline-offset: 1px; }
+.thumb { display: block; width: 100%; height: 100%; }
+.thumb svg { width: 100%; height: 100%; display: block; }

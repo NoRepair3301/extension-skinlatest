@@ -1,0 +1,56 @@
+{
+  "counts": {
+    "nodes": 15,
+    "links": 0,
+    "forms": 1,
+    "tables": 0,
+    "images": 2,
+    "headings": 3,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "header",
+      "childCount": 2,
+      "linkCount": 0
+    },
+    {
+      "id": "r2",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r3",
+      "role": "main",
+      "childCount": 3,
+      "linkCount": 0
+    },
+    {
+      "id": "r4",
+      "role": "section",
+      "childCount": 1,
+      "linkCount": 0
+    },
+    {
+      "id": "r5",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r6",
+      "role": "heading",
+      "childCount": 0,
+      "linkCount": 0
+    },
+    {
+      "id": "r7",
+      "role": "form",
+      "childCount": 2,
+      "linkCount": 0
+    }
+  ]
+}

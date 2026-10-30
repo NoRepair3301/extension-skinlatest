@@ -15,7 +15,15 @@ export interface AutoDeps {
   /** Calls back once the DOM is parsed (immediately if it already is). */
   whenReady(cb: () => void): void;
   onApplied(site: SiteRecord): void;
+  /**
+   * Calls `cb` after a same-document navigation (a single-page app changing route). Bounded by NAV_REAPPLY_MAX. Optional so
+   * environments without navigation events still work.
+   */
+  onNavigate?(cb: () => void): void;
 }
+
+/** A page that navigates without reloading re-applies the theme at most this many times per document. */
+export const NAV_REAPPLY_MAX = 60;
 
 export type AutoResult = "none" | "blocked" | "invalid" | "tokens" | "full" | "changed";
 
@@ -59,24 +67,35 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
   if (!first.ok) return "invalid";
   deps.onApplied(site);
 
+  const settle = (banner: boolean): AutoResult => {
+    try {
+      const page = deps.applier.analyze();
+      if (page.status === "ok" && similar(site.fingerprint, page.fingerprint)) {
+        if (deps.applier.apply(site.plan).ok) return "full";
+        deps.applier.applyTokens(site.plan);
+        return "tokens";
+      }
+      deps.applier.applyTokens(site.plan);
+      if (page.status === "ok") {
+        if (banner && !deps.doc.querySelector('[data-skinly-ui="banner"]')) showBanner(deps.doc, deps.applier);
+        return "changed";
+      }
+      return "tokens";
+    } catch {
+      return "tokens";
+    }
+  };
+
   return new Promise<AutoResult>((resolve) => {
     deps.whenReady(() => {
-      try {
-        const page = deps.applier.analyze();
-        if (page.status === "ok" && similar(site.fingerprint, page.fingerprint)) {
-          if (deps.applier.apply(site.plan).ok) return resolve("full");
-          deps.applier.applyTokens(site.plan);
-          return resolve("tokens");
-        }
-        deps.applier.applyTokens(site.plan);
-        if (page.status === "ok") {
-          showBanner(deps.doc, deps.applier);
-          return resolve("changed");
-        }
-        resolve("tokens");
-      } catch {
-        resolve("tokens");
-      }
+      resolve(settle(true));
+      // A single-page app swaps its content without a reload: put the theme back on the new route (page changes within a route
+      // are already handled by the applier's own bounded observer).
+      let left = NAV_REAPPLY_MAX;
+      deps.onNavigate?.(() => {
+        if (left-- <= 0) return;
+        settle(false);
+      });
     });
   });
 }

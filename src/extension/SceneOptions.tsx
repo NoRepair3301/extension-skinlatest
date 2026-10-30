@@ -1,18 +1,8 @@
 import { DENSITIES, LANE_CHOICES, SCENE_IDS } from "../features/scenes/types.ts";
+import { sceneThumb } from "../features/scenes/thumb.ts";
+import { Thumb } from "../ui/Thumb.tsx";
+import { S } from "../ui/strings.ts";
 import type { SceneSettings } from "./settings.ts";
-
-const NAMES: Record<string, string> = {
-  theme: "The theme's own scene",
-  paper: "Paper",
-  space: "Space",
-  ocean: "Ocean",
-  "midnight-stars": "Midnight stars",
-  calm: "Calm",
-  field: "Field",
-  off: "Off",
-};
-const DENSITY = { low: "Fewer", normal: "Normal", high: "More" } as const;
-const LANE = { both: "Both sides", left: "Left side", right: "Right side" } as const;
 
 interface Props {
   scene: SceneSettings;
@@ -24,9 +14,9 @@ export function SceneOptions({ scene, onChange }: Props) {
   const value = !scene.enabled || scene.choice === "none" ? "off" : scene.choice;
   return (
     <fieldset class="scene-options">
-      <legend>Scene art</legend>
+      <legend>{S.scene.legend}</legend>
       <label>
-        Scene
+        {S.scene.scene}
         <select
           value={value}
           onChange={(e) => {
@@ -35,34 +25,41 @@ export function SceneOptions({ scene, onChange }: Props) {
             else onChange({ ...scene, enabled: true, choice: v as SceneSettings["choice"] });
           }}
         >
-          <option value="theme">{NAMES["theme"]}</option>
+          <option value="theme">{S.scene.names["theme"]}</option>
           {SCENE_IDS.filter((id) => id !== "none").map((id) => (
-            <option key={id} value={id}>{NAMES[id]}</option>
+            <option key={id} value={id}>{S.scene.names[id]}</option>
           ))}
-          <option value="off">{NAMES["off"]}</option>
+          <option value="off">{S.scene.names["off"]}</option>
         </select>
       </label>
+      <div class="thumbs" role="group" aria-label={S.scene.legend}>
+        {SCENE_IDS.filter((id) => id !== "none").map((id) => (
+          <button type="button" key={id} class="thumb-btn" aria-pressed={value === id} aria-label={S.scene.names[id]} title={S.scene.names[id]} onClick={() => onChange({ ...scene, enabled: true, choice: id })}>
+            <Thumb draw={(doc) => sceneThumb(doc, id, "#2f6fdb")} />
+          </button>
+        ))}
+      </div>
       {value !== "off" && (
         <>
           <label>
-            Amount
+            {S.scene.amount}
             <select value={scene.density} onChange={(e) => onChange({ ...scene, density: (e.currentTarget as HTMLSelectElement).value as SceneSettings["density"] })}>
               {DENSITIES.map((d) => (
-                <option key={d} value={d}>{DENSITY[d]}</option>
+                <option key={d} value={d}>{S.scene.densities[d]}</option>
               ))}
             </select>
           </label>
           <label>
-            Where
+            {S.scene.where}
             <select value={scene.lane} onChange={(e) => onChange({ ...scene, lane: (e.currentTarget as HTMLSelectElement).value as SceneSettings["lane"] })}>
               {LANE_CHOICES.map((l) => (
-                <option key={l} value={l}>{LANE[l]}</option>
+                <option key={l} value={l}>{S.scene.lanes[l]}</option>
               ))}
             </select>
           </label>
         </>
       )}
-      <p class="note">Art only appears in empty space beside the page. It never covers text, links, buttons or pictures, and it is still if your system asks for less motion.</p>
+      <p class="note">{S.scene.note}</p>
     </fieldset>
   );
 }

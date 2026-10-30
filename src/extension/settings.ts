@@ -34,6 +34,8 @@ export interface PetSettings {
   sleepWhenIdle: boolean;
   /** Walk only inside the empty side gutters (default on). */
   keepInFreeSpace: boolean;
+  /** A page with no empty side space: walk along the screen edge instead of staying in the corner (default on). */
+  edgeFallback: boolean;
   /** Origins only. */
   disabledOrigins: string[];
 }
@@ -74,7 +76,7 @@ export const defaultSettings = (): Settings => ({
   models: { ...DEFAULT_MODELS },
   aiCallsToday: { date: "", count: 0 },
   consent: null,
-  pet: { enabled: false, kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, disabledOrigins: [] },
+  pet: { enabled: false, kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, edgeFallback: true, disabledOrigins: [] },
   scene: { enabled: true, choice: "theme", density: "normal", lane: "both" },
   asset: defaultPlacement(),
   welcomeDone: false,
@@ -130,6 +132,7 @@ export function parseSettings(raw: unknown): Settings {
     out.pet.speed = pick(PET_SPEEDS, p["speed"]) ?? out.pet.speed;
     if (p["sleepWhenIdle"] === true) out.pet.sleepWhenIdle = true;
     if (p["keepInFreeSpace"] === false) out.pet.keepInFreeSpace = false;
+    if (p["edgeFallback"] === false) out.pet.edgeFallback = false;
     if (Array.isArray(p["disabledOrigins"])) {
       out.pet.disabledOrigins = [...new Set(p["disabledOrigins"].filter((v): v is string => toOrigin(v) !== undefined))].slice(0, 200);
     }

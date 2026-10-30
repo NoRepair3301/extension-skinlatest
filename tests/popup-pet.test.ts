@@ -69,19 +69,23 @@ describe("popup: pet options and the toggle-pet shortcut", () => {
     const kind = selectByLabel(root, "Pet")!;
     expect(Array.from(kind.options).map((o) => o.value)).toEqual(["fox", "cat", "bunny", "slime", "owl", "pebble", "sprout"]);
     await pick(kind, "owl");
-    await pick(selectByLabel(root, "Movement")!, "horizontal");
+    expect(Array.from(selectByLabel(root, "Motion")!.options).map((o) => o.value)).toEqual(["still", "bounce-v", "bounce-h", "top-bottom", "bottom-top", "left-right", "right-left"]);
+    await pick(selectByLabel(root, "Motion")!, "bounce-h");
     const saved = store.get("settings") as { pet: Record<string, unknown> };
-    expect(saved.pet).toMatchObject({ kind: "owl", motion: "horizontal", keepInFreeSpace: true });
-    // the direction and speed selects only exist once the pet walks
-    expect(selectByLabel(root, "Direction")).toBeDefined();
-    expect(Array.from(selectByLabel(root, "Direction")!.options).map((o) => o.textContent)).toEqual(["Left to right", "Right to left", "Back and forth"]);
-    await pick(selectByLabel(root, "Movement")!, "vertical");
-    expect(Array.from(selectByLabel(root, "Direction")!.options).map((o) => o.textContent)).toEqual(["Top to bottom", "Bottom to top", "Back and forth"]);
+    expect(saved.pet).toMatchObject({ kind: "owl", motion: "horizontal", direction: "bounce", keepInFreeSpace: true });
+    // the speed select only exists once the pet moves
+    expect(selectByLabel(root, "Speed")).toBeDefined();
+    await pick(selectByLabel(root, "Motion")!, "bounce-v");
+    expect((store.get("settings") as { pet: Record<string, unknown> }).pet).toMatchObject({ motion: "vertical", direction: "bounce" });
+    await pick(selectByLabel(root, "Motion")!, "top-bottom");
+    expect((store.get("settings") as { pet: Record<string, unknown> }).pet).toMatchObject({ motion: "vertical", direction: "forward" });
+    await pick(selectByLabel(root, "Motion")!, "bottom-top");
+    expect((store.get("settings") as { pet: Record<string, unknown> }).pet).toMatchObject({ motion: "vertical", direction: "backward" });
   });
 
   it("hides the walking controls while the pet stays still", async () => {
     const root = await mount();
-    expect(selectByLabel(root, "Direction")).toBeUndefined();
+    expect(selectByLabel(root, "Motion")).toBeDefined();
     expect(selectByLabel(root, "Speed")).toBeUndefined();
   });
 });

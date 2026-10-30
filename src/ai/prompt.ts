@@ -1,7 +1,7 @@
 import type { StructuralSummary } from "../core/types.ts";
-import { COLOR_KEYS, FONT_KEYS, LAYOUTS, REASONS, SCENE_IDS, SURFACES, THEME_IDS } from "../plan/schema.ts";
+import { COLOR_KEYS, FONT_KEYS, LAYOUTS, REASONS, SCENE_IDS, STRATEGIES, SURFACES, THEME_IDS } from "../plan/schema.ts";
 
-export const PROMPT_VERSION = "3";
+export const PROMPT_VERSION = "4";
 
 /** Response schema in the keyword subset the provider docs show (type, properties, enum, required, items). */
 export const STYLE_PLAN_SCHEMA = {
@@ -35,6 +35,8 @@ export const STYLE_PLAN_SCHEMA = {
     },
     reasons: { type: "array", items: { type: "string", enum: [...REASONS] } },
     sceneId: { type: "string", enum: [...SCENE_IDS] },
+    strategy: { type: "string", enum: [...STRATEGIES] },
+    protectBackgrounds: { type: "boolean" },
   },
   required: ["v", "themeId", "tokens", "regionRules", "reasons"],
 } as const;
@@ -52,7 +54,9 @@ export const SCHEMA_TEXT = `{
   },
   "regionRules": [ up to 40 of { "region": "rN", "layout": one of ${LAYOUTS.map((l) => `"${l}"`).join(", ")}, "surface": one of ${SURFACES.map((s) => `"${s}"`).join(", ")}, "spacing": integer 0 to 4 } ],
   "reasons": [ up to 5 of ${REASONS.map((r) => `"${r}"`).join(", ")} ],
-  "sceneId": optional, one of ${SCENE_IDS.map((s) => `"${s}"`).join(", ")} (default "none")
+  "sceneId": optional, one of ${SCENE_IDS.map((s) => `"${s}"`).join(", ")} (default "none"),
+  "strategy": optional, one of ${STRATEGIES.map((s) => `"${s}"`).join(", ")} (default "safe"),
+  "protectBackgrounds": optional boolean (default true)
 }`;
 
 export const SYSTEM_PROMPT = `You choose a visual style for a web page. You receive a JSON description of the page layout (shapes, sizes and colours only). Return a style plan.
@@ -72,6 +76,7 @@ Rules:
   - "table-clean": role table (padded cells with borders).
   - Otherwise use layout "none". Different regions should usually get different layouts; do not give every region the same one.
 - "sceneId" picks decorative side art that is shown only in empty space beside the page content. Match it to the theme ("paper" for warm-paper, "midnight-stars" for midnight, "ocean" for ocean, "calm" for calm-light, "field" for field) or use "none". Never use a scene with "high-contrast". If unsure use "none".
+- "strategy" says how much of the page may be painted: "full" (element surfaces and buttons too), "safe" (page background, text, link and heading colours only) or "text-only" (text colours only). Look at "page": if "page.tone" already matches the theme (dark page and dark theme) choose "safe". Use "full" only for plain, older pages (no images behind content). If "page.hasHeroMedia" is true or "page.bgImages" is above 0, choose "safe" and keep "protectBackgrounds" true. The extension checks the result and steps down by itself when text or images become hard to see.
 - If unsure, return a built-in themeId with every layout "none" and reasons ["unsure"].
 
 Schema:

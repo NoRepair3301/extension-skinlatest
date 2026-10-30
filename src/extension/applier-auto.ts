@@ -24,6 +24,18 @@ if (applier && origin) {
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => cb(), { once: true });
       else cb();
     },
+    onNavigate: (cb) => {
+      // The Navigation API reports pushState, replaceState, back and forward within the document; popstate and hashchange cover older engines.
+      let timer: number | undefined;
+      const later = () => {
+        if (timer !== undefined) clearTimeout(timer);
+        timer = window.setTimeout(cb, 250);
+      };
+      const nav = (window as unknown as { navigation?: EventTarget }).navigation;
+      nav?.addEventListener("navigatesuccess", later);
+      window.addEventListener("popstate", later);
+      window.addEventListener("hashchange", later);
+    },
     onApplied: (site) => {
       void sendMessage(BADGE_MESSAGE).catch(() => undefined);
       void loadSettings().then((s) => applier.syncPet(petFor(petConfig(s), site)));

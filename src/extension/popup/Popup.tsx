@@ -13,10 +13,12 @@ import { showPetHere } from "../petActions.ts";
 import { Logo } from "../Logo.tsx";
 import { PetOptions } from "./PetOptions.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
-import { artNote, showArtHere, updateArtHere } from "../sceneActions.ts";
-import { lookFor, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
+import { artStatus, showArtHere, updateArtHere } from "../sceneActions.ts";
+import { lookFor, sceneRequest, sourceForTheme, type SceneSource } from "../sceneConfig.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
-import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { AssetHere } from "./AssetHere.tsx";
+import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
+import { enableAuto, forgetSite, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
 import { decodeThemeCode, encodeThemeCode } from "../themeCode.ts";
@@ -27,7 +29,6 @@ const STEP_TEXT: Record<Step, string> = S.steps;
 
 export type View =
   | { state: "idle"; note?: string }
-  | { state: "kept"; tabId: number; origin: string | undefined; kept: KeptPlan; copied?: boolean }
   | { state: "blocked"; reason: string }
   | { state: "working"; step: Step; detail?: string }
   | { state: "consent"; req: ConsentRequest }
@@ -43,6 +44,10 @@ export function Popup() {
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
   const [codeText, setCodeText] = useState("");
+  const [codeError, setCodeError] = useState("");
+  /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
+  const [keepable, setKeepable] = useState<{ tabId: number; origin: string | undefined; kept: KeptPlan } | undefined>(undefined);
+  const [copyNote, setCopyNote] = useState("");
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
@@ -115,7 +120,7 @@ export function Popup() {
   const showArt = async (tabId: number, next: Settings, source: SceneSource) => {
     artSource.current = source;
     artTab.current = tabId;
-    setSceneNote(artNote(await showArtHere(tabId, next, source)));
+    setSceneNote(artStatus(await showArtHere(tabId, next, source), sceneRequest(next, source) !== null));
   };
 
   const updateScene = (next: Settings) => {
@@ -124,7 +129,7 @@ export function Popup() {
     setSceneNote("");
     const tabId = artTab.current;
     const source = artSource.current;
-    if (tabId !== undefined && source) void updateArtHere(tabId, next, source).then((r) => setSceneNote(artNote(r)));
+    if (tabId !== undefined && source) void updateArtHere(tabId, next, source).then((r) => setSceneNote(artStatus(r, sceneRequest(next, source) !== null)));
   };
 
   const pickTheme = (theme: ThemeChoice) => {
@@ -139,6 +144,10 @@ export function Popup() {
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
       tabUrl.current = tab.url;
       abort.current = new AbortController();
+      setPetNote("");
+      setSceneNote("");
+      setKeepable(undefined);
+      setCopyNote("");
       setShowPayload(false);
       setView({ state: "working", step: "checking" });
       const outcome = await runTransform(
@@ -155,15 +164,28 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      setKeepable(keepFrom(outcome, tab.id, tab.url));
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
       else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
-      // The flow itself threw (usually: the browser refused to inject into this page). The page was not touched.
-      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
+      // The flow itself threw. If a theme is already on the page the apply worked, so no error is shown for it (a stale error
+      // next to a themed page was a real-browser bug); otherwise the page was not touched.
+      const themed = await pageIsThemed();
+      setView(themed ? { state: "idle", note: S.popup.appliedWithGap } : { state: "error", kind: "error", message: applyFailureMessage(undefined) });
       void showPetHere();
+    }
+  };
+
+  /** True when the active tab has a live theme (asked of the page script, never inferred from the popup's own state). */
+  const pageIsThemed = async (): Promise<boolean> => {
+    try {
+      const tab = await queryActiveTab();
+      return tab ? (await runInPage<boolean>(tab.id, "isActive")) === true : false;
+    } catch {
+      return false;
     }
   };
 
@@ -183,6 +205,7 @@ export function Popup() {
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
       await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
+      setKeepable(undefined);
       artSource.current = undefined;
       setSceneNote("");
       setView({ state: "idle", note: "Original restored." });
@@ -196,6 +219,7 @@ export function Popup() {
     try {
       await createPageClient(tabId).applyTheme(baseline);
       badge(tabId, "");
+      setKeepable(undefined);
       void showArt(tabId, settings, sourceForTheme(baseline, prefersDark()));
       setView({ state: "idle", note: "Back to the built-in theme." });
     } catch {
@@ -213,36 +237,47 @@ export function Popup() {
     await refreshSite();
   };
 
-  const keepNow = (outcome: Extract<Outcome, { kind: "preview" }>, tabId: number, url: string | undefined) => {
-    const provider: string = outcome.providerId ?? "builtin";
-    badge(tabId, "ON");
-    setView({
-      state: "kept",
-      tabId,
-      origin: url ? originOf(url) : undefined,
-      kept: {
-        plan: outcome.plan,
-        fingerprint: outcome.fingerprint,
-        provider,
-        model: outcome.model ?? "builtin",
-        look: lookFor(settings, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent }),
-      },
-    });
+  /** What the page shows now, as a plan that can be kept: from a preview, or from the built-in theme that was applied. */
+  const keepFrom = (outcome: Outcome, tabId: number, url: string | undefined): { tabId: number; origin: string | undefined; kept: KeptPlan } | undefined => {
+    const origin = url ? originOf(url) : undefined;
+    if (outcome.kind === "preview") {
+      const look = lookFor(settings, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
+      return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: outcome.providerId ?? "builtin", model: outcome.model ?? "builtin", look } };
+    }
+    if (outcome.kind === "baseline" && outcome.plan && outcome.fingerprint) {
+      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
+      return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: "builtin", model: "builtin", look } };
+    }
+    return undefined;
+  };
+
+  /** One click: asks for this origin only, saves the theme and registers the auto script for it (the click is the user gesture). */
+  const keepOnSite = async () => {
+    if (!keepable) return;
+    if (!keepable.origin) return setView({ state: "idle", note: S.popup.keepNoOrigin });
+    const k = keepable;
+    await siteAction(() => enableAuto(k.origin!, k.kept, k.tabId), S.popup.keepDone, S.popup.keepDenied);
+    const r = await getSite(k.origin!).catch(() => undefined);
+    if (r?.mode === "auto") {
+      badge(k.tabId, "ON");
+      setKeepable(undefined);
+    }
   };
 
   const copyCode = async (plan: KeptPlan["plan"]) => {
     try {
       await navigator.clipboard.writeText(encodeThemeCode(plan));
-      setView((v) => (v.state === "kept" ? { ...v, copied: true } : v));
+      setCopyNote(S.popup.copyDone);
     } catch {
-      setView({ state: "idle", note: "Couldn't copy the code." });
+      setView({ state: "idle", note: S.popup.copyFailed });
     }
   };
 
   /** An imported code is a validated, contrast-checked StylePlan with no regions; it is shown, not remembered. */
   const importCode = async () => {
+    setCodeError("");
     const r = decodeThemeCode(codeText);
-    if (!r.ok) return setView({ state: "idle", note: r.message });
+    if (!r.ok) return setCodeError(r.message);
     try {
       const tab = await queryActiveTab();
       if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
@@ -296,7 +331,7 @@ export function Popup() {
           <label class={`theme-card${settings.theme === "auto" ? " on" : ""}`}>
             <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
             <span class="mini auto" aria-hidden="true" />
-            <span class="theme-name">{S.popup.autoTheme}</span>
+            <span class="theme-name" title={S.popup.autoThemeHint}>{S.popup.autoTheme}</span>
           </label>
         </div>
       </fieldset>
@@ -326,6 +361,14 @@ export function Popup() {
       <SceneOptions scene={settings.scene} onChange={(scene) => updateScene({ ...settings, scene })} />
       <p class="note" aria-live="polite">{sceneNote}</p>
 
+      {site && view.state !== "consent" && (
+        <AssetHere
+          initial={site.record?.look?.asset ?? settings.asset}
+          onUse={(p) => useAssetHere(site.tabId, p, artSource.current ? (sceneRequest(settings, artSource.current)?.scene ?? null) : null)}
+          onSave={async (p) => (await saveAssetForSite(site.origin, p)).ok}
+        />
+      )}
+
       {view.state === "consent" && (
         <section aria-label="Consent">
           <p>{consentText(view.req.providerNames.join(" or "))}</p>
@@ -339,36 +382,34 @@ export function Popup() {
       {view.state === "preview" && (
         <section aria-label="Preview">
           <p>{view.outcome.message ?? "Here is the AI-improved theme."}</p>
-          <button type="button" onClick={() => keepNow(view.outcome, view.tabId, tabUrl.current)}>Keep</button>
+          <button type="button" onClick={() => void keepOnSite()} disabled={!keepable}>{S.popup.keep}</button>
           <button type="button" onClick={() => void undo(view.tabId, view.outcome.baselineThemeId)}>Undo</button>
           <button type="button" onClick={() => void start()}>Try another</button>
         </section>
       )}
 
-      {view.state === "kept" && (
-        <section aria-label="Remember">
-          <p>Kept for this visit.</p>
-          {view.origin ? (
-            <>
-              <button type="button" onClick={() => void siteAction(() => rememberSite(view.origin!, view.kept), "Saved for this site. It applies when you click.", "Couldn't save this site.")}>Remember this site</button>
-              <button type="button" onClick={() => void siteAction(() => enableAuto(view.origin!, view.kept, view.tabId), "This site will be themed automatically.", "Couldn't turn on automatic mode (permission needed).")}>Always on this site</button>
-            </>
-          ) : (
-            <p>This page can't be remembered.</p>
-          )}
-          <button type="button" onClick={() => void copyCode(view.kept.plan)}>Copy theme code</button>
-          {view.copied && <p>Theme code copied. It holds colours and scene only.</p>}
-          <button type="button" onClick={() => setView({ state: "idle", note: "Kept." })}>Done</button>
+      {keepable && view.state === "idle" && (
+        <section aria-label="Keep">
+          <button type="button" onClick={() => void keepOnSite()}>{S.popup.keep}</button>
+          <p class="note">{S.popup.keepNote}</p>
+        </section>
+      )}
+      {keepable && (view.state === "idle" || view.state === "preview") && (
+        <section aria-label="Share">
+          <button type="button" onClick={() => void copyCode(keepable.kept.plan)}>Copy theme code</button>
+          {copyNote && <p role="status">{copyNote}</p>}
         </section>
       )}
 
-      {(view.state === "idle" || view.state === "kept") && (
+      {view.state === "idle" && (
         <section aria-label="Theme code">
           <label>
-            Import theme code
-            <input type="text" value={codeText} maxLength={2000} onInput={(e) => setCodeText((e.target as HTMLInputElement).value)} />
+            {S.popup.importTitle}
+            <textarea class="import-box" rows={3} value={codeText} maxLength={2000} spellcheck={false} aria-describedby="import-format" onInput={(e) => setCodeText((e.target as HTMLTextAreaElement).value)} />
           </label>
-          <button type="button" disabled={codeText.trim() === ""} onClick={() => void importCode()}>Import</button>
+          <p class="note" id="import-format">{S.popup.importFormat}</p>
+          <button type="button" disabled={codeText.trim() === ""} onClick={() => void importCode()}>{S.popup.importButton}</button>
+          {codeError && <p role="alert" class="status-bad">{codeError}</p>}
         </section>
       )}
 

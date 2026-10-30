@@ -116,3 +116,29 @@ Real Edge feedback: only the page background changed, the ERP changed nothing, b
 - Auto script was over budget (26.6 KB gz); it is now registered as applier.js + applier-auto.js (+ scene.js). Four test expectations name the extra file.
 - NOT DONE / partial: strings extraction is partial (PetOptions, SceneOptions, MyAssets, PrivacyTools, SPEC 11 messages keep their own text); no art thumbnails in the Scene and Pet pickers; no fresh-clone run (rules said no fresh clone).
 - UNVERIFIED: everything visual and the real-browser behaviour; see docs/FINAL_REPORT.md and docs/HUMAN_CHECKS.md.
+
+## fix/real-browser-1 (v0.2.0-rc4)
+Real Edge feedback: themes broke claude.ai-style apps (accent blocks with invisible text, hidden images and typing). Stages A to D, one commit each, `npm run check` green before each.
+
+### Stage A: site breakage (done)
+- Compiler: page background on `html` only (never body; `body[bgcolor]` is made transparent), `background-color` only (no shorthand, no `background-image`), nothing for media, no opacity/filter/z-index/position/overflow/size/spacing/line-height/white-space. Every background colour is paired with a text colour. Everything except the page root and the legacy colour attributes is `:where(html[data-skinly="on"]) ...` with no `!important`, so site classes win. Text inside buttons/links is never recoloured by typography rules (`:not(:where(button *, a *, ...))`).
+- StylePlan `strategy` (full | safe | text-only, default safe) and `protectBackgrounds` (default true); validator, prompt (PROMPT_VERSION 4), SPEC 4.1/4.2. Built-in themes: dark page + dark theme starts at safe, otherwise full; backgrounds protected on hero/large media.
+- Summary `page` { tone, bgImages, largeMedia, hasHeroMedia }: counts only (test: no image address in the payload).
+- Visual guard (src/plan/guard.ts pure, src/extension/guard-dom.ts real): 300 text parents, 30 media, 30 editables, computed style only. Text 3, editable 4.5 + caret, media display/visibility/opacity/filter/background-image unchanged. Fail: step down one strategy, re-check once, then roll back with a one-line reason (`visual`). Not run at document_start tokens-only apply (no body yet).
+- Stale "couldn't run" error: cause not reproducible without a browser; defensive fixes: a refused repeat injection no longer matters when the tab has an applier (src/extension/inject.ts), the popup clears pet/scene notes at the start of a run and shows no error when a theme is already on the page. Restore test from a fresh caller (tests/restore-all.test.ts).
+- Layouts of region rules are the one exception to "never change margin/padding": only in the full strategy.
+- Tests: tests/guard.test.ts, fixtures claude-like, hero-bg, light-article.
+
+### Stage B: features that did not show (done) and Stage C: whole site (done, one commit, they share Popup.tsx)
+- Scene art: gutter measuring now ignores off-screen nodes (skip links), nodes under 4 px, far-away blocks, slim fixed/sticky bars and opacity 0 nodes; a full-width block counts by its text box; content is clamped to the window (src/features/freespace/measure.ts, scene.ts). Field scene order puts tank, helicopter and the rifle prop right after the camo ground so every density shows them (tests). The popup now says the exact state in one line (`artStatus`): off, not loaded, showing, narrow side space, no free side space, picture problem. Not verified on a real page: whether the original "nothing visible" had another cause (UNVERIFIED, see HUMAN_CHECKS).
+- Custom assets: "Use my picture on this page" in the popup (file, place, size, opacity, speed, movement), applied through the scene engine next to the current scene, saved with the remembered site (origin key) or for this visit only, with a one-line note; a CSP-blocked file reports through the same status line. Test that no provider/AI file imports assets.
+- Pet: Motion select (still, bounce up/down, bounce left/right, top to bottom, bottom to top, left to right, right to left) and Speed directly in the popup; new setting `edgeFallback` (default on): with no usable gutter the pet walks along the screen edge, with a one-line note. Vertical bounce inside a gutter is tested through walkTrack + nextPosition.
+- Popup: theme grid wraps (auto-fill columns, names wrap, body scrolls at 600 px); import theme code is a textarea with the exact format hint and a clear error; Copy theme code confirms.
+- Stage C: "Keep on this site" replaces Remember/Always (one button after any successful apply, preview or built-in); it asks for this origin only from the click and registers applier-auto. Denied: one line says the theme lasts until reload. The built-in baseline outcome now carries its plan and fingerprint so it can be kept. The auto script re-applies after same-document navigations (Navigation API, popstate, hashchange; debounced, at most 60 per document). A tokens-only apply never goes beyond `safe` because it is not visually checked.
+
+### Stage D: leftovers (done)
+- UI text moved to src/ui/strings.ts: PetOptions, SceneOptions, MyAssets, PrivacyTools, popup toasts and apply-failure reasons (src/ai/messages.ts keeps the SPEC 11 copy; its non-SPEC lines read from S). Pet thumbnails and scene thumbnails are drawn by the page's own art builders (src/features/scenes/thumb.ts, drawPet) as small picker buttons.
+- 429: a long retry-after (over 5 s) moves to the next provider at once; if every provider is limited the soonest wait is shown as "Rate limit, try again in N seconds". No probing, no sleeping.
+- Docs: docs/BUGS.md (new), docs/QA.md, CHANGELOG.md, docs/ARCHITECTURE.md (strategy ladder and visual guard).
+- Final: `npm run check` green (73 files, 1101 tests). Budgets (gz): popup 14 + shared 27 + 9, applier 25/50, auto 5/20, scene 21/150.
+- UNVERIFIED (no browser here): that the stale error is gone, the exact look of every themed site, scene art on real pages, the Navigation API re-apply, the permission prompt flow.

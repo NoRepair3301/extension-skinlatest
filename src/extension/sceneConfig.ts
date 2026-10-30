@@ -65,7 +65,7 @@ export function lookFor(settings: Settings, source: SceneSource): SiteLook | und
   if (id !== "none") look.scene = { id, density: settings.scene.density, lane: settings.scene.lane };
   if (settings.pet.enabled) {
     const p = settings.pet;
-    look.pet = { kind: p.kind, size: p.size, corner: p.corner, motion: p.motion, direction: p.direction, edge: p.edge, speed: p.speed, sleepWhenIdle: p.sleepWhenIdle, keepInFreeSpace: p.keepInFreeSpace };
+    look.pet = { kind: p.kind, size: p.size, corner: p.corner, motion: p.motion, direction: p.direction, edge: p.edge, speed: p.speed, sleepWhenIdle: p.sleepWhenIdle, keepInFreeSpace: p.keepInFreeSpace, edgeFallback: p.edgeFallback };
   }
   if (settings.asset.assetId !== null && source.themeId !== "high-contrast") look.asset = settings.asset;
   return look.scene || look.pet || look.asset ? look : undefined;

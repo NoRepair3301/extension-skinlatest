@@ -1,7 +1,8 @@
 import { transform, type CallClock, type ConsentRequest, type Outcome, type PageClient, type Step } from "../ai/pipeline.ts";
 import { createProviders } from "../providers/index.ts";
 import type { ApplyResult, PageAnalysis } from "./applier-core.ts";
-import { injectFile, runInPage } from "./api.ts";
+import { runInPage } from "./api.ts";
+import { ensureApplier } from "./inject.ts";
 import { getKey, keyStatus } from "./keys.ts";
 import { loadSettings, saveSettings } from "./settings.ts";
 
@@ -10,7 +11,7 @@ export function createPageClient(tabId: number): PageClient {
   let injected = false;
   const ready = async (): Promise<void> => {
     if (injected) return;
-    await injectFile(tabId, "applier.js", true);
+    await ensureApplier(tabId, true);
     injected = true;
   };
   return {

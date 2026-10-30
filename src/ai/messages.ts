@@ -1,4 +1,5 @@
 import type { BlockReason } from "../core/types.ts";
+import { S } from "../ui/strings.ts";
 
 /** User-facing copy from SPEC 11. */
 export const MSG = {
@@ -17,18 +18,8 @@ export const MSG = {
   baselineFailed: "Couldn't apply that theme; the page was left as it was.",
 } as const;
 
-/** Two-second toasts for keyboard commands (shown by the extension itself, never page text). */
-export const TOAST = {
-  themeApplied: "Skinly: theme applied",
-  restored: "Skinly: restored",
-  blurOn: "Skinly: blur on",
-  blurOff: "Skinly: blur off",
-  paletteOpen: "Skinly: palette open",
-  petOn: "Skinly: pet shown",
-  petOff: "Skinly: pet hidden",
-  blocked: "Skinly: blocked page",
-  failed: "Skinly: couldn't change this page",
-} as const;
+/** Two-second toasts for keyboard commands (shown by the extension itself, never page text). The words live in src/ui/strings.ts. */
+export const TOAST = S.toast;
 
 type ApplyFailure = { reason?: string; detail?: readonly string[] } | undefined;
 
@@ -39,19 +30,23 @@ type ApplyFailure = { reason?: string; detail?: readonly string[] } | undefined;
 export function applyFailureReason(r: ApplyFailure): string {
   switch (r?.reason) {
     case undefined:
-      return "Skinly couldn't run on this page (the browser didn't allow it)";
+      return S.fail.denied;
     case "invariants":
-      return "Applying the theme would have changed links or form controls on this page";
+      return S.fail.invariants;
     case "invalid-plan":
-      if (r.detail?.[0] === "contrast") return "The theme's colours were too hard to read here";
-      if (r.detail?.[0] === "region missing on page") return "The page changed while it was being read";
-      return "That style wasn't safe to apply";
+      if (r.detail?.[0] === "contrast") return S.fail.contrast;
+      if (r.detail?.[0] === "region missing on page") return S.fail.changed;
+      return S.fail.unsafe;
+    case "visual":
+      if (r.detail?.[0] === "media") return S.fail.media;
+      if (r.detail?.[0] === "editable" || r.detail?.[0] === "caret") return S.fail.typing;
+      return S.fail.text;
     case "too-large":
-      return "This page is too large to restyle safely";
+      return S.fail.tooLarge;
     case "bad-theme":
-      return "That theme isn't available";
+      return S.fail.badTheme;
     default:
-      return "Something went wrong while applying the theme";
+      return S.fail.other;
   }
 }
 
@@ -65,5 +60,8 @@ export const busy = (from: string, next: string): string => `${from} is busy; tr
 export const authFailed = (provider: string): string => `${provider} rejected the key. Check it in Settings. The built-in theme is kept`;
 export const consentText = (provider: string): string =>
   `Skinly AI will send a small description of this page's layout (shapes, sizes and colours, no text, links, images or forms) to ${provider}. Their terms apply and they may keep it. Nothing else leaves your browser.`;
+
+/** Every configured provider is rate limited and told us how long to wait (more than the 5 s we are willing to sleep). */
+export const rateLimited = (retryAfterMs: number): string => S.fail.rate(Math.min(3600, Math.max(1, Math.ceil(retryAfterMs / 1000))));
 
 export const blockedMessage = (_reason: BlockReason): string => MSG.blocked;
