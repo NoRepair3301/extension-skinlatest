@@ -4,7 +4,7 @@ import "./applier.ts";
 import { sendMessage } from "./api.ts";
 import { runAuto } from "./auto-core.ts";
 import { BADGE_MESSAGE } from "./messages.ts";
-import { loadSettings } from "./settings.ts";
+import { loadSettings, petConfig } from "./settings.ts";
 import { getSite, originOf } from "./sites.ts";
 
 // Registered per origin by siteActions.ts; runs at document_start. Reads storage only, never calls a provider.
@@ -24,7 +24,7 @@ if (applier && origin) {
     },
     onApplied: () => {
       void sendMessage(BADGE_MESSAGE).catch(() => undefined);
-      void loadSettings().then((s) => applier.syncPet(s.pet));
+      void loadSettings().then((s) => applier.syncPet(petConfig(s)));
     },
   });
 }

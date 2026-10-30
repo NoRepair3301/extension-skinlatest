@@ -5,9 +5,10 @@ import { THEMES, type BuiltinThemeId, type ThemeChoice } from "../../themes/inde
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
-import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings } from "../settings.ts";
 import { showPetHere } from "../petActions.ts";
 import { Logo } from "../Logo.tsx";
+import { PetOptions } from "./PetOptions.tsx";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
@@ -80,7 +81,7 @@ export function Popup() {
     if (tabId === undefined) return;
     void (async () => {
       try {
-        await runInPage(tabId, "updatePet", next.pet);
+        await runInPage(tabId, "updatePet", petConfig(next));
       } catch {
         // no applier in this tab: nothing to update
       }
@@ -236,6 +237,7 @@ export function Popup() {
             Disable pet on this site
           </label>
         )}
+        <PetOptions pet={settings.pet} onChange={updatePet} />
         <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
         <p class="note" aria-live="polite">{petNote}</p>
       </fieldset>

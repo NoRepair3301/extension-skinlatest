@@ -1,12 +1,20 @@
 import { DEFAULT_MODELS, PROVIDER_IDS, type ProviderId } from "../config.ts";
 import { isDensity, isLaneChoice, isSceneId, type Density, type LaneChoice, type SceneId } from "../features/scenes/types.ts";
-import { DEFAULT_THEME_ID, isThemeChoice, type ThemeChoice } from "../themes/index.ts";
+import { DEFAULT_THEME_ID, getTheme, isThemeChoice, resolveTheme, type ThemeChoice } from "../themes/index.ts";
 import { storageGet, storageSet } from "./api.ts";
 import { toOrigin } from "./origin.ts";
 
-export const PET_KINDS = ["pebble", "sprout"] as const;
+export const PET_KINDS = ["fox", "cat", "bunny", "slime", "owl", "pebble", "sprout"] as const;
 export const PET_SIZES = ["small", "medium", "large"] as const;
 export const PET_CORNERS = ["bottom-right", "bottom-left", "top-right", "top-left"] as const;
+export const PET_MOTIONS = ["still", "horizontal", "vertical"] as const;
+export const PET_DIRECTIONS = ["forward", "backward", "bounce"] as const;
+export const PET_EDGES = ["bottom", "top", "left", "right"] as const;
+export const PET_SPEEDS = ["slow", "normal", "fast"] as const;
+export type PetMotion = (typeof PET_MOTIONS)[number];
+export type PetDirection = (typeof PET_DIRECTIONS)[number];
+export type PetEdge = (typeof PET_EDGES)[number];
+export type PetSpeed = (typeof PET_SPEEDS)[number];
 export type PetKind = (typeof PET_KINDS)[number];
 export type PetSize = (typeof PET_SIZES)[number];
 export type PetCorner = (typeof PET_CORNERS)[number];
@@ -16,6 +24,15 @@ export interface PetSettings {
   kind: PetKind;
   size: PetSize;
   corner: PetCorner;
+  /** still (default), horizontal or vertical walking. "forward" is left to right / top to bottom. */
+  motion: PetMotion;
+  direction: PetDirection;
+  /** The viewport edge it walks along when it may leave the free gutters. */
+  edge: PetEdge;
+  speed: PetSpeed;
+  sleepWhenIdle: boolean;
+  /** Walk only inside the empty side gutters (default on). */
+  keepInFreeSpace: boolean;
   /** Origins only. */
   disabledOrigins: string[];
 }
@@ -52,7 +69,7 @@ export const defaultSettings = (): Settings => ({
   models: { ...DEFAULT_MODELS },
   aiCallsToday: { date: "", count: 0 },
   consent: null,
-  pet: { enabled: false, kind: "pebble", size: "medium", corner: "bottom-right", disabledOrigins: [] },
+  pet: { enabled: false, kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, disabledOrigins: [] },
   scene: { enabled: true, choice: "theme", density: "normal", lane: "both" },
 });
 
@@ -100,6 +117,12 @@ export function parseSettings(raw: unknown): Settings {
     out.pet.kind = pick(PET_KINDS, p["kind"]) ?? out.pet.kind;
     out.pet.size = pick(PET_SIZES, p["size"]) ?? out.pet.size;
     out.pet.corner = pick(PET_CORNERS, p["corner"]) ?? out.pet.corner;
+    out.pet.motion = pick(PET_MOTIONS, p["motion"]) ?? out.pet.motion;
+    out.pet.direction = pick(PET_DIRECTIONS, p["direction"]) ?? out.pet.direction;
+    out.pet.edge = pick(PET_EDGES, p["edge"]) ?? out.pet.edge;
+    out.pet.speed = pick(PET_SPEEDS, p["speed"]) ?? out.pet.speed;
+    if (p["sleepWhenIdle"] === true) out.pet.sleepWhenIdle = true;
+    if (p["keepInFreeSpace"] === false) out.pet.keepInFreeSpace = false;
     if (Array.isArray(p["disabledOrigins"])) {
       out.pet.disabledOrigins = [...new Set(p["disabledOrigins"].filter((v): v is string => toOrigin(v) !== undefined))].slice(0, 200);
     }
@@ -125,3 +148,6 @@ export async function saveSettings(s: Settings): Promise<void> {
 
 /** AI calls made on `today` (YYYY-MM-DD); the counter resets when the date changes. */
 export const callsOn = (s: Settings, today: string): number => (s.aiCallsToday.date === today ? s.aiCallsToday.count : 0);
+
+/** The pet settings plus the accent of the chosen theme (for the scarf or bow). Colours only; nothing from the page. */
+export const petConfig = (s: Settings, prefersDark = false): PetSettings & { accent: string } => ({ ...s.pet, accent: getTheme(resolveTheme(s.theme, prefersDark)).tokens.accent });

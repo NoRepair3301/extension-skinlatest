@@ -10,6 +10,8 @@ export const Z_INDEX = 2147483000;
 
 export interface OverlayOptions {
   kind: PetKind;
+  /** Theme accent (#rrggbb) for the scarf or bow; optional. */
+  accent?: string | undefined;
   size: Size;
   corner: Corner;
   onHide(): void;
@@ -20,6 +22,10 @@ export interface Overlay {
   host: HTMLElement;
   setPose(pose: PetPose): void;
   setCorner(corner: Corner): void;
+  /** Walking: puts the pet at x,y (viewport px, top-left) facing left (-1) or right (1). */
+  setPlace(x: number, y: number, facing: 1 | -1): void;
+  /** While walking the pet and its button ignore the pointer. */
+  setWalking(on: boolean): void;
   focusPet(): void;
   destroy(): void;
 }
@@ -28,9 +34,15 @@ const CSS =
   ":host{all:initial}" +
   ".wrap{position:relative;width:100%;height:100%;pointer-events:none}" +
   "button{font:inherit;padding:0;margin:0;border:0;background:none;cursor:pointer}" +
-  ".pet{position:absolute;inset:0;pointer-events:auto;border-radius:50%}" +
+  ".pet{position:absolute;inset:0;pointer-events:auto;border-radius:50%;animation:bob 2.6s ease-in-out infinite alternate}" +
+  ".pet svg{display:block;width:100%;height:100%}" +
+  '.wrap[data-facing="-1"] .pet svg{transform:scaleX(-1)}' +
   ".pet:focus-visible,.hide:focus-visible{outline:2px solid #1d4ed8;outline-offset:2px}" +
-  ".hide{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;pointer-events:auto;background:#1f2933;color:#fff;font:700 12px/20px system-ui,sans-serif;text-align:center;opacity:.85}" +
+  // the close button is invisible until the pointer is over the pet or the keyboard focus reaches it
+  ".hide{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;pointer-events:auto;background:#1f2933;color:#fff;font:700 12px/20px system-ui,sans-serif;text-align:center;opacity:0;transition:opacity .15s}" +
+  ".wrap:hover .hide,.wrap:focus-within .hide{opacity:.9}" +
+  ".walking .pet,.walking .hide{pointer-events:none;animation:none}" +
+  "@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-2px)}}" +
   "@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}";
 
 function place(host: HTMLElement, corner: Corner, size: Size): void {
@@ -77,7 +89,7 @@ export function createOverlay(doc: Document, opts: OverlayOptions): Overlay {
   };
   wrap.addEventListener("keydown", onKey);
 
-  const setPose = (pose: PetPose) => pet.replaceChildren(drawPet(doc, opts.kind, pose));
+  const setPose = (pose: PetPose) => pet.replaceChildren(drawPet(doc, opts.kind, pose, opts.accent));
   setPose("idle");
 
   wrap.append(pet, hide);
@@ -90,6 +102,19 @@ export function createOverlay(doc: Document, opts: OverlayOptions): Overlay {
     setCorner(corner) {
       opts.corner = corner;
       place(host, corner, opts.size);
+      wrap.removeAttribute("data-facing");
+    },
+    setPlace(x, y, facing) {
+      const st = host.style;
+      st.setProperty("left", "0");
+      st.setProperty("top", "0");
+      st.setProperty("right", "auto");
+      st.setProperty("bottom", "auto");
+      st.setProperty("transform", `translate(${Math.round(x)}px,${Math.round(y)}px)`);
+      wrap.setAttribute("data-facing", String(facing));
+    },
+    setWalking(on) {
+      wrap.classList.toggle("walking", on);
     },
     focusPet: () => pet.focus(),
     destroy: () => host.remove(),

@@ -15,9 +15,10 @@ describe("manifest.json", () => {
     expect(Object.keys(good["icons"] as object)).toEqual(["16", "32", "48", "128"]);
   });
 
-  it("declares the four keyboard commands with suggested keys", () => {
+  it("declares the five keyboard commands with suggested keys", () => {
     const commands = good["commands"] as Record<string, { suggested_key: { default: string }; description: string }>;
-    expect(Object.keys(commands)).toEqual(["transform-page", "restore-page", "open-palette", "toggle-blur-page"]);
+    expect(Object.keys(commands)).toEqual(["transform-page", "restore-page", "open-palette", "toggle-blur-page", "toggle-pet"]);
+    expect(commands["toggle-pet"]!.suggested_key.default).toBe("Alt+Shift+P");
     expect(commands["toggle-blur-page"]!.suggested_key.default).toBe("Alt+Shift+B");
     for (const c of Object.values(commands)) expect(c.description.length).toBeGreaterThan(5);
   });

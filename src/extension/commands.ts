@@ -1,9 +1,9 @@
 import { applyFailureMessage, MSG, TOAST } from "../ai/messages.ts";
 import { checkUrl } from "../analyzer/eligibility.ts";
 import type { ActiveTab } from "./api.ts";
-import type { Settings } from "./settings.ts";
+import { petConfig, type Settings } from "./settings.ts";
 
-export const COMMANDS = ["transform-page", "restore-page", "open-palette", "toggle-blur-page"] as const;
+export const COMMANDS = ["transform-page", "restore-page", "open-palette", "toggle-blur-page", "toggle-pet"] as const;
 export type CommandName = (typeof COMMANDS)[number];
 
 export const isCommand = (v: unknown): v is CommandName => typeof v === "string" && (COMMANDS as readonly string[]).includes(v);
@@ -11,7 +11,7 @@ export const isCommand = (v: unknown): v is CommandName => typeof v === "string"
 export interface CommandDeps {
   loadSettings(): Promise<Settings>;
   inject(tabId: number, file: string): Promise<void>;
-  runApplier(tabId: number, method: "applyTheme" | "restore" | "syncPet", arg?: unknown): Promise<unknown>;
+  runApplier(tabId: number, method: "applyTheme" | "restore" | "syncPet" | "togglePet", arg?: unknown): Promise<unknown>;
   openPalette(tabId: number): Promise<void>;
   /** Calls a page tool of the injected applier; blurPage with no argument toggles the whole-page veil. */
   runTool(tabId: number, method: "blurPage"): Promise<unknown>;
@@ -62,13 +62,19 @@ export async function handleCommand(deps: CommandDeps, command: CommandName, tab
       return;
     }
     await deps.inject(tab.id, "applier.js");
+    if (command === "toggle-pet") {
+      // The user asked for this page, so the "enabled" setting does not matter; a site the user turned the pet off for stays off.
+      const on = (await deps.runApplier(tab.id, "togglePet", petConfig(settings))) as boolean | undefined;
+      await say(on === undefined ? TOAST.failed : on ? TOAST.petOn : TOAST.petOff);
+      return;
+    }
     if (command === "toggle-blur-page") {
       const state = (await deps.runTool(tab.id, "blurPage")) as { page?: boolean } | undefined;
       if (state === undefined) {
         await deps.setTitle(tab.id, applyFailureMessage(undefined));
         await say(TOAST.failed);
       } else {
-        await deps.runApplier(tab.id, "syncPet", settings.pet); // the pet also shows after a tool (when it is enabled)
+        await deps.runApplier(tab.id, "syncPet", petConfig(settings)); // the pet also shows after a tool (when it is enabled)
         await say(state.page ? TOAST.blurOn : TOAST.blurOff);
       }
       return;
@@ -76,7 +82,7 @@ export async function handleCommand(deps: CommandDeps, command: CommandName, tab
     const r = (await deps.runApplier(tab.id, "applyTheme", settings.theme)) as { ok?: boolean; reason?: string; detail?: string[] } | undefined;
     if (r?.ok) {
       await deps.setBadge(tab.id, "ON");
-      await deps.runApplier(tab.id, "syncPet", settings.pet);
+      await deps.runApplier(tab.id, "syncPet", petConfig(settings));
       await say(TOAST.themeApplied);
     } else {
       await deps.setBadge(tab.id, "!");

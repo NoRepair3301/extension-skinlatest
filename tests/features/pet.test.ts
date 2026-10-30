@@ -68,7 +68,8 @@ describe("controller: off costs nothing", () => {
     const ctl = createPetController(env);
     ctl.sync(cfg(), "https://a.test", true);
     expect(hosts().length).toBe(1);
-    expect(frames.size).toBe(1);
+    expect(frames.size).toBe(0); // a still pet never asks for an animation frame
+    expect(timers.size).toBeGreaterThan(0); // blink, wave and the corner check use timers
     ctl.sync(cfg({ enabled: false }), "https://a.test", true);
     expect(hosts().length).toBe(0);
     expect(frames.size).toBe(0);
@@ -144,6 +145,11 @@ describe("animation", () => {
       caf: (i) => void frames.delete(i),
       timer: () => () => undefined,
       onEnvChange: (cb) => ((envCb = cb), () => undefined),
+      place: () => undefined,
+      walking: () => undefined,
+      walk: () => undefined,
+      sleepWhenIdle: () => false,
+      onActivity: () => () => undefined,
     });
     a.start();
     expect(a.running()).toBe(false);
@@ -156,10 +162,10 @@ describe("animation", () => {
     expect(frames.size).toBe(0);
     a.destroy();
   });
-  it("poseAt cycles idle, blink and walk", () => {
+  it("poseAt cycles idle and blink (walking poses now come from real walking)", () => {
     const seen = new Set<string>();
     for (let t = 0; t < 30000; t += 40) seen.add(poseAt(t));
-    expect(seen).toEqual(new Set(["idle", "blink", "walk-a", "walk-b"]));
+    expect(seen).toEqual(new Set(["idle", "blink"]));
   });
 });
 
@@ -205,8 +211,9 @@ describe("avoid", () => {
 describe("pet settings", () => {
   it("is off by default and validates input", () => {
     expect(defaultSettings().pet.enabled).toBe(false);
+    expect(defaultSettings().pet).toMatchObject({ kind: "fox", motion: "still", keepInFreeSpace: true, sleepWhenIdle: false, speed: "normal" });
     const s = parseSettings({ pet: { enabled: true, kind: "sprout", size: "huge", corner: "top-left", disabledOrigins: ["https://a.test", "https://a.test/x", 5] } });
-    expect(s.pet).toEqual({ enabled: true, kind: "sprout", size: "medium", corner: "top-left", disabledOrigins: ["https://a.test"] });
+    expect(s.pet).toEqual({ ...defaultSettings().pet, enabled: true, kind: "sprout", size: "medium", corner: "top-left", disabledOrigins: ["https://a.test"] });
     expect(parseSettings({ pet: "x" }).pet).toEqual(defaultSettings().pet);
   });
 });

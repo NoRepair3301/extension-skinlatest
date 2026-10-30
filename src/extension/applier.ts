@@ -26,6 +26,8 @@ export type PageApplier = Applier & {
   syncPet(cfg: PetConfig): boolean;
   /** Like syncPet, but never brings a hidden pet back (used when only a setting changed). */
   updatePet(cfg: PetConfig): boolean;
+  /** The toggle-pet command: hides the pet when it shows, shows it otherwise. True when it is on screen afterwards. */
+  togglePet(cfg: PetConfig): boolean;
 };
 
 const slot = globalThis as unknown as {
@@ -51,6 +53,7 @@ function withPet(applier: Applier): PageApplier {
       if (!cfg.enabled || pet.mounted()) pet.sync(cfg, originOf(location.href), true);
       return pet.mounted();
     },
+    togglePet: (cfg: PetConfig): boolean => pet.toggle(cfg, originOf(location.href)),
   });
 }
 
@@ -67,6 +70,6 @@ if (!slot.skinlyApplier) {
     slot.skinlyApplier = applier;
     slot.skinlyToast ??= createToaster(browserToasterEnv(window)).show;
   } else if (role === "same-origin-frame") {
-    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): boolean => false, updatePet: (): boolean => false });
+    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): boolean => false, updatePet: (): boolean => false, togglePet: (): boolean => false });
   }
 }

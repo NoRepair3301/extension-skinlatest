@@ -27,9 +27,9 @@ export function collectContentRects(doc: Document, getRect: RectOf, isHidden: (e
   for (const el of Array.from(body.querySelectorAll(CONTENT))) {
     if (++seen > MAX_ELEMENTS) break;
     if (!isMedia(el) && !hasOwnText(el)) continue;
-    if (ours(el) || isHidden(el)) continue;
+    if (ours(el)) continue;
     const r = getRect(el);
-    if (r.w <= 0 || r.h <= 0) continue;
+    if (r.w <= 0 || r.h <= 0 || isHidden(el)) continue;
     out.push({ x: r.x, w: r.w });
   }
   return out;
