@@ -30,7 +30,7 @@ user click -> popup -> flow -> analyzer (page, read only) -> StructuralSummary
 - **Cannot see**: page text, links, ids, values, URLs, titles, screenshots, the user's assets, their keys of other providers, their saved sites.
 - **Can choose**: theme id, colour tokens, a few layout enums, a built-in `sceneId`. Everything is validated; unknown values are dropped.
 - **Cannot do**: write CSS, selectors or code, touch the DOM, call anything. No AI output reaches the page except as a validated StylePlan compiled by us.
-- User-supplied things (assets, theme codes, settings) are validated on every read and never join a provider payload.
+- User-supplied things (assets, settings) are validated on every read and never join a provider payload.
 
 ## Strategy ladder and visual guard
 - `StylePlan.strategy` (full, safe, text-only) and `protectBackgrounds` decide how much of a page a theme may paint (SPEC 4.2). The compiler (src/plan/compile.ts) is the only place CSS is made. Only the page root and the legacy colour attributes are forced; everything else is `:where` with no `!important`.

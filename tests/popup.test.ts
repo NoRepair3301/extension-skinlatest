@@ -241,15 +241,6 @@ describe("popup", () => {
       expect(store.get("sites")).toBeUndefined();
     });
 
-    it("Copy theme code confirms in one line", async () => {
-      Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: vi.fn().mockResolvedValue(undefined) } });
-      flow.runTransform.mockResolvedValue(previewOutcome());
-      const root = await mount();
-      await click(root, "Change my page");
-      await click(root, "Copy theme code");
-      expect(root.textContent).toContain("Theme code copied. It holds colours and scene only.");
-    });
-
     it("shows the fallback message when a built-in theme replaced the AI plan", async () => {
       flow.runTransform.mockResolvedValue(previewOutcome(MSG.fallbackTheme));
       const root = await mount();

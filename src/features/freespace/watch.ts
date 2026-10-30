@@ -1,4 +1,4 @@
-import { computeGutters, type Gutters } from "./index.ts";
+import { computeGutters, pickCorner, type Gutters } from "./index.ts";
 import { collectContentRects, type MeasureOptions, type RectOf } from "./measure.ts";
 
 export const RESIZE_DEBOUNCE_MS = 200;
@@ -23,7 +23,7 @@ export interface GutterWatch {
   destroy(): void;
 }
 
-const same = (a: Gutters, b: Gutters): boolean => a.state === b.state && a.left?.w === b.left?.w && a.right?.x === b.right?.x && a.right?.w === b.right?.w;
+const same = (a: Gutters, b: Gutters): boolean => a.state === b.state && a.left?.w === b.left?.w && a.right?.x === b.right?.x && a.right?.w === b.right?.w && a.corner?.x === b.corner?.x && a.corner?.y === b.corner?.y;
 
 /**
  * Measures the gutters on start, after the window resized (debounced 200 ms) and after DOM changes (at most once per second).
@@ -40,7 +40,13 @@ export function watchGutters(env: WatchEnv, onChange: (g: Gutters) => void): Gut
   const measure = (): Gutters => {
     const vw = win.innerWidth;
     const dw = doc.documentElement.scrollWidth || vw;
-    return computeGutters(collectContentRects(doc, env.getRect, env.isHidden, { viewport: { w: vw, h: win.innerHeight }, ...(env.textRect ? { textRect: env.textRect } : {}), ...(env.ignore ? { ignore: env.ignore } : {}) }), vw, dw);
+    const rects = collectContentRects(doc, env.getRect, env.isHidden, { viewport: { w: vw, h: win.innerHeight }, ...(env.textRect ? { textRect: env.textRect } : {}), ...(env.ignore ? { ignore: env.ignore } : {}) });
+    const g = computeGutters(rects, vw, dw);
+    if (g.state !== "ok") {
+      const corner = pickCorner(rects, vw, win.innerHeight);
+      if (corner) g.corner = corner;
+    }
+    return g;
   };
   const refresh = () => {
     if (!alive) return;

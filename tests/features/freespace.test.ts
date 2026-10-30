@@ -106,7 +106,7 @@ describe("collectContentRects on app-style pages", () => {
       '<header data-slim="1"><p data-r="0,0,1200,48">bar</p></header>' + // fixed toolbar
       '<main><p data-r="300,100,600,40">column</p></main>';
     const rects = collectContentRects(document, getRect, () => false, { viewport: vp, ignore: (el) => el.closest("[data-slim]") !== null });
-    expect(rects).toEqual([{ x: 300, w: 600 }]);
+    expect(rects.map((r) => ({ x: r.x, w: r.w }))).toEqual([{ x: 300, w: 600 }]);
     const g = computeGutters(rects, vp.w, vp.w);
     expect(g.state).toBe("ok");
     expect(g.left?.w).toBe(300);
@@ -122,6 +122,24 @@ describe("collectContentRects on app-style pages", () => {
       return { x, y, w, h };
     };
     const rects = collectContentRects(document, getRect, () => false, { viewport: vp, textRect });
-    expect(rects).toEqual([{ x: 400, w: 300 }, { x: 1000, w: 200 }]);
+    expect(rects.map((r) => ({ x: r.x, w: r.w }))).toEqual([{ x: 400, w: 300 }, { x: 1000, w: 200 }]);
+  });
+});
+
+describe("pickCorner", () => {
+  it("chooses the corner with the least content under it, bottom right on a tie, nothing for a tiny window", async () => {
+    const { pickCorner, CORNER_W, CORNER_H } = await import("../../src/features/freespace/index.ts");
+    const full = [{ x: 0, w: 1200, y: 0, h: 800 }];
+    expect(pickCorner(full, 1200, 800)).toMatchObject({ x: 1200 - CORNER_W - 8, y: 800 - CORNER_H - 8 });
+    // content fills the bottom: the top corners are free
+    const bottomHeavy = [{ x: 0, w: 1200, y: 300, h: 500 }];
+    expect(pickCorner(bottomHeavy, 1200, 800)!.y).toBe(8);
+    // something sits in the bottom right only
+    const rightLow = [{ x: 900, w: 300, y: 600, h: 200 }];
+    expect(pickCorner(rightLow, 1200, 800)!.x).toBeLessThan(600);
+    expect(pickCorner(full, 300, 300)).toBeUndefined();
+    const c = pickCorner(full, 1200, 800)!;
+    expect(c.w).toBeLessThanOrEqual(120);
+    expect(c.h).toBeLessThanOrEqual(160);
   });
 });

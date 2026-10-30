@@ -28,6 +28,7 @@ Tests are unit tests, the rule scanner, validate-dist and the contrast script. N
 11. Never store page text, titles, full URLs or query strings. Per-site data is keyed by origin only.
 
 ## Architecture
+- Scene art follows the theme and is drawn only in measured empty space: the side gutters, or with none, one small corner strip (at most 120 by 160 px, the least covered corner), always pointer-events none, never over content.
 - All tier logic only in src/core/entitlements.ts (free plan: everything unlocked). No backend, accounts or payments.
 - One module each for Restore/rollback, invariants and fingerprint. No duplicates.
 - src/features/* take selectors and models as parameters and never mention specific site names.

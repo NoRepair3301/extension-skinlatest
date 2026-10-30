@@ -110,8 +110,8 @@ describe("layouts never change DOM order", () => {
 });
 
 describe("prompt v2", () => {
-  it("is version 4 and guides the model per region", () => {
-    expect(PROMPT_VERSION).toBe("4");
+  it("is version 5 and guides the model per region", () => {
+    expect(PROMPT_VERSION).toBe("5");
     for (const l of LAYOUTS.filter((x) => x !== "none")) expect(SYSTEM_PROMPT).toContain(`"${l}"`);
     expect(SYSTEM_PROMPT).toContain("per region");
     expect(SYSTEM_PROMPT).toContain("order never changes");

@@ -21,7 +21,6 @@ import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
 import { enableAuto, forgetSite, pauseSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
-import { decodeThemeCode, encodeThemeCode } from "../themeCode.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -43,11 +42,8 @@ export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
-  const [codeText, setCodeText] = useState("");
-  const [codeError, setCodeError] = useState("");
   /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
   const [keepable, setKeepable] = useState<{ tabId: number; origin: string | undefined; kept: KeptPlan } | undefined>(undefined);
-  const [copyNote, setCopyNote] = useState("");
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
@@ -147,7 +143,6 @@ export function Popup() {
       setPetNote("");
       setSceneNote("");
       setKeepable(undefined);
-      setCopyNote("");
       setShowPayload(false);
       setView({ state: "working", step: "checking" });
       const outcome = await runTransform(
@@ -167,7 +162,7 @@ export function Popup() {
       setKeepable(keepFrom(outcome, tab.id, tab.url));
       const fresh = await loadSettings();
       if (outcome.kind === "baseline") void showArt(tab.id, fresh, sourceForTheme(outcome.themeId, prefersDark()));
-      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
+      else if (outcome.kind === "preview") void showArt(tab.id, fresh, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
       // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
       if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
@@ -241,7 +236,7 @@ export function Popup() {
   const keepFrom = (outcome: Outcome, tabId: number, url: string | undefined): { tabId: number; origin: string | undefined; kept: KeptPlan } | undefined => {
     const origin = url ? originOf(url) : undefined;
     if (outcome.kind === "preview") {
-      const look = lookFor(settings, { themeId: outcome.plan.themeId, planSceneId: outcome.plan.sceneId, accent: outcome.plan.tokens.accent });
+      const look = lookFor(settings, { themeId: outcome.plan.themeId, accent: outcome.plan.tokens.accent });
       return { tabId, origin, kept: { plan: outcome.plan, fingerprint: outcome.fingerprint, provider: outcome.providerId ?? "builtin", model: outcome.model ?? "builtin", look } };
     }
     if (outcome.kind === "baseline" && outcome.plan && outcome.fingerprint) {
@@ -261,34 +256,6 @@ export function Popup() {
     if (r?.mode === "auto") {
       badge(k.tabId, "ON");
       setKeepable(undefined);
-    }
-  };
-
-  const copyCode = async (plan: KeptPlan["plan"]) => {
-    try {
-      await navigator.clipboard.writeText(encodeThemeCode(plan));
-      setCopyNote(S.popup.copyDone);
-    } catch {
-      setView({ state: "idle", note: S.popup.copyFailed });
-    }
-  };
-
-  /** An imported code is a validated, contrast-checked StylePlan with no regions; it is shown, not remembered. */
-  const importCode = async () => {
-    setCodeError("");
-    const r = decodeThemeCode(codeText);
-    if (!r.ok) return setCodeError(r.message);
-    try {
-      const tab = await queryActiveTab();
-      if (!tab || !tab.url) return setView({ state: "blocked", reason: MSG.blocked });
-      const res = await createPageClient(tab.id).applyPlan(r.plan);
-      if (!res || !res.ok) return setView({ state: "error", kind: "error", message: applyFailureMessage(res) });
-      badge(tab.id, "ON");
-      setCodeText("");
-      void showArt(tab.id, settings, { themeId: r.plan.themeId, planSceneId: r.plan.sceneId, accent: r.plan.tokens.accent });
-      setView({ state: "idle", note: "Theme code applied. Use Restore to undo." });
-    } catch {
-      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
     }
   };
 
@@ -394,25 +361,6 @@ export function Popup() {
           <p class="note">{S.popup.keepNote}</p>
         </section>
       )}
-      {keepable && (view.state === "idle" || view.state === "preview") && (
-        <section aria-label="Share">
-          <button type="button" onClick={() => void copyCode(keepable.kept.plan)}>Copy theme code</button>
-          {copyNote && <p role="status">{copyNote}</p>}
-        </section>
-      )}
-
-      {view.state === "idle" && (
-        <section aria-label="Theme code">
-          <label>
-            {S.popup.importTitle}
-            <textarea class="import-box" rows={3} value={codeText} maxLength={2000} spellcheck={false} aria-describedby="import-format" onInput={(e) => setCodeText((e.target as HTMLTextAreaElement).value)} />
-          </label>
-          <p class="note" id="import-format">{S.popup.importFormat}</p>
-          <button type="button" disabled={codeText.trim() === ""} onClick={() => void importCode()}>{S.popup.importButton}</button>
-          {codeError && <p role="alert" class="status-bad">{codeError}</p>}
-        </section>
-      )}
-
       {site?.record && view.state !== "consent" && view.state !== "working" && (
         <section aria-label="This site">
           <p>{site.record.mode === "auto" ? `Automatic on this site (${providerLabel(site.record.provider)}).` : `Saved for this site (${providerLabel(site.record.provider)}).`}</p>

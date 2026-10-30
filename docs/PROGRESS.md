@@ -151,3 +151,8 @@ Owner decisions overrule CLAUDE.md (edited: rules 2, 3, 5; SPEC 17; AUDIT C3; do
 - src/plan/guard.ts (readings: backdrop, media check), src/plan/readability.ts (snapshot, audit, colour pick, structural paths, grouped colour-only CSS capped at 30 KB, RepairPlan validator + compile), applier-core runs snapshot, apply, repair pass, bounded re-passes (10 free, then once per 5 s). Text over an image or gradient gets its recorded original colours back. `transparent` is the one non-hex value (restoring a transparent original).
 - AI repair: src/features/repair/payload.ts (the one sanitiser, 40 elements, 6 KB), src/ai/repair.ts (prompt, schema), second consent per origin (`repairConsent`, revocable in Settings, Privacy), one attempt, deterministic result kept on any failure.
 - Tests: tests/guard.test.ts, tests/repair.test.ts (markers, class tokens, url() stripping, caps, validation, consent, flow).
+
+### Stage 2: scenes, themes (done)
+- Removed: scene choice, density, lane UI, theme code copy and import (code, strings, tests, docs). One "Show art" switch; the scene follows the theme (Auto: calm in light, midnight-stars in dark; midnight now shows space). AI no longer picks a scene (prompt 5).
+- Corner strip: with no usable gutter the least covered corner (120 by 160) gets one or two small actors (`pickCorner`, engine status `corner`), pointer-events none. Popup line says so.
+- Real bug found by the new flow tests (tests/scene-flow.test.ts: claude-like, wiki-like, full-width and sidebar pages, manual and auto path): the auto script showed the scene and pet at document_start, then its second apply (`apply` calls Restore first) ran the restore hooks and destroyed them. Re-applying now keeps hooks; only a real Restore runs them.

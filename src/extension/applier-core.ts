@@ -103,11 +103,14 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
 
   const html = doc.documentElement;
 
-  /** Removes everything we added. Safe to call at any time, any number of times. */
-  function restore(): { ok: true } {
+  /**
+   * Removes everything we added. Safe to call at any time, any number of times. The restore hooks (pet, scene, blur, banner) run only on a
+   * real Restore; re-applying a theme (or rolling one back) keeps them, so art shown by the auto script survives the second apply.
+   */
+  function restore(withHooks = true): { ok: true } {
     const l = ledger;
     ledger = undefined;
-    for (const hook of restoreHooks) hook();
+    if (withHooks) for (const hook of restoreHooks) hook();
     if (!l) return { ok: true };
     l.observer?.disconnect();
     l.sheet.remove();
@@ -162,7 +165,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
 
   /** `tokensOnly` skips the page analysis (used at document_start, before the body exists) and applies no region rules. */
   function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false): ApplyResult {
-    restore();
+    restore(false);
     try {
       const before = snapshot(doc);
       const checking = opts.guard && !tokensOnly && doc.body ? opts.guard : undefined;
@@ -210,7 +213,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
         for (const rule of checked.plan.regionRules) {
           const el = byId.get(rule.region);
           if (!el) {
-            restore();
+            restore(false);
             return { ok: false, reason: "invalid-plan", detail: ["region missing on page"] };
           }
           next.tags.push({ el, id: rule.region, previous: el.getAttribute("data-skinly-r") });
@@ -223,7 +226,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       opts.beforeInvariants?.();
       const bad = compare(before, snapshot(doc));
       if (bad.length > 0) {
-        restore();
+        restore(false);
         return { ok: false, reason: "invariants", detail: bad };
       }
 
@@ -246,7 +249,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       if (doc.body) next.observer = createBoundedObserver(doc, doc.body, recheck, opts.observer);
       return { ok: true, themeId: checked.plan.themeId, regions: next.tags.length, strategy, steppedDown, repairs: next.book.size, samples: next.checked };
     } catch {
-      restore();
+      restore(false);
       return { ok: false, reason: "error" };
     }
   }

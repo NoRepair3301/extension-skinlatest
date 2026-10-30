@@ -37,13 +37,13 @@ export const en = {
   },
   scene: {
     legend: "Scene art",
-    scene: "Scene",
+    show: "Show art that matches the theme",
     names: { theme: "The theme's own scene", paper: "Paper", space: "Space", ocean: "Ocean", "midnight-stars": "Midnight stars", calm: "Calm", field: "Field", off: "Off" } as Record<string, string>,
     amount: "Amount",
     densities: { low: "Fewer", normal: "Normal", high: "More" },
     where: "Where",
     lanes: { both: "Both sides", left: "Left side", right: "Right side" },
-    note: "Art only appears in empty space beside the page. It never covers text, links, buttons or pictures, and it is still if your system asks for less motion.",
+    note: "The art follows the theme. It appears only in empty space: beside the page, or in one small corner when the page uses the full width. It never covers text, links, buttons or pictures, and it is still if your system asks for less motion.",
   },
   privacy: {
     section: "Privacy and table tools",

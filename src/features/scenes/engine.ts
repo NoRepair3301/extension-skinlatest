@@ -1,5 +1,5 @@
 import type { Gutter, Gutters } from "../freespace/index.ts";
-import { usableGutters } from "../freespace/index.ts";
+import { CORNER_H, CORNER_W, usableGutters } from "../freespace/index.ts";
 import { SCENE_CSS } from "./css.ts";
 import type { Ctx } from "./svg.ts";
 import type { Actor, Density, LaneChoice, Motion, SceneDef } from "./types.ts";
@@ -25,8 +25,8 @@ export interface SceneRequest {
   accent: string;
 }
 
-/** shown: art is on screen. no-gutter: the page has no free side space. */
-export type SceneStatus = "shown" | "no-gutter";
+/** shown: art is on screen in the side gutters. corner: no gutter, so one small corner strip is used. no-gutter: nothing fits. */
+export type SceneStatus = "shown" | "corner" | "no-gutter";
 
 export interface SceneEngine {
   show(req: SceneRequest): SceneStatus;
@@ -213,28 +213,44 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
     return box;
   };
 
+  /** Actors that fit a corner strip: not backdrop glows, small enough, at most two. */
+  const cornerActors = (actors: readonly Actor[]): Actor[] =>
+    actors
+      .filter((x) => !x.back && Math.min(x.size, CORNER_W - MIN_GAP_PX * 2) * (x.ratio ?? 1) <= CORNER_H - 10)
+      .sort((p, q) => p.size * (p.ratio ?? 1) - q.size * (q.ratio ?? 1))
+      .slice(0, 2);
+
   const show = (req: SceneRequest): SceneStatus => {
-    const lanes = usableGutters(req.gutters, req.lane);
-    if (lanes.length === 0) {
+    const usable = usableGutters(req.gutters, req.lane);
+    const corner = usable.length === 0 ? req.gutters.corner : undefined;
+    if (usable.length === 0 && !corner) {
       teardown();
       return "no-gutter";
     }
+    // One lane per usable gutter (full height), or one small strip in the least covered corner.
+    const lanes: Array<{ g: Gutter; top: number; h: number }> = corner
+      ? [{ g: { x: corner.x, w: corner.w }, top: corner.y, h: corner.h }]
+      : usable.map((g) => ({ g, top: 0, h: Math.max(120, win.innerHeight || 600) }));
     mount();
     const r = rootEl!;
-    const laneH = Math.max(120, win.innerHeight || 600);
-    const wanted = req.scene.actors.slice(0, actorCount(req.scene.actors.length, req.density));
-    const which = lanes.map((g) => (g.x === 0 ? "left" : "right") as "left" | "right");
+    const wanted = corner ? cornerActors(req.scene.actors) : req.scene.actors.slice(0, actorCount(req.scene.actors.length, req.density));
+    const which = lanes.map(({ g }) => (g.x === 0 || (corner !== undefined && g.x < (win.innerWidth || 0) / 2) ? "left" : "right") as "left" | "right");
     const groups = assignActors(wanted, lanes.length, req.lane, which);
     const ctx: Ctx = { doc, accent: req.accent, uid: (name) => `${name}${++counter}` };
 
     // Lane elements first so a failing actor never leaves a half-built lane behind.
-    lanes.forEach((g, li) => {
+    lanes.forEach(({ g, top: laneTop, h: laneH }, li) => {
       const lane = doc.createElement("div");
       lane.className = "lane";
-      lane.setAttribute("data-lane", which[li]!);
+      lane.setAttribute("data-lane", corner ? "corner" : which[li]!);
       lane.style.setProperty("left", `${g.x}px`);
       lane.style.setProperty("width", `${g.w}px`);
       lane.style.setProperty("--lh", `${laneH}px`);
+      if (corner) {
+        lane.style.setProperty("top", `${laneTop}px`);
+        lane.style.setProperty("height", `${laneH}px`);
+        lane.style.setProperty("bottom", "auto");
+      }
       r.append(lane);
       placeActors(groups[li]!, g.w, laneH).forEach(({ actor: a, top }, i) => {
         if (countAnimated() >= NODE_BUDGET) return;
@@ -248,7 +264,7 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
         if (countAnimated() > NODE_BUDGET) box.remove();
       });
     });
-    return "shown";
+    return corner ? "corner" : "shown";
   };
 
   return {

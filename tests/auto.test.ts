@@ -132,8 +132,8 @@ describe("applier-auto", () => {
     expect(t.doc.querySelector("[data-skinly-ui]")).not.toBeNull();
     const before = t.doc.documentElement.outerHTML;
     expect(before).toContain("data-skinly-ui");
-    // restore through a fresh apply cycle triggers the hooks
-    t.applier.applyTokens(t.site.plan);
+    // a real Restore runs the hooks
+    t.applier.restore();
     expect(t.doc.querySelector("[data-skinly-ui]")).toBeNull();
   });
 

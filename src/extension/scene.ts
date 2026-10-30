@@ -13,7 +13,7 @@ import { getSite, originOf, type SiteRecord } from "./sites.ts";
 /** What the popup learns: whether there was room, and what is showing. Fixed words only. */
 export interface SceneStatusReport {
   gutters: GutterState;
-  scene: "shown" | "no-gutter" | "none";
+  scene: "shown" | "corner" | "no-gutter" | "none";
   asset: AssetStatus | "none" | "missing";
 }
 
