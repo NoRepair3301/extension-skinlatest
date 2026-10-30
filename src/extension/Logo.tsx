@@ -1,3 +1,4 @@
+import { S } from "../ui/strings.ts";
 import { useRef } from "preact/hooks";
 
 // The Skinly AI logo (assets/skinly-logo.svg) inlined; gradient and clip ids are unique per instance.
@@ -9,7 +10,7 @@ export function Logo({ size = 24 }: { size?: number }) {
   const p = `skl${ref.current}`;
   const u = (name: string) => `url(#${p}-${name})`;
   return (
-    <svg class="logo" viewBox="0 0 128 128" width={size} height={size} role="img" aria-label="Skinly AI">
+    <svg class="logo" viewBox="0 0 128 128" width={size} height={size} role="img" aria-label={S.app.name}>
       <defs>
         <linearGradient id={`${p}-bg`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stop-color="#1a1445" />

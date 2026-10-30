@@ -164,4 +164,20 @@ describe("options tabs", () => {
     expect(panelOf(root, "about").textContent).toContain("Could not copy");
     expect((panelOf(root, "about").querySelector("textarea") as HTMLTextAreaElement).value).toContain("version: 0.2.0");
   });
+  it("offline: a banner shows and Test key says it cannot reach the provider without calling it (stage 3)", async () => {
+    const spy = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    keys.keyStatus.mockResolvedValue({ gemini: true, groq: false });
+    const root = await mount();
+    await flush();
+    expect(root.textContent).toContain("You are offline.");
+    const test = Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Test key" && !b.disabled)!;
+    test.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    await flush();
+    expect(keys.testKey).not.toHaveBeenCalled();
+    expect(root.textContent).toContain("Could not reach the provider.");
+    window.dispatchEvent(new Event("online"));
+    spy.mockReturnValue(true);
+    await flush();
+    spy.mockRestore();
+  });
 });

@@ -81,6 +81,21 @@ describe("applier safety", () => {
     expect(a.isActive()).toBe(false);
   });
 
+  it("an apply that throws halfway (the stylesheet cannot be added) leaves the page exactly as it was (stage 3)", () => {
+    const doc = load("article-news");
+    const before = doc.documentElement.outerHTML;
+    const host: StyleHost = {
+      add() {
+        throw new Error("sheet");
+      },
+    };
+    const a = createApplier(doc, { style: host, summaryDeps: fakeDeps() });
+    expect(a.applyTheme("midnight")).toMatchObject({ ok: false, reason: "error" });
+    expect(doc.documentElement.outerHTML).toBe(before);
+    expect(a.isActive()).toBe(false);
+    expect(a.shownTheme()).toBeUndefined();
+  });
+
   it("rejects an invalid plan without touching the page", () => {
     const doc = load("article-news");
     const before = doc.documentElement.outerHTML;

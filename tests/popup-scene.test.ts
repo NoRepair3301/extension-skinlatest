@@ -157,4 +157,14 @@ describe("popup: scene art after Change my page", () => {
     await click(root, "Change my page");
     expect((store.get("diag") as { provider?: string }).provider).toBe("ok");
   });
+  it("offline: a calm banner says built-in themes still work, and the result is recorded as offline (stage 3)", async () => {
+    const spy = vi.spyOn(navigator, "onLine", "get").mockReturnValue(false);
+    flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "ocean", why: "ai-unavailable", message: "Applied." });
+    api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
+    const root = await mount();
+    expect(root.textContent).toContain("You are offline. Built-in themes still work");
+    await click(root, "Change my page");
+    expect((store.get("diag") as { provider?: string }).provider).toBe("offline");
+    spy.mockRestore();
+  });
 });
