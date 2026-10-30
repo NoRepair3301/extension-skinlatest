@@ -1,10 +1,12 @@
 import { ALLOWED_URL_HOSTS } from "../config.ts";
-import type { Fingerprint } from "../core/types.ts";
 import { PROMPT_VERSION } from "../ai/prompt.ts";
 import { fnv1a } from "../analyzer/fingerprint.ts";
-import type { StylePlan } from "../plan/schema.ts";
-import { clearAllStorage, hasOrigins, registerAutoScript, removeAllOrigins, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
-import { clearSites, getSite, loadSites, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
+import { clearAllStorage, hasOrigins, registerAutoScript, registeredScripts, removeAllOrigins, removeOrigins, requestOrigins, setBadge, unregisterAutoScript } from "./api.ts";
+import { clearSites, getSite, isAutoOn, loadSites, migrateStorage, patchSite, removeSite, saveSite, toOrigin, type SiteLook, type SiteRecord } from "./sites.ts";
+import { siteKey } from "./origin.ts";
+import type { KeptPlan } from "./intent.ts";
+
+export type { KeptPlan };
 
 export const AUTO_SCRIPT_FILE = "applier-auto.js";
 /** The applier itself; the auto script needs it loaded first. */
@@ -25,20 +27,13 @@ export const hasArt = (look: SiteLook | undefined): boolean => look !== undefine
 export const scriptId = (origin: string): string => `skinly-${fnv1a(origin)}`;
 
 /** The one match pattern we ever request or register: the visited origin, nothing wider. */
-export const matchFor = (origin: string): string[] => [`${origin}/*`];
+export const matchFor = (origin: string): string[] => {
+  const k = siteKey(origin);
+  return k ? [k.pattern] : [];
+};
 
-export interface KeptPlan {
-  plan: StylePlan;
-  fingerprint: Fingerprint;
-  provider: string;
-  model: string;
-  /** What art was showing when the user kept the plan (Phase 10). */
-  look?: SiteLook | undefined;
-  /** Repair rules in force when the theme was kept. */
-  repairCss?: string | undefined;
-}
-
-const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: SiteRecord): SiteRecord => ({
+/** The record a kept plan is saved as. A new record is never paused: keeping a theme is the user asking for it. */
+export const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: SiteRecord): SiteRecord => ({
   v: 1,
   plan: kept.plan,
   fingerprint: kept.fingerprint,
@@ -73,7 +68,7 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
   try {
     const previous = await getSite(o);
     if (kept) await saveSite(o, record(kept, "auto", previous));
-    else if (previous) await saveSite(o, { ...previous, mode: "auto" });
+    else if (previous) await saveSite(o, { ...withoutPause(previous), mode: "auto" });
     else return { ok: false, reason: "no-record" };
     await registerAutoScript(scriptId(o), matchFor(o), [...AUTO_FILES]);
     if (tabId !== undefined) await setBadge(tabId, "ON");
@@ -83,23 +78,76 @@ export async function enableAuto(origin: string, kept: KeptPlan | undefined, tab
   }
 }
 
+const withoutPause = (r: SiteRecord): SiteRecord => {
+  const rest = { ...r };
+  delete rest.paused;
+  return rest;
+};
+
+const sameList = (a: readonly string[], b: readonly string[]): boolean => a.length === b.length && a.every((x, i) => x === b[i]);
+
 /**
- * After an update, every kept site gets the current file list again (older versions registered scene.js only for a saved scene id, so
- * art did not come back after a reload). Only origins whose permission is still granted are registered; a failure skips that site.
+ * Makes sure the origin has exactly one registration with the current auto files and its one match pattern. Does nothing when it already
+ * has (idempotent: no unregister, no register). False when the browser refused.
  */
-export async function refreshAutoScripts(): Promise<number> {
-  let n = 0;
-  for (const [o, site] of Object.entries(await loadSites())) {
-    if (site.mode !== "auto") continue;
-    try {
-      if (!(await hasOrigins(matchFor(o)))) continue;
-      await registerAutoScript(scriptId(o), matchFor(o), [...AUTO_FILES]);
-      n++;
-    } catch {
-      // this site keeps its old registration
-    }
+export async function ensureRegistered(origin: string): Promise<boolean> {
+  const matches = matchFor(origin);
+  if (matches.length === 0) return false;
+  const id = scriptId(origin);
+  try {
+    const [now] = await registeredScripts([id]);
+    if (now && sameList(now.js, AUTO_FILES) && sameList(now.matches, matches) && now.runAt === "document_start") return true;
+    await registerAutoScript(id, matches, [...AUTO_FILES]);
+    return true;
+  } catch {
+    return false;
   }
-  return n;
+}
+
+export interface ReconcileResult {
+  /** Sites that got a (new or corrected) registration. */
+  registered: number;
+  /** Registrations removed: paused or forgotten sites, sites whose permission was taken away, strays. */
+  removed: number;
+}
+
+/**
+ * Runs on service-worker start, install and update (A1b). Migrates storage, then: every kept site that is on and still has its permission
+ * has its registration with the current files; every other skinly registration goes. Running it twice changes nothing the second time.
+ */
+export async function reconcile(): Promise<ReconcileResult> {
+  const out: ReconcileResult = { registered: 0, removed: 0 };
+  await migrateStorage().catch(() => false);
+  const sites = await loadSites();
+  let current: Array<{ id: string; js: string[]; matches: string[]; runAt: string }> = [];
+  try {
+    current = await registeredScripts();
+  } catch {
+    current = [];
+  }
+  const byId = new Map(current.map((c) => [c.id, c]));
+  const keep = new Set<string>();
+  for (const [o, site] of Object.entries(sites)) {
+    if (!isAutoOn(site)) continue;
+    let granted = false;
+    try {
+      granted = await hasOrigins(matchFor(o));
+    } catch {
+      granted = false;
+    }
+    if (!granted) continue;
+    const id = scriptId(o);
+    keep.add(id);
+    const now = byId.get(id);
+    if (now && sameList(now.js, AUTO_FILES) && sameList(now.matches, matchFor(o)) && now.runAt === "document_start") continue;
+    if (await ensureRegistered(o)) out.registered++;
+  }
+  for (const c of current) {
+    if (!c.id.startsWith("skinly-") || keep.has(c.id)) continue;
+    await unregisterAutoScript(c.id);
+    out.removed++;
+  }
+  return out;
 }
 
 /** Saves the picked blur selectors for a site that is already remembered (selectors only, never text). */
@@ -112,15 +160,26 @@ export async function saveBlur(origin: string, selectors: string[], blurImages: 
   return { ok: true };
 }
 
-/** "Pause on this site": keep the record, stop applying by itself. The permission stays so it can be switched on again. */
+/**
+ * "Pause on this site" and Restore (A1e): keep the record, stop applying by itself until Resume or Change my page. The permission stays so
+ * Resume needs no prompt.
+ */
 export async function pauseSite(origin: string): Promise<ActionResult> {
   const o = toOrigin(origin);
-  const previous = o ? await getSite(o) : undefined;
   if (!o) return { ok: false, reason: "bad-origin" };
-  if (!previous) return { ok: false, reason: "no-record" };
-  await saveSite(o, { ...previous, mode: "ask" });
+  const next = await patchSite(o, (r) => ({ ...r, paused: true }));
+  if (!next) return { ok: false, reason: "no-record" };
   await unregisterAutoScript(scriptId(o));
   return { ok: true };
+}
+
+/** Resume: the paused record applies by itself again (registration back). Called by the background, which holds the permission check. */
+export async function resumeSite(origin: string): Promise<ActionResult> {
+  const o = toOrigin(origin);
+  if (!o) return { ok: false, reason: "bad-origin" };
+  const next = await patchSite(o, (r) => ({ ...withoutPause(r), mode: "auto" }));
+  if (!next) return { ok: false, reason: "no-record" };
+  return (await ensureRegistered(o)) ? { ok: true } : { ok: false, reason: "error" };
 }
 
 /** "Forget this site": script, permission and record all go. */

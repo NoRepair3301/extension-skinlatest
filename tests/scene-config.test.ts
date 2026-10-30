@@ -10,12 +10,13 @@ const api = vi.hoisted(() => ({
   unregisterAutoScript: vi.fn(),
   setBadge: vi.fn(),
   hasOrigins: vi.fn(async (_m: string[]) => true),
+  registeredScripts: vi.fn(async () => []),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 
 import { effectiveScene, lookFor, sceneRequest, siteRequest, sourceForPlan, sourceForTheme } from "../src/extension/sceneConfig.ts";
 import { petFor } from "../src/extension/applier-auto.ts";
-import { APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE, enableAuto, hasArt, refreshAutoScripts, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
+import { APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE, enableAuto, hasArt, reconcile, rememberSite, scriptId, type KeptPlan } from "../src/extension/siteActions.ts";
 import { defaultSettings, type Settings } from "../src/extension/settings.ts";
 import { getSite, parseLook, parseSite } from "../src/extension/sites.ts";
 import { planFor } from "./plan/helpers.ts";
@@ -94,13 +95,13 @@ describe("art follows the stored plan (stage 1a)", () => {
     expect(siteRequest(settings({ scene: { ...defaultSettings().scene, enabled: false } }), { plan, look: { art: true } })).toBeNull();
     expect(siteRequest(settings(), { plan: planFor("high-contrast"), look: { art: true } })).toBeNull();
   });
-  it("refreshAutoScripts re-registers the auto files for kept sites whose permission is still granted", async () => {
+  it("reconcile re-registers the auto files for kept sites whose permission is still granted", async () => {
     store.clear();
     api.registerAutoScript.mockClear();
     const rec = (mode: string) => ({ v: 1, plan: planFor("ocean"), fingerprint: { hash: "0123abcd", seq: "h" }, provider: "builtin", model: "builtin", promptVersion: "5", savedAt: "2026-10-30T10:00:00.000Z", mode, blur: [], blurImages: false });
     store.set("sites", { "https://a.example": rec("auto"), "https://b.example": rec("ask"), "https://c.example": rec("auto") });
     api.hasOrigins.mockImplementation(async (m: string[]) => m[0] !== "https://c.example/*");
-    expect(await refreshAutoScripts()).toBe(1);
+    expect(await reconcile()).toEqual({ registered: 1, removed: 0 });
     expect(api.registerAutoScript).toHaveBeenCalledTimes(1);
     expect(api.registerAutoScript).toHaveBeenCalledWith(scriptId("https://a.example"), ["https://a.example/*"], [APPLIER_SCRIPT_FILE, AUTO_SCRIPT_FILE, SCENE_SCRIPT_FILE]);
     api.hasOrigins.mockImplementation(async () => true);

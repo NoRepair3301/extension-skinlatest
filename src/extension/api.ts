@@ -12,6 +12,46 @@ export const storageGet = async <T = unknown>(key: string): Promise<T | undefine
 
 export const storageSet = (key: string, value: unknown): Promise<void> => chrome.storage.local.set({ [key]: value });
 
+export const storageRemove = (key: string): Promise<void> => chrome.storage.local.remove(key);
+
+/** Calls back with the new value (undefined when removed) whenever `key` changes in storage.local. Wakes the service worker. */
+export const onStorageChanged = (key: string, handler: (value: unknown) => void): void => {
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && key in changes) handler(changes[key]?.newValue);
+  });
+};
+
+/** Host permissions the user granted or removed (from our prompt, or later in the browser's site settings). Match patterns only. */
+export const onOriginsAdded = (handler: (origins: string[]) => void): void => {
+  chrome.permissions.onAdded.addListener((p) => handler(p.origins ?? []));
+};
+
+export const onOriginsRemoved = (handler: (origins: string[]) => void): void => {
+  chrome.permissions.onRemoved.addListener((p) => handler(p.origins ?? []));
+};
+
+export const onStartup = (handler: () => void): void => {
+  chrome.runtime.onStartup.addListener(handler);
+};
+
+export interface RegisteredScript {
+  id: string;
+  matches: string[];
+  js: string[];
+  runAt: string;
+}
+
+/** Our registered content scripts (all of them, or the given ids). */
+export const registeredScripts = async (ids?: string[]): Promise<RegisteredScript[]> => {
+  const all = await chrome.scripting.getRegisteredContentScripts(ids ? { ids } : undefined);
+  return all.map((s) => ({ id: s.id, matches: s.matches ?? [], js: s.js ?? [], runAt: s.runAt ?? "document_idle" }));
+};
+
+/** Injects files into the top frame of a tab, in order, in one call (the registered auto files, for a tab that is already open). */
+export const injectFiles = async (tabId: number, files: string[]): Promise<void> => {
+  await chrome.scripting.executeScript({ target: { tabId }, files });
+};
+
 export const queryActiveTab = async (): Promise<ActiveTab | undefined> => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id === undefined) return undefined;
@@ -45,9 +85,10 @@ export const sendMessage = <R = unknown>(message: unknown): Promise<R> => chrome
 /** `senderTabId` is set when the message comes from a content script in a tab. */
 export type MessageHandler = (message: unknown, senderTabId?: number) => unknown;
 
-/** Replies synchronously with the handler's return value; undefined means no reply. */
+/** Replies synchronously with the handler's return value; undefined means no reply. Messages from other extensions are ignored. */
 export const onMessage = (handler: MessageHandler): void => {
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (sender.id !== chrome.runtime.id) return false;
     const reply = handler(message, sender.tab?.id);
     if (reply === undefined) return false;
     sendResponse(reply);

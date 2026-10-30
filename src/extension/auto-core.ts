@@ -1,6 +1,7 @@
 import { similar } from "../analyzer/fingerprint.ts";
 import type { Applier } from "./applier-core.ts";
-import type { SiteRecord } from "./sites.ts";
+import { isAutoOn, type SiteRecord } from "./sites.ts";
+import type { AutoState } from "../core/diag.ts";
 import { adoptCss } from "../features/mount.ts";
 
 export const BANNER_TEXT = "This page changed. Regenerate?";
@@ -15,18 +16,24 @@ export interface AutoDeps {
   isBlocked(): Promise<boolean>;
   /** Calls back once the DOM is parsed (immediately if it already is). */
   whenReady(cb: () => void): void;
+  /** Runs after DOMContentLoaded only: pet, art and the diagnostics snapshot start here, never at document_start. */
   onApplied(site: SiteRecord): void;
   /**
-   * Calls `cb` after a same-document navigation (a single-page app changing route). Bounded by NAV_REAPPLY_MAX. Optional so
-   * environments without navigation events still work.
+   * Calls `cb` after a same-document navigation (a single-page app changing route) and returns the function that removes the listeners.
+   * Bounded by NAV_REAPPLY_MAX. Optional so environments without navigation events still work.
    */
-  onNavigate?(cb: () => void): void;
+  onNavigate?(cb: () => void): () => void;
+  /** A2: the state word of this document, each time it changes. */
+  report?(state: AutoState): void;
 }
 
 /** A page that navigates without reloading re-applies the theme at most this many times per document. */
 export const NAV_REAPPLY_MAX = 60;
 
-export type AutoResult = "none" | "blocked" | "invalid" | "tokens" | "full" | "changed";
+export type AutoResult = "none" | "paused" | "blocked" | "invalid" | "tokens" | "full" | "changed" | "stopped";
+
+const rolledBack = (reason: string): AutoState =>
+  reason === "invalid-plan" ? "rolled-back-invalid-plan" : reason === "too-large" ? "rolled-back-too-large" : reason === "invariants" ? "rolled-back-invariants" : "rolled-back-error";
 
 /** Extension-owned banner in a shadow root. Built with createElement and textContent only; Dismiss and Restore both remove it. */
 export function showBanner(doc: Document, applier: Pick<Applier, "onRestore">): void {
@@ -56,47 +63,119 @@ export function showBanner(doc: Document, applier: Pick<Applier, "onRestore">): 
 }
 
 /**
- * Auto-apply for a remembered site. Never calls a provider. Step A (document_start): global tokens only.
- * Step B (DOM ready): region rules if the layout still matches the saved fingerprint, otherwise tokens only plus a banner.
+ * Auto-apply for a remembered site. Never calls a provider.
+ * Step A (document_start, head and body may not exist yet): the stored colours go on at once through the adopted stylesheet. No guard,
+ * no repair pass, no art: nothing there needs the body, so nothing can roll back for want of one.
+ * Step B (DOMContentLoaded): region rules if the layout still matches the saved fingerprint (or the plan has none), otherwise tokens only
+ * plus a banner; then pet and art. A same-document navigation reads the record again (a Restore or pause elsewhere stops it) and repeats
+ * step B. Restore removes the navigation listeners and stops everything.
  */
 export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
-  const site = await deps.readSite(deps.origin);
-  if (!site || site.mode !== "auto") return "none";
-  if (await deps.isBlocked()) return "blocked";
+  const report = (s: AutoState): void => {
+    try {
+      deps.report?.(s);
+    } catch {
+      // a report never breaks the page
+    }
+  };
+  let site: SiteRecord | undefined;
+  try {
+    site = await deps.readSite(deps.origin);
+  } catch {
+    report("error-storage");
+    return "none";
+  }
+  if (!site) {
+    report("no-record");
+    return "none";
+  }
+  if (!isAutoOn(site)) {
+    report("paused");
+    return "paused";
+  }
+  if (await deps.isBlocked()) {
+    report("blocked");
+    return "blocked";
+  }
+
+  let stopped = false;
+  let unlisten: (() => void) | undefined;
+  deps.applier.onRestore(() => {
+    stopped = true;
+    unlisten?.();
+    unlisten = undefined;
+  });
 
   const first = deps.applier.applyTokens(site.plan, site.repairCss);
-  if (!first.ok) return "invalid";
-  deps.onApplied(site);
+  if (!first.ok) {
+    report(rolledBack(first.reason));
+    return "invalid";
+  }
+  report("applied");
 
-  const settle = (banner: boolean): AutoResult => {
+  const settle = (rec: SiteRecord, banner: boolean): AutoResult => {
     try {
+      // A plan made before the page was read has no regions: nothing to compare, colours only, never a banner.
+      if (rec.plan.regionRules.length === 0) {
+        const r = deps.applier.apply(rec.plan, rec.repairCss);
+        if (r.ok) return "full";
+        report(rolledBack(r.reason));
+        return deps.applier.applyTokens(rec.plan, rec.repairCss).ok ? "tokens" : "invalid";
+      }
       const page = deps.applier.analyze();
-      if (page.status === "ok" && similar(site.fingerprint, page.fingerprint)) {
-        if (deps.applier.apply(site.plan, site.repairCss).ok) return "full";
-        deps.applier.applyTokens(site.plan, site.repairCss);
+      if (page.status === "ok" && similar(rec.fingerprint, page.fingerprint)) {
+        if (deps.applier.apply(rec.plan, rec.repairCss).ok) return "full";
+        deps.applier.applyTokens(rec.plan, rec.repairCss);
         return "tokens";
       }
-      deps.applier.applyTokens(site.plan, site.repairCss);
+      deps.applier.applyTokens(rec.plan, rec.repairCss);
       if (page.status === "ok") {
         if (banner && !deps.doc.querySelector('[data-skinly-ui="banner"]')) showBanner(deps.doc, deps.applier);
         return "changed";
       }
       return "tokens";
     } catch {
+      report("error-apply");
       return "tokens";
     }
   };
 
+  const kept = site;
   return new Promise<AutoResult>((resolve) => {
     deps.whenReady(() => {
-      resolve(settle(true));
-      // A single-page app swaps its content without a reload: put the theme back on the new route (page changes within a route
-      // are already handled by the applier's own bounded observer).
+      if (stopped) return resolve("stopped");
+      const result = settle(kept, true);
+      if (result === "invalid") return resolve(result);
+      try {
+        deps.onApplied(kept);
+      } catch {
+        report("error-other");
+      }
+      resolve(result);
+      // A single-page app swaps its content without a reload: put the theme back on the new route (page changes within a route are
+      // already handled by the applier's own bounded observer). The record is read again, so a pause from the popup is honoured.
       let left = NAV_REAPPLY_MAX;
-      deps.onNavigate?.(() => {
-        if (left-- <= 0) return;
-        settle(false);
+      unlisten = deps.onNavigate?.(() => {
+        if (stopped || left-- <= 0) {
+          unlisten?.();
+          unlisten = undefined;
+          return;
+        }
+        void deps
+          .readSite(deps.origin)
+          .then((rec) => {
+            if (stopped) return;
+            if (!isAutoOn(rec)) {
+              report(rec ? "paused" : "no-record");
+              unlisten?.();
+              unlisten = undefined;
+              return;
+            }
+            settle(rec!, false);
+          })
+          .catch(() => report("error-storage"));
       });
+      if (stopped) unlisten?.();
     });
   });
 }

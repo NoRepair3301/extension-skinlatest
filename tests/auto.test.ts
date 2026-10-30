@@ -3,10 +3,11 @@ import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import { analyze } from "../src/analyzer/analyze.ts";
 import { createApplier, type StyleHandle, type StyleHost } from "../src/extension/applier-core.ts";
-import { BANNER_TEXT, runAuto, type AutoDeps } from "../src/extension/auto-core.ts";
+import { BANNER_TEXT, NAV_REAPPLY_MAX, runAuto, type AutoDeps } from "../src/extension/auto-core.ts";
 import { isBadgeMessage, BADGE_MESSAGE } from "../src/extension/messages.ts";
 import type { SiteRecord } from "../src/extension/sites.ts";
 import { getTheme } from "../src/themes/index.ts";
+import type { GuardProvider } from "../src/plan/guard.ts";
 import { dom, fakeDeps, items } from "./analyzer/helpers.ts";
 
 const BODY =
@@ -66,23 +67,59 @@ function setup(over: { site?: Partial<SiteRecord> | null; body?: string; blocked
 const tick = () => new Promise<void>((r) => setTimeout(r, 0));
 
 describe("applier-auto on a single-page app", () => {
-  it("puts the theme back after a same-document navigation, at most NAV_REAPPLY_MAX times", async () => {
+  it("puts the theme back after a same-document navigation, at most NAV_REAPPLY_MAX times, reading the record each time", async () => {
     const t = setup();
     let navigate: (() => void) | undefined;
-    const done = runAuto({ ...t.deps, onNavigate: (cb) => void (navigate = cb) });
+    const unlisten = vi.fn(() => void (navigate = undefined));
+    const reads = vi.fn(t.deps.readSite);
+    const done = runAuto({ ...t.deps, readSite: reads, onNavigate: (cb) => ((navigate = cb), unlisten) });
     await tick();
     t.fire();
     expect(await done).toBe("full");
-    // the route change replaced the page's markup and dropped our sheet and marker
-    t.applier.restore();
-    expect(t.doc.documentElement.hasAttribute("data-skinly")).toBe(false);
+    // the route change replaced the page's markup and dropped our marker
+    t.doc.documentElement.removeAttribute("data-skinly");
     navigate!();
+    await tick();
     expect(t.doc.documentElement.getAttribute("data-skinly")).toBe("on");
     expect(t.sheets).toHaveLength(1);
-    for (let i = 0; i < 70; i++) navigate!();
+    expect(reads).toHaveBeenCalledTimes(2);
+    for (let i = 0; i < 70 && navigate; i++) navigate();
+    await tick();
+    expect(reads.mock.calls.length).toBeLessThanOrEqual(2 + NAV_REAPPLY_MAX);
+    expect(unlisten).toHaveBeenCalled();
+  });
+
+  it("Restore removes the navigation listeners: a later route change never brings the theme back (A1f)", async () => {
+    const t = setup();
+    let navigate: (() => void) | undefined;
+    const unlisten = vi.fn();
+    const done = runAuto({ ...t.deps, onNavigate: (cb) => ((navigate = cb), unlisten) });
+    await tick();
+    t.fire();
+    await done;
     t.applier.restore();
+    expect(unlisten).toHaveBeenCalledTimes(1);
     navigate!();
+    await tick();
     expect(t.doc.documentElement.hasAttribute("data-skinly")).toBe(false);
+    expect(t.sheets).toHaveLength(0);
+  });
+
+  it("a route change after the site was paused elsewhere (popup Restore) does not re-apply, and stops listening", async () => {
+    const t = setup();
+    let navigate: (() => void) | undefined;
+    const unlisten = vi.fn();
+    let paused = false;
+    const done = runAuto({ ...t.deps, readSite: async () => (paused ? { ...t.site, paused: true } : t.site), onNavigate: (cb) => ((navigate = cb), unlisten) });
+    await tick();
+    t.fire();
+    await done;
+    t.doc.documentElement.removeAttribute("data-skinly");
+    paused = true;
+    navigate!();
+    await tick();
+    expect(t.doc.documentElement.hasAttribute("data-skinly")).toBe(false);
+    expect(unlisten).toHaveBeenCalledTimes(1);
   });
 
   it("a saved full-strategy plan is applied no further than safe before the page is ready", async () => {
@@ -116,9 +153,11 @@ describe("applier-auto", () => {
     expect(t.doc.documentElement.getAttribute("data-skinly")).toBe("on");
     expect(t.sheets).toHaveLength(1);
     expect(t.tagged()).toBe(0);
-    expect(t.applied).toHaveBeenCalledTimes(1);
+    // pet, art and the diagnostics snapshot wait for the parsed DOM
+    expect(t.applied).not.toHaveBeenCalled();
     t.fire();
     expect(await done).toBe("full");
+    expect(t.applied).toHaveBeenCalledTimes(1);
     expect(t.tagged()).toBe(1);
     expect(t.doc.querySelector("[data-skinly-ui]")).toBeNull();
   });
@@ -225,5 +264,65 @@ describe("badge message", () => {
     expect(isBadgeMessage({ type: "skinly-badge-on", extra: 1 })).toBe(false);
     expect(isBadgeMessage("ping")).toBe(false);
     expect(isBadgeMessage(null)).toBe(false);
+  });
+});
+
+describe("applier-auto at document_start (A1d)", () => {
+  it("with no head and no body yet: colours go on at once through the adopted sheet; guards, repair and art wait for DOMContentLoaded; nothing rolls back", async () => {
+    const doc = dom(BODY);
+    const body = doc.body;
+    doc.documentElement.replaceChildren();
+    expect(doc.head).toBeNull();
+    expect(doc.body).toBeNull();
+    const { host, sheets } = fakeStyle();
+    // The guard reads computed styles of the body; before DOMContentLoaded it must not be touched at all.
+    let parsed = false;
+    const early = vi.fn();
+    const seen = <T>(v: T): T => {
+      if (!parsed) early();
+      return v;
+    };
+    const guard: GuardProvider = {
+      style: () => seen({ color: "#ffffff", backgroundColor: "#000000", backgroundImage: "none", display: "block", visibility: "visible", opacity: "1", filter: "none" } as never),
+      parentOf: (el) => seen(el.parentElement),
+      textParents: () => seen([]),
+      editables: () => seen([]),
+      media: () => seen([]),
+    };
+    const applier = createApplier(doc, { style: host, summaryDeps: fakeDeps(), guard });
+    const saved = analyze(dom(BODY), fakeDeps());
+    if (saved.status !== "ok") throw new Error("fixture too large");
+    const site: SiteRecord = { v: 1, plan: { v: 1, themeId: "midnight", tokens: { ...getTheme("midnight").tokens }, regionRules: [], reasons: [] }, fingerprint: { hash: "00000000", seq: "" }, provider: "builtin", model: "builtin", promptVersion: "6", savedAt: "2026-10-31T10:00:00.000Z", mode: "auto", blur: [], blurImages: false };
+    let ready: (() => void) | undefined;
+    const applied = vi.fn();
+    const states: string[] = [];
+    const done = runAuto({ doc, origin: "https://a.example", applier, readSite: async () => site, isBlocked: async () => false, whenReady: (cb) => void (ready = cb), onApplied: applied, report: (s) => void states.push(s) });
+    await tick();
+    expect(sheets).toHaveLength(1);
+    expect(doc.documentElement.getAttribute("data-skinly")).toBe("on");
+    expect(applier.isActive()).toBe(true);
+    expect(applied).not.toHaveBeenCalled();
+    expect(early).not.toHaveBeenCalled();
+    // the parser reaches the body, then DOMContentLoaded
+    doc.documentElement.append(doc.createElement("head"), body);
+    parsed = true;
+    ready!();
+    expect(await done).toBe("full");
+    expect(applier.isActive()).toBe(true);
+    expect(sheets.length).toBeGreaterThanOrEqual(1);
+    expect(applied).toHaveBeenCalledTimes(1);
+    expect(states).toEqual(["applied"]);
+    // a plan with no regions (kept inside the click, before the page was read) never shows the "page changed" banner
+    expect(doc.querySelector("[data-skinly-ui]")).toBeNull();
+  });
+
+  it("reports one state word: no record, paused, blocked", async () => {
+    const states: string[] = [];
+    const base = setup();
+    const run = (site: SiteRecord | undefined, blocked = false) => runAuto({ ...base.deps, readSite: async () => site, isBlocked: async () => blocked, report: (s) => void states.push(s) });
+    expect(await run(undefined)).toBe("none");
+    expect(await run({ ...base.site, paused: true })).toBe("paused");
+    expect(await run(base.site, true)).toBe("blocked");
+    expect(states).toEqual(["no-record", "paused", "blocked"]);
   });
 });

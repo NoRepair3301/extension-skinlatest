@@ -20,7 +20,7 @@ const BLUR_RE = /\b(?:-webkit-)?backdrop-filter\b|\bblur\s*\(\s*\d/;
  * (origin-keyed site records), assets (the user's own pictures) and diag (src/extension/diagStore.ts: the last page snapshot,
  * the last 20 caught errors as short kinds and the last provider result kind; never text, URLs, origins or keys).
  */
-export const STORAGE_KEYS = ["keys", "settings", "sites", "assets", "diag"] as const;
+export const STORAGE_KEYS = ["keys", "settings", "sites", "assets", "diag", "intent", "schema"] as const;
 /** A storage key constant (`KEY = "x"`, `SITES_KEY = "x"`) or a literal key passed to storageGet/storageSet. */
 const STORAGE_KEY_RE = /\b[A-Z_]*KEY\s*=\s*["'`]([^"'`]*)["'`]|\bstorage(?:Get|Set)\s*(?:<[^>]*>)?\(\s*["'`]([^"'`]*)["'`]/g;
 

@@ -27,6 +27,7 @@ const page = (over: Partial<PageDiag> = {}): PageDiag => ({
   mount: "html",
   htmlEffect: "none",
   reattached: 1,
+  auto: "applied",
   ...over,
 });
 
