@@ -50,14 +50,19 @@ function place(host: HTMLElement, corner: Corner, size: Size): void {
   const px = SIZE_PX[size];
   const s = host.style;
   s.cssText = "";
-  s.setProperty("all", "initial");
-  s.setProperty("position", "fixed");
-  s.setProperty("pointer-events", "none");
-  s.setProperty("z-index", String(Z_INDEX));
-  s.setProperty("width", `${px}px`);
-  s.setProperty("height", `${px}px`);
-  s.setProperty(corner.startsWith("top") ? "top" : "bottom", `${MARGIN_PX}px`);
-  s.setProperty(corner.endsWith("right") ? "right" : "left", `${MARGIN_PX}px`);
+  // CSSOM with !important (never a style attribute, which strict sites block): a site's own !important rules cannot hide or move it.
+  const set = (k: string, v: string) => s.setProperty(k, v, "important");
+  set("all", "initial");
+  set("display", "block");
+  set("visibility", "visible");
+  set("opacity", "1");
+  set("position", "fixed");
+  set("pointer-events", "none");
+  set("z-index", String(Z_INDEX));
+  set("width", `${px}px`);
+  set("height", `${px}px`);
+  set(corner.startsWith("top") ? "top" : "bottom", `${MARGIN_PX}px`);
+  set(corner.endsWith("right") ? "right" : "left", `${MARGIN_PX}px`);
 }
 
 /** One fixed host with a shadow root. The host ignores the pointer; only the pet body and the hide button receive it. */
@@ -107,11 +112,11 @@ export function createOverlay(doc: Document, opts: OverlayOptions): Overlay {
     },
     setPlace(x, y, facing) {
       const st = host.style;
-      st.setProperty("left", "0");
-      st.setProperty("top", "0");
-      st.setProperty("right", "auto");
-      st.setProperty("bottom", "auto");
-      st.setProperty("transform", `translate(${Math.round(x)}px,${Math.round(y)}px)`);
+      st.setProperty("left", "0", "important");
+      st.setProperty("top", "0", "important");
+      st.setProperty("right", "auto", "important");
+      st.setProperty("bottom", "auto", "important");
+      st.setProperty("transform", `translate(${Math.round(x)}px,${Math.round(y)}px)`, "important");
       wrap.setAttribute("data-facing", String(facing));
     },
     setWalking(on) {
