@@ -50,7 +50,7 @@ describe("compileCss", () => {
 
   it("emits region rules for tagged regions with their layout", () => {
     const css = compileCss(planFor("calm-light", SAMPLE_RULES), sampleSummary());
-    expect(css).toContain('html[data-skinly="on"] [data-skinly-r="r1"]');
+    expect(css).toContain('[data-skinly-r="r1"][data-skinly-r="r1"]');
     expect(css).toContain("flex-wrap: wrap");
     expect(css).toContain("grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr))");
     expect(css).toContain("box-shadow: 0 1px 3px #cbd2d9");
@@ -72,5 +72,42 @@ describe("compileCss", () => {
     const s = sampleSummary();
     s.regions.push(region("r5", "section", 0));
     expect(compileCss(planFor("midnight"), s)).not.toMatch(/\bimg\b/);
+  });
+});
+
+describe("element templates", () => {
+  const css = compileCss(planFor("calm-light"), sampleSummary());
+  const root = 'html[data-skinly="on"]:not(#skinly-force)';
+
+  it("raises specificity with a never-matching :not(#id) on every selector", () => {
+    for (const b of blocks(css)) for (const sel of b.selectors) expect(sel.startsWith(root)).toBe(true);
+  });
+
+  it.each([
+    ["links, visited and hover", ["a:visited", "a:hover"]],
+    ["headings", ["h1", "h6"]],
+    ["buttons", ['input[type="submit"]', "button:hover", "button:disabled"]],
+    ["text fields", ['input[type="text"]', "textarea", "select", "::placeholder", "textarea:focus"]],
+    ["tables", ["th", "tbody tr:nth-child(even) > td"]],
+    ["cards and panels", ["article", "fieldset"]],
+    ["lists, rules, code, selection", ["li::marker", "hr", "pre", "::selection"]],
+  ])("has a template for %s", (_name, parts) => {
+    for (const p of parts) expect(css).toContain(`${root} ${p}`);
+  });
+
+  it("uses the derived colours: onAccent on buttons, surfaceAlt on zebra rows", () => {
+    expect(css).toMatch(/input\[type="reset"\] \{ background-color: #2f6fdb !important; color: #ffffff !important;/);
+    expect(css).toMatch(/tbody tr:nth-child\(even\) > td \{ background-color: #[0-9a-f]{6} !important; \}/);
+  });
+
+  it("neutralises legacy markup with attribute selectors only", () => {
+    for (const a of ["[bgcolor]", "[background]", '[style*="background"]', "font[color]", "table[border]", "table[cellpadding]"]) expect(css).toContain(a);
+    expect(css).not.toMatch(/\[style\*="background"\][^{]*\{[^}]*background-image/);
+  });
+
+  it("emits no class or id selectors other than the specificity guard", () => {
+    for (const b of blocks(css)) {
+      for (const sel of b.selectors) expect(sel.split(":not(#skinly-force)").join("")).not.toMatch(/(^|[\s,>+~])[.#][A-Za-z]/);
+    }
   });
 });

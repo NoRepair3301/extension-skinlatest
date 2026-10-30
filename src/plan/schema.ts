@@ -4,7 +4,7 @@ export const THEME_IDS = ["calm-light", "midnight", "ocean", "warm-paper", "high
 export type ThemeId = (typeof THEME_IDS)[number];
 export const FONT_KEYS = ["system", "serif", "mono", "humanist", "rounded", "geometric"] as const;
 export type FontKey = (typeof FONT_KEYS)[number];
-export const LAYOUTS = ["none", "link-grid", "nav-wrap"] as const;
+export const LAYOUTS = ["none", "link-grid", "nav-wrap", "center-column", "card-grid", "stack", "table-clean"] as const;
 export type Layout = (typeof LAYOUTS)[number];
 export const SURFACES = ["none", "flat", "card"] as const;
 export type Surface = (typeof SURFACES)[number];
@@ -52,7 +52,10 @@ export type ValidationResult = { ok: true; plan: ValidPlan } | { ok: false; erro
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const REGION_ID = /^r[0-9]{1,3}$/;
-const LAYOUT_ROLES = new Set(["link-list", "nav", "card-list"]);
+const GRID_ROLES = new Set(["link-list", "nav", "card-list"]);
+const REPEAT_ROLES = new Set(["link-list", "card-list", "section", "aside"]);
+const STACK_ROLES = new Set(["nav", "link-list", "card-list", "section", "aside", "main"]);
+const COLUMN_ROLES = new Set(["main", "section"]);
 
 const isRecord = (v: unknown): v is Record<string, unknown> => {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
@@ -63,9 +66,33 @@ const isRecord = (v: unknown): v is Record<string, unknown> => {
 const isInt = (v: unknown, min: number, max: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 const isEnum = <T extends string>(list: readonly T[], v: unknown): v is T => typeof v === "string" && (list as readonly string[]).includes(v);
 
-/** Is a layout allowed on this region? Used by the validator and again by the compiler. */
-export function layoutAllowed(role: string, linkCount: number, risk: readonly RiskMarker[]): boolean {
-  return LAYOUT_ROLES.has(role) && linkCount >= 4 && risk.length === 0;
+/** Region facts a layout decision needs. */
+export interface LayoutFacts {
+  role: string;
+  linkCount: number;
+  childCount: number;
+}
+
+/**
+ * Is this layout allowed on this region? Used by the validator and again by the compiler.
+ * Any risk marker means colours only, except that table-clean (a pure restyle of a table) tolerates "big-table".
+ * No layout ever changes DOM order: they are CSS templates over the existing children.
+ */
+export function layoutAllowed(layout: Layout, f: LayoutFacts, risk: readonly RiskMarker[]): boolean {
+  if (layout === "none") return true;
+  if (layout === "table-clean") return f.role === "table" && risk.every((r) => r === "big-table");
+  if (risk.length > 0) return false;
+  switch (layout) {
+    case "link-grid":
+    case "nav-wrap":
+      return GRID_ROLES.has(f.role) && f.linkCount >= 4;
+    case "card-grid":
+      return REPEAT_ROLES.has(f.role) && f.childCount >= 3;
+    case "stack":
+      return STACK_ROLES.has(f.role) && f.childCount >= 2;
+    case "center-column":
+      return COLUMN_ROLES.has(f.role);
+  }
 }
 
 /**
@@ -147,7 +174,7 @@ export function validatePlan(input: unknown, summary: StructuralSummary): Valida
       }
       if (good && layout !== "none") {
         const reg = byId.get(region as string)!;
-        if (!layoutAllowed(reg.role, reg.linkCount, summary.risk)) {
+        if (!layoutAllowed(layout as Layout, reg, summary.risk)) {
           err(`${path}.layout`, "not allowed on this region");
           good = false;
         }
