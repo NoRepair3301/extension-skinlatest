@@ -198,6 +198,30 @@ describe("auto path after a reload: art follows the stored plan's theme, not a s
     for (const h of [...hosts(), ...petHosts()]) expect(h.shadowRoot!.querySelector("style")).toBeNull();
   });
 
+  it("timing: at document_start (no body yet) the corner strip shows at once, then moves to the gutter once the DOM is parsed", async () => {
+    const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
+    await keep(themeToPlan("ocean"), { art: true });
+    const body = document.body;
+    body.innerHTML = PAGES["wiki-like"];
+    body.remove();
+    expect(document.body).toBeNull();
+    await import("../src/extension/applier.ts");
+    await import("../src/extension/scene.ts");
+    await import("../src/extension/applier-auto.ts");
+    for (let i = 0; i < 4; i++) await tick();
+    expect(hosts()).toHaveLength(1);
+    expect(lanes()).toEqual(["corner"]);
+    expect(actors().length).toBeGreaterThan(0);
+    // the parser reaches the body
+    document.documentElement.append(body);
+    document.dispatchEvent(new Event("DOMContentLoaded"));
+    for (let i = 0; i < 4; i++) await tick();
+    expect(hosts()).toHaveLength(1);
+    expect(lanes().length).toBeGreaterThan(0);
+    expect(lanes()).not.toContain("corner");
+    expect(document.documentElement.lastElementChild).toBe(hosts()[0]);
+  });
+
   it("the host is the last child of the html element after the page finished parsing", async () => {
     const { themeToPlan } = await import("../src/plan/themeToPlan.ts");
     await keep(themeToPlan("ocean"), { art: true });

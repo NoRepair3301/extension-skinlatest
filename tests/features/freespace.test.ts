@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { computeGutters, usableGutters, MIN_GUTTER } from "../../src/features/freespace/index.ts";
 import { collectContentRects } from "../../src/features/freespace/measure.ts";
-import { watchGutters, type WatchEnv } from "../../src/features/freespace/watch.ts";
+import { RECHECK_MS, watchGutters, type WatchEnv } from "../../src/features/freespace/watch.ts";
 
 const getRect = (el: Element) => {
   const [x = 0, y = 0, w = 0, h = 0] = (el.getAttribute("data-r") ?? "0,0,0,0").split(",").map(Number);
@@ -79,9 +79,11 @@ describe("watchGutters", () => {
     const seen: string[] = [];
     const w = watchGutters(env, (g) => seen.push(g.state));
     expect(seen).toEqual(["ok"]);
+    // the two late re-checks (1 s and 3 s)
+    expect(timers.size).toBe(2);
     window.dispatchEvent(new Event("resize"));
     window.dispatchEvent(new Event("resize"));
-    expect(timers.size).toBe(1);
+    expect(timers.size).toBe(3);
     document.body.innerHTML = '<p data-r="0,0,1200,40">wide</p>';
     for (const fn of [...timers.values()]) fn();
     expect(seen).toEqual(["ok", "none"]);
@@ -89,6 +91,79 @@ describe("watchGutters", () => {
     timers.clear();
     window.dispatchEvent(new Event("resize"));
     expect(timers.size).toBe(0);
+  });
+});
+
+describe("watchGutters timing (stage 1d)", () => {
+  afterEach(() => {
+    document.body.replaceChildren();
+    vi.restoreAllMocks();
+  });
+  const fakeEnv = () => {
+    const timers = new Map<number, { fn: () => void; ms: number }>();
+    let id = 1;
+    const env: WatchEnv = {
+      doc: document,
+      win: window,
+      getRect,
+      setTimeout: (fn, ms) => (timers.set(id, { fn, ms }), id++),
+      clearTimeout: (i) => void timers.delete(i),
+      now: () => 5000,
+    };
+    const run = (ms: number) => {
+      for (const [k, t] of [...timers]) if (t.ms === ms) {
+        timers.delete(k);
+        t.fn();
+      }
+    };
+    return { env, timers, run };
+  };
+
+  it("measures again 1 s and 3 s after start, when late layout opened a gutter without a DOM change", () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
+    document.body.innerHTML = '<p data-r="0,0,1200,40">unstyled, full width</p>';
+    const { env, timers, run } = fakeEnv();
+    const seen: string[] = [];
+    const w = watchGutters(env, (g) => seen.push(g.state));
+    expect([...timers.values()].map((t) => t.ms).sort((a, b) => a - b)).toEqual([...RECHECK_MS]);
+    expect(seen).toEqual(["none"]);
+    // the stylesheet arrived: same nodes, new boxes (no mutation)
+    document.body.firstElementChild!.setAttribute("data-r", "300,0,600,40");
+    run(1000);
+    expect(seen).toEqual(["none", "ok"]);
+    document.body.firstElementChild!.setAttribute("data-r", "0,0,1200,40");
+    run(3000);
+    expect(seen).toEqual(["none", "ok", "none"]);
+    w.destroy();
+  });
+
+  it("measures again on the window load event while the document is still loading", () => {
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
+    vi.spyOn(document, "readyState", "get").mockReturnValue("interactive");
+    document.body.innerHTML = '<p data-r="0,0,1200,40">x</p>';
+    const { env } = fakeEnv();
+    const seen: string[] = [];
+    const w = watchGutters(env, (g) => seen.push(g.state));
+    document.body.firstElementChild!.setAttribute("data-r", "300,0,600,40");
+    window.dispatchEvent(new Event("load"));
+    expect(seen).toEqual(["none", "ok"]);
+    w.destroy();
+  });
+
+  it("a measurement that throws is recorded and keeps the last result", async () => {
+    const { diagErrors, resetDiag } = await import("../../src/core/diag.ts");
+    resetDiag();
+    vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
+    document.body.innerHTML = '<p data-r="300,0,600,40">x</p>';
+    const { env } = fakeEnv();
+    let fail = false;
+    const seen: string[] = [];
+    const w = watchGutters({ ...env, getRect: (el) => { if (fail) throw new Error("layout"); return getRect(el); } }, (g) => seen.push(g.state));
+    fail = true;
+    expect(() => w.refresh()).not.toThrow();
+    expect(w.current().state).toBe("ok");
+    expect(diagErrors()).toContain("scene-measure");
+    w.destroy();
   });
 });
 

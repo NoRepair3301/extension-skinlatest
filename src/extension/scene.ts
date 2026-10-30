@@ -1,7 +1,8 @@
 import { createAssetRenderer, type AssetRenderer, type AssetStatus } from "../features/assets/render.ts";
 import { browserAssetEnv } from "../features/assets/media.ts";
 import type { AssetRecord } from "../features/assets/types.ts";
-import type { GutterState, Gutters } from "../features/freespace/index.ts";
+import { pickCorner, type GutterState, type Gutters } from "../features/freespace/index.ts";
+import { recordError } from "../core/diag.ts";
 import { watchGutters, type GutterWatch } from "../features/freespace/watch.ts";
 import { getScene } from "../features/scenes/index.ts";
 import { createSceneEngine, type SceneEngine } from "../features/scenes/engine.ts";
@@ -94,8 +95,21 @@ export function createPageScene(win: Window): PageScene {
     return cache;
   };
 
-  /** Draws everything for the current gutters. The asset status arrives later when the page blocks the file, so it is reported through `done` too. */
+  /**
+   * Draws everything for the current gutters. The asset status arrives later when the page blocks the file, so it is reported through
+   * `done` too. Any failure is recorded and reported as nothing shown; it never reaches the page.
+   */
   const render = async (g: Gutters, done?: (r: SceneStatusReport) => void): Promise<void> => {
+    try {
+      await draw(g, done);
+    } catch {
+      recordError("scene-render");
+      report = { gutters: g.state, scene: "none", asset: "none" };
+      done?.(report);
+    }
+  };
+
+  const draw = async (g: Gutters, done?: (r: SceneStatusReport) => void): Promise<void> => {
     if (!alive || !req) return;
     const now = req;
     let sceneStatus: SceneStatusReport["scene"] = "none";
@@ -139,6 +153,14 @@ export function createPageScene(win: Window): PageScene {
       watch?.destroy();
       watch = undefined;
       req = next;
+      const guardedBegin = () => {
+        try {
+          begin();
+        } catch {
+          recordError("scene-measure");
+          resolve(report);
+        }
+      };
       const begin = () => {
         if (!alive || req !== next) return resolve(report);
         const finish = (r: SceneStatusReport) => resolve(r);
@@ -175,8 +197,14 @@ export function createPageScene(win: Window): PageScene {
           void render(watch.current(), finish);
         }
       };
-      if (doc.body) begin();
-      else doc.addEventListener("DOMContentLoaded", begin, { once: true });
+      if (doc.body) return guardedBegin();
+      // document_start: nothing to measure yet (an empty page looks like all gutter). The corner strip shows at once and moves to a
+      // gutter after the first real measurement, when the DOM is parsed (then again on load, after 1 s and 3 s).
+      if (needsGutters(next) && next.scene) {
+        const corner = pickCorner([], win.innerWidth || 0, win.innerHeight || 0);
+        if (corner) void render({ state: "none", corner });
+      }
+      doc.addEventListener("DOMContentLoaded", guardedBegin, { once: true });
     });
 
   return {
@@ -219,15 +247,26 @@ function install(): void {
 
   // The auto script (applier-auto.js) calls this once the saved theme is on the page; the art follows that theme and the "Show art" switch.
   const fromSite = async (site: SiteRecord) => {
-    const settings = await loadSettings().catch(() => defaultSettings());
-    const base = requestFromSite(site, settings);
-    if (base) await slot.skinlyScene?.sync(base);
+    try {
+      const settings = await loadSettings().catch(() => defaultSettings());
+      const base = requestFromSite(site, settings);
+      if (base) await slot.skinlyScene?.sync(base);
+    } catch {
+      recordError("auto-art");
+    }
   };
   slot.skinlyOnApplied = (site) => void fromSite(site);
   const origin = originOf(location.href);
-  if (origin && applier.isActive()) void getSite(origin).then((site) => {
-      if (site && site.mode === "auto") void fromSite(site);
-    });
+  if (origin && applier.isActive())
+    void getSite(origin)
+      .then((site) => {
+        if (site && site.mode === "auto") void fromSite(site);
+      })
+      .catch(() => recordError("auto-art"));
 }
 
-install();
+try {
+  install();
+} catch {
+  recordError("scene-mount");
+}
