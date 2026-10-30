@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { PROVIDER_ENDPOINTS } from "../../src/config.ts";
+import { PROVIDER_ENDPOINTS, PROVIDER_TIMEOUTS } from "../../src/config.ts";
 import { createGemini, extractGeminiText } from "../../src/providers/gemini.ts";
 import { createGroq, extractGroqText } from "../../src/providers/groq.ts";
 import { kindForStatus, parseJsonAnswer, parseRetryAfter, type FetchFn } from "../../src/providers/http.ts";
@@ -205,16 +205,22 @@ describe("timeouts and abort", () => {
       init.signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
     });
 
-  it("times out after 40 s", async () => {
-    const p = createGroq(async () => KEY, { fetchFn: hanging });
-    const result = p.generate(req);
-    await vi.advanceTimersByTimeAsync(39_999);
+  it.each([
+    ["groq", createGroq, 15_000],
+    ["gemini", createGemini, 25_000],
+  ] as const)("%s times out after its own call limit (%i ms)", async (_id, create, ms) => {
+    const result = create(async () => KEY, { fetchFn: hanging }).generate(req);
+    await vi.advanceTimersByTimeAsync(ms - 1);
     let settled = false;
     void result.then(() => (settled = true));
     await Promise.resolve();
     expect(settled).toBe(false);
     await vi.advanceTimersByTimeAsync(2);
     expect(await result).toEqual({ ok: false, error: { kind: "timeout" } });
+  });
+
+  it("the documented limits are Groq 15 s / 20 s overall and Gemini 25 s / 30 s overall", () => {
+    expect(PROVIDER_TIMEOUTS).toEqual({ groq: { callMs: 15_000, overallMs: 20_000 }, gemini: { callMs: 25_000, overallMs: 30_000 } });
   });
 
   it("reports aborted when the caller aborts", async () => {

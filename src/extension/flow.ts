@@ -10,7 +10,7 @@ export function createPageClient(tabId: number): PageClient {
   let injected = false;
   const ready = async (): Promise<void> => {
     if (injected) return;
-    await injectFile(tabId, "applier.js");
+    await injectFile(tabId, "applier.js", true);
     injected = true;
   };
   return {
@@ -21,14 +21,14 @@ export function createPageClient(tabId: number): PageClient {
     },
     applyTheme: async (id) => {
       await ready();
-      return runInPage<ApplyResult>(tabId, "applyTheme", id);
+      return runInPage<ApplyResult>(tabId, "applyTheme", id, true);
     },
     applyPlan: async (plan) => {
       await ready();
-      return runInPage<ApplyResult>(tabId, "apply", plan);
+      return runInPage<ApplyResult>(tabId, "apply", plan, true);
     },
     restore: async () => {
-      await runInPage(tabId, "restore");
+      await runInPage(tabId, "restore", undefined, true);
     },
   };
 }

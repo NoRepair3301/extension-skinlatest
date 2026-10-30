@@ -66,6 +66,14 @@ describe("allowlists", () => {
     expect(hits("src/ai/pipeline.ts", "await fetch(u)")).toEqual(["fetch( outside src/providers/"]);
   });
 
+  it("CSS blur (backdrop-filter or blur(<n>)) is allowed only under src/features/blur/", () => {
+    expect(hits("src/features/blur/page.ts", ".veil{backdrop-filter:blur(12px)}")).toEqual([]);
+    expect(hits("src/features/blur/apply.ts", "filter:blur(6px)")).toEqual([]);
+    expect(hits("src/features/pet/overlay.ts", ".x{backdrop-filter:blur(2px)}")).toEqual(["CSS blur outside src/features/blur/"]);
+    expect(hits("src/plan/compile.ts", "decl('filter', 'blur(4px)')")).toEqual(["CSS blur outside src/features/blur/"]);
+    expect(hits("src/extension/popup/Popup.tsx", "el.blur()")).toEqual([]);
+  });
+
   it("URL literals must be on the allowlist, and may live in config.ts", () => {
     expect(hits(SRC, "const u = 'https://example.org/x'")).toEqual(["URL not on allowlist: example.org"]);
     expect(hits(SRC, "const u = 'https://api.example.test/x?a=1'", ["api.example.test"])).toEqual([]);

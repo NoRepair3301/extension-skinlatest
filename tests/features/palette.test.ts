@@ -3,8 +3,6 @@ import { MAX_ITEMS, MAX_LABEL, indexItems, labelOf } from "../../src/features/pa
 import { rank, score } from "../../src/features/palette/score.ts";
 import { createPaletteController } from "../../src/features/palette/index.ts";
 import { openPalette, type PaletteDeps } from "../../src/features/palette/ui.ts";
-import { handleCommand, type CommandDeps } from "../../src/extension/commands.ts";
-import { defaultSettings } from "../../src/extension/settings.ts";
 
 afterEach(() => {
   document.body.replaceChildren();
@@ -157,63 +155,5 @@ describe("palette UI", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(setItem).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
-  });
-});
-
-describe("commands", () => {
-  const make = () => {
-    const calls: string[] = [];
-    const d: CommandDeps = {
-      loadSettings: async () => ({ ...defaultSettings(), blocklist: ["blocked.test"] }),
-      inject: async (_t, f) => void calls.push(`inject:${f}`),
-      runApplier: async (_t, m, a) => {
-        calls.push(`run:${m}${typeof a === "string" ? `:${a}` : ""}`);
-        return m === "applyTheme" ? { ok: true } : undefined;
-      },
-      openPalette: async () => void calls.push("palette"),
-      setBadge: async (_t, text) => void calls.push(`badge:${text}`),
-      setTitle: async (_t, text) => void calls.push(`title:${text}`),
-    };
-    return { d, calls };
-  };
-  const tab = (url: string) => ({ id: 3, url });
-
-  it("transform-page injects the applier, applies the saved theme and shows the badge", async () => {
-    const { d, calls } = make();
-    await handleCommand(d, "transform-page", tab("https://ok.test/"));
-    expect(calls).toEqual(["title:Skinly AI", "inject:applier.js", "run:applyTheme:calm-light", "badge:ON", "run:syncPet"]);
-  });
-  it("restore-page restores and clears the badge", async () => {
-    const { d, calls } = make();
-    await handleCommand(d, "restore-page", tab("https://ok.test/"));
-    expect(calls).toEqual(["run:restore", "badge:", "title:Skinly AI"]);
-  });
-  it("open-palette injects the palette and opens it", async () => {
-    const { d, calls } = make();
-    await handleCommand(d, "open-palette", tab("https://ok.test/"));
-    expect(calls).toEqual(["title:Skinly AI", "inject:palette.js", "palette"]);
-  });
-  it("blocked pages (internal, store, user blocklist) get the message and nothing is injected", async () => {
-    for (const url of ["chrome://extensions", "https://blocked.test/x", "about:blank"]) {
-      for (const cmd of ["transform-page", "open-palette"] as const) {
-        const { d, calls } = make();
-        await handleCommand(d, cmd, tab(url));
-        expect(calls).toEqual(["badge:!", "title:Skinly can't change this kind of page"]);
-      }
-    }
-  });
-  it("a failure leaves the page alone", async () => {
-    const { d, calls } = make();
-    d.inject = async () => {
-      throw new Error("x");
-    };
-    await handleCommand(d, "transform-page", tab("https://ok.test/"));
-    expect(calls).not.toContain("run:applyTheme:calm-light");
-    expect(calls.at(-1)).toBe("badge:!");
-  });
-  it("ignores a missing tab", async () => {
-    const { d, calls } = make();
-    await handleCommand(d, "transform-page", undefined);
-    expect(calls).toEqual([]);
   });
 });

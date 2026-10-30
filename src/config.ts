@@ -13,14 +13,27 @@ export const DEFAULT_MODELS: Record<ProviderId, string> = {
   groq: "openai/gpt-oss-120b",
 };
 
+/**
+ * Per-provider time limits (rc4). `callMs` is one HTTP call; `overallMs` covers everything for that provider
+ * (its calls, one retry and one repair request) before the next provider is tried. Gemini spends seconds on thinking
+ * tokens (docs/providers/gemini.md), so it gets more room than Groq.
+ */
+export const PROVIDER_TIMEOUTS: Record<ProviderId, { callMs: number; overallMs: number }> = {
+  groq: { callMs: 15_000, overallMs: 20_000 },
+  gemini: { callMs: 25_000, overallMs: 30_000 },
+};
+
 /** Hosts that source files and built JS may mention as URLs or call with fetch: the provider hosts only. */
 export const ALLOWED_URL_HOSTS: readonly string[] = PROVIDER_IDS.map((id) => new URL(PROVIDER_ENDPOINTS[id]).hostname);
 
 /** Optional host permission pattern for one provider. */
 export const providerOrigin = (id: ProviderId): string => new URL(PROVIDER_ENDPOINTS[id]).origin + "/*";
 
-/** Hosts where Skinly never runs. */
-export const BUILTIN_BLOCKLIST: readonly string[] = ["erp.iitkgp.ac.in"];
+/**
+ * Hosts where Skinly never runs, apart from the user's own blocklist (Settings). Empty since rc4: legacy portals such as
+ * erp.iitkgp.ac.in are supported. Pages with password, one-time-code, payment or file inputs still get no AI call (SPEC 6).
+ */
+export const BUILTIN_BLOCKLIST: readonly string[] = [];
 
 /** Schemes that belong to the browser itself. */
 export const INTERNAL_SCHEMES: readonly string[] = [

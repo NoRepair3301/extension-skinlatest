@@ -18,7 +18,19 @@ export const queryActiveTab = async (): Promise<ActiveTab | undefined> => {
   return { id: tab.id, url: tab.url };
 };
 
-export const injectFile = async (tabId: number, file: string): Promise<void> => {
+/**
+ * Injects a script file. With `allFrames` it goes into every frame the browser lets it into; the script decides per frame
+ * (src/extension/frames.ts) and stays out of cross-origin ones. If the browser refuses the frames request, the top frame alone is injected.
+ */
+export const injectFile = async (tabId: number, file: string, allFrames = false): Promise<void> => {
+  if (allFrames) {
+    try {
+      await chrome.scripting.executeScript({ target: { tabId, allFrames: true }, files: [file] });
+      return;
+    } catch {
+      // fall back to the top frame below
+    }
+  }
   await chrome.scripting.executeScript({ target: { tabId }, files: [file] });
 };
 
@@ -72,6 +84,33 @@ export const onCommand = (handler: (command: string, tab: ActiveTab | undefined)
   });
 };
 
+/** Shows a toast through the page script that applier.js or palette.js registered; does nothing when there is none. */
+export const showToast = async (tabId: number, text: string): Promise<void> => {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (t: string) => (globalThis as unknown as { skinlyToast?: (x: string) => void }).skinlyToast?.(t),
+    args: [text],
+  });
+};
+
+/** The address of the tab as the page sees it, for the gate when the browser did not pass a URL with a command. Needs the activeTab grant. */
+export const getPageUrl = async (tabId: number): Promise<string | undefined> => {
+  const [res] = await chrome.scripting.executeScript({ target: { tabId }, func: () => location.href });
+  return typeof res?.result === "string" ? res.result : undefined;
+};
+
+/** Every command of this extension with the key the browser actually assigned ("" when none). */
+export const getCommands = async (): Promise<Array<{ name: string; description: string; shortcut: string }>> => {
+  const all = await chrome.commands.getAll();
+  return all.map((c) => ({ name: c.name ?? "", description: c.description ?? "", shortcut: c.shortcut ?? "" }));
+};
+
+/** Browser family hints for the shortcuts page address. */
+export const browserHints = (): { userAgent: string; brave: boolean } => ({
+  userAgent: navigator.userAgent,
+  brave: typeof (navigator as unknown as { brave?: unknown }).brave !== "undefined",
+});
+
 /** Opens the palette that palette.js registered in the tab. */
 export const openPaletteInPage = async (tabId: number): Promise<void> => {
   await chrome.scripting.executeScript({
@@ -80,7 +119,7 @@ export const openPaletteInPage = async (tabId: number): Promise<void> => {
   });
 };
 
-export type ToolMethod = "blurTargets" | "blurShare" | "blurState" | "pickStart" | "pickStop" | "tablesEnable" | "tablesFilter" | "tablesRestoreOrder";
+export type ToolMethod = "blurTargets" | "blurShare" | "blurPage" | "blurState" | "pickStart" | "pickStop" | "tablesEnable" | "tablesFilter" | "tablesRestoreOrder";
 
 /** Calls a privacy or table tool of the applier script already injected in the tab. */
 export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ...args: unknown[]): Promise<R | undefined> => {
@@ -98,17 +137,30 @@ export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ..
 /** PNG data URL of the visible area of the tab's window. Needs the activeTab grant from the user's click. */
 export const captureVisible = (): Promise<string> => chrome.tabs.captureVisibleTab({ format: "png" });
 
-export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet";
 
-/** Calls a method of the applier already injected in the tab and returns its (serialisable) result. */
-export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown): Promise<R | undefined> => {
-  const [res] = await chrome.scripting.executeScript({
-    target: { tabId },
-    func: (m: string, a?: unknown) => {
-      const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
-      return applier?.[m]?.(a);
-    },
-    args: [method, arg],
-  });
-  return res?.result as R | undefined;
+const callApplier = (m: string, a?: unknown): unknown => {
+  const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
+  return applier?.[m]?.(a);
+};
+
+/**
+ * Calls a method of the applier already injected in the tab and returns the top frame's (serialisable) result.
+ * With `allFrames` the same call also runs in every same-origin frame that has an applier; their results are not read,
+ * because each frame keeps its own ledger and rolls itself back.
+ */
+export const runInPage = async <R = unknown>(tabId: number, method: PageMethod, arg?: unknown, allFrames = false): Promise<R | undefined> => {
+  const run = (target: { tabId: number; allFrames?: boolean }) => chrome.scripting.executeScript({ target, func: callApplier, args: [method, arg] });
+  let results: Awaited<ReturnType<typeof run>>;
+  if (allFrames) {
+    try {
+      results = await run({ tabId, allFrames: true });
+    } catch {
+      results = await run({ tabId });
+    }
+  } else {
+    results = await run({ tabId });
+  }
+  const top = results.find((r) => r.frameId === 0) ?? results[0];
+  return top?.result as R | undefined;
 };

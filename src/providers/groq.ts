@@ -1,4 +1,4 @@
-import { DEFAULT_MODELS, PROVIDER_ENDPOINTS } from "../config.ts";
+import { DEFAULT_MODELS, PROVIDER_ENDPOINTS, PROVIDER_TIMEOUTS } from "../config.ts";
 import { callJson, type HttpDeps } from "./http.ts";
 import type { Provider } from "./types.ts";
 
@@ -35,7 +35,7 @@ export function createGroq(getKey: () => Promise<string | undefined>, deps: Http
           extractText: extractGroqText,
         },
         req,
-        deps,
+        { timeoutMs: PROVIDER_TIMEOUTS.groq.callMs, ...deps },
       );
     },
   };

@@ -1,12 +1,15 @@
-import type { ProviderId } from "../config.ts";
+import { PROVIDER_IDS, PROVIDER_TIMEOUTS, type ProviderId } from "../config.ts";
 import type { ErrorKind, GenerateRequest, Provider, Result, Usage } from "./types.ts";
 import { RETRYABLE_KINDS } from "./types.ts";
 
-export const PIPELINE_BUDGET_MS = 60_000;
+/** Safety net for the whole pipeline: every provider may use its own overall time (src/config.ts). */
+export const PIPELINE_BUDGET_MS = PROVIDER_IDS.reduce((sum, id) => sum + PROVIDER_TIMEOUTS[id].overallMs, 0);
 
 export interface ProviderEntry {
   provider: Provider;
   model?: string;
+  /** Everything for this provider (calls, retry, repair) must finish in this time, else the next provider is tried. */
+  overallMs?: number;
 }
 
 export interface RegistryOptions {
@@ -65,12 +68,29 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
       };
       const model = entry.model || provider.defaultModel;
       tried.push(provider.id);
-      const call = (r: Base): Promise<Result> => provider.generate({ ...r, model, signal: overall.signal });
+
+      // This provider's own time limit. Its signal also follows the overall one.
+      const own = new AbortController();
+      let ownHit = false;
+      const ownTimer = entry.overallMs === undefined ? undefined : setTimeout(() => {
+        ownHit = true;
+        own.abort();
+      }, entry.overallMs);
+      const followOverall = () => own.abort();
+      overall.signal.addEventListener("abort", followOverall);
+      const call = (r: Base): Promise<Result> => provider.generate({ ...r, model, signal: own.signal });
+      const timedOutHere = (): boolean => ownHit && !overall.signal.aborted;
 
       let repaired = false;
       let current: Base = req;
+      try {
       for (;;) {
         if (overall.signal.aborted) return fail("aborted", provider.id);
+        if (timedOutHere()) {
+          last = "timeout";
+          switchAway("timeout");
+          break;
+        }
         const res = await call(current);
         let badCodes: string[] | null = null;
 
@@ -84,7 +104,12 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
           const kind = res.error.kind;
           last = kind;
           if (kind === "auth") return fail("auth", provider.id);
-          if (kind === "aborted") return fail("aborted", provider.id);
+          if (kind === "aborted") {
+            if (!timedOutHere()) return fail("aborted", provider.id);
+            last = "timeout";
+            switchAway("timeout");
+            break; // this provider ran out of its own time: next provider
+          }
           if (RETRYABLE_KINDS.includes(kind)) {
             switchAway(kind);
             break; // next provider
@@ -99,6 +124,10 @@ export async function generate(req: Base, order: ProviderEntry[], opts: Registry
         }
         repaired = true;
         current = repairRequest(req, badCodes);
+      }
+      } finally {
+        if (ownTimer !== undefined) clearTimeout(ownTimer);
+        overall.signal.removeEventListener("abort", followOverall);
       }
     }
     return fail(last, undefined);

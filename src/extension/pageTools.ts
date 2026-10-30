@@ -1,12 +1,15 @@
 import { createBlurController, type BlurState, type StyleSheetHost } from "../features/blur/apply.ts";
+import { createPageBlur } from "../features/blur/page.ts";
 import { startPick, type PickSession } from "../features/blur/pick.ts";
 import { createTableTools } from "../features/tables/tools.ts";
 
-export type ToolState = BlurState & { picked: string[]; picking: boolean };
+export type ToolState = BlurState & { picked: string[]; picking: boolean; page: boolean };
 
 export interface PageTools {
   blurTargets(selectors: string[], images: boolean): ToolState;
   blurShare(on: boolean): ToolState;
+  /** Whole-page blur overlay on or off (toggles when `on` is omitted). */
+  blurPage(on?: boolean): ToolState;
   blurState(): ToolState;
   pickStart(): ToolState;
   pickStop(): ToolState;
@@ -20,11 +23,12 @@ export interface PageTools {
 /** Page side of the privacy and table tools. Arguments and results are plain data (no page text). */
 export function createPageTools(doc: Document, style: StyleSheetHost): PageTools {
   const blur = createBlurController(doc, style);
+  const pageBlur = createPageBlur(doc);
   const tables = createTableTools(doc, style);
   const picked: string[] = [];
   let session: PickSession | undefined;
 
-  const state = (): ToolState => ({ ...blur.state(), picked: [...picked], picking: session?.active() ?? false });
+  const state = (): ToolState => ({ ...blur.state(), picked: [...picked], picking: session?.active() ?? false, page: pageBlur.isOn() });
 
   const stopPick = () => {
     session?.stop();
@@ -39,6 +43,12 @@ export function createPageTools(doc: Document, style: StyleSheetHost): PageTools
     },
     blurShare(on) {
       blur.setShare(on);
+      return state();
+    },
+    blurPage(on) {
+      if (on === undefined) pageBlur.toggle();
+      else if (on) pageBlur.on();
+      else pageBlur.off();
       return state();
     },
     blurState: state,
@@ -62,6 +72,7 @@ export function createPageTools(doc: Document, style: StyleSheetHost): PageTools
     },
     restore() {
       stopPick();
+      pageBlur.destroy();
       blur.restore();
       tables.restore();
       picked.length = 0;

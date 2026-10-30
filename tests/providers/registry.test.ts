@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createMock, type MockOutcome } from "../../src/providers/mock.ts";
-import { generate, repairRequest } from "../../src/providers/registry.ts";
+import { generate, PIPELINE_BUDGET_MS, repairRequest } from "../../src/providers/registry.ts";
 
 const REQ = { system: "SYS", user: "USER" };
 const ok: MockOutcome = { type: "ok", json: { v: 1 } };
@@ -105,12 +105,50 @@ describe("budget and abort", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("gives up with timeout when the 60 s budget runs out", async () => {
-    const a = entry([{ type: "delay", ms: 58_000, then: { type: "rate" } }]);
-    const b = entry([{ type: "delay", ms: 58_000, then: ok }], "groq");
+  it("gives up with timeout when the pipeline budget (sum of the provider limits, 50 s) runs out", async () => {
+    expect(PIPELINE_BUDGET_MS).toBe(50_000);
+    const a = entry([{ type: "delay", ms: 48_000, then: { type: "rate" } }]);
+    const b = entry([{ type: "delay", ms: 48_000, then: ok }], "groq");
     const p = generate(REQ, [a.entry, b.entry]);
-    await vi.advanceTimersByTimeAsync(60_001);
+    await vi.advanceTimersByTimeAsync(50_001);
     expect(await p).toMatchObject({ ok: false, error: { kind: "timeout" }, tried: ["gemini", "groq"] });
+  });
+
+  it("a provider that exceeds its own overall limit is given up on and the next provider is tried", async () => {
+    const slow = entry([{ type: "delay", ms: 60_000, then: ok }], "groq");
+    const next = entry([ok], "gemini");
+    const switched: string[] = [];
+    const p = generate(REQ, [{ ...slow.entry, overallMs: 20_000 }, next.entry], { onSwitch: (from, kind, to) => switched.push(`${from}>${kind}>${to}`) });
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(next.provider.calls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(2);
+    expect(await p).toMatchObject({ ok: true, providerId: "gemini" });
+    expect(switched).toEqual(["groq>timeout>gemini"]);
+  });
+
+  it("the per-provider limit covers the repair request too", async () => {
+    const bad = entry([{ type: "ok", json: { bad: true } }, { type: "delay", ms: 60_000, then: ok }], "groq");
+    const next = entry([ok], "gemini");
+    const p = generate(REQ, [{ ...bad.entry, overallMs: 20_000 }, next.entry], { validate: (j) => ((j as { bad?: boolean }).bad ? ["plan.bad"] : null) });
+    await vi.advanceTimersByTimeAsync(20_001);
+    expect(await p).toMatchObject({ ok: true, providerId: "gemini" });
+    expect(bad.provider.calls).toHaveLength(2);
+  });
+
+  it("with a single provider, its own limit ends in timeout (not aborted)", async () => {
+    const only = entry([{ type: "delay", ms: 60_000, then: ok }], "gemini");
+    const p = generate(REQ, [{ ...only.entry, overallMs: 30_000 }]);
+    await vi.advanceTimersByTimeAsync(30_001);
+    expect(await p).toMatchObject({ ok: false, error: { kind: "timeout" } });
+  });
+
+  it("a caller abort during a provider's window is still aborted, not timeout", async () => {
+    const only = entry([{ type: "delay", ms: 60_000, then: ok }], "gemini");
+    const ctl = new AbortController();
+    const p = generate(REQ, [{ ...only.entry, overallMs: 30_000 }], { signal: ctl.signal });
+    await vi.advanceTimersByTimeAsync(1_000);
+    ctl.abort();
+    expect(await p).toMatchObject({ ok: false, error: { kind: "aborted" } });
   });
 
   it("does not start a new provider after the budget is spent", async () => {

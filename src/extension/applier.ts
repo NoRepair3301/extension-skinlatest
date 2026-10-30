@@ -1,6 +1,8 @@
 import { browserEnv, createPetController, type PetConfig } from "../features/pet/pet.ts";
+import { browserToasterEnv, createToaster } from "../features/toast/toast.ts";
 import { createPageTools } from "./pageTools.ts";
 import { createApplier, type Applier, type StyleHost } from "./applier-core.ts";
+import { frameRole } from "./frames.ts";
 import { originOf } from "./origin.ts";
 
 /** One constructable stylesheet, adopted by the document. */
@@ -19,25 +21,52 @@ const adoptedSheetHost = (doc: Document): StyleHost => ({
   },
 });
 
-export type PageApplier = Applier & { syncPet(cfg: PetConfig): void };
+export type PageApplier = Applier & {
+  /** Shows, updates or removes the pet. True when the pet is on screen afterwards. */
+  syncPet(cfg: PetConfig): boolean;
+  /** Like syncPet, but never brings a hidden pet back (used when only a setting changed). */
+  updatePet(cfg: PetConfig): boolean;
+};
 
-const slot = globalThis as unknown as { skinlyApplier?: PageApplier; skinlyTools?: ReturnType<typeof createPageTools> };
+const slot = globalThis as unknown as {
+  skinlyApplier?: PageApplier;
+  skinlyTools?: ReturnType<typeof createPageTools>;
+  skinlyToast?: (text: string) => void;
+};
 
 function withPet(applier: Applier): PageApplier {
   const pet = createPetController(browserEnv(window));
   applier.onRestore(() => pet.destroy());
   return Object.assign(applier, {
-    /** Shows or removes the pet for this page. Only the pet settings arrive here, never page data. */
-    syncPet: (cfg: PetConfig): void => pet.sync(cfg, originOf(location.href), applier.isActive()),
+    /**
+     * Shows or removes the pet for this page. Only the pet settings arrive here, never page data.
+     * The pet does not depend on a theme: it shows on a page whose theme failed or was never applied (rc4).
+     * The caller (popup button, command, auto script) is responsible for only asking on allowed pages.
+     */
+    syncPet: (cfg: PetConfig): boolean => {
+      pet.sync(cfg, originOf(location.href), true);
+      return pet.mounted();
+    },
+    updatePet: (cfg: PetConfig): boolean => {
+      if (!cfg.enabled || pet.mounted()) pet.sync(cfg, originOf(location.href), true);
+      return pet.mounted();
+    },
   });
 }
 
 // Injecting the file twice must not replace the live instance, or its rollback ledger would be lost.
+// Every same-origin frame gets its own applier (own ledger, observer and rollback), tokens only; cross-origin frames get nothing.
 if (!slot.skinlyApplier) {
-  const applier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
-  // Blur and table tools live beside the applier and are undone by the same Restore.
-  const tools = createPageTools(document, adoptedSheetHost(document));
-  applier.onRestore(() => tools.restore());
-  slot.skinlyTools = tools;
-  slot.skinlyApplier = applier;
+  const role = frameRole(window);
+  if (role === "top") {
+    const applier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
+    // Blur and table tools live beside the applier and are undone by the same Restore.
+    const tools = createPageTools(document, adoptedSheetHost(document));
+    applier.onRestore(() => tools.restore());
+    slot.skinlyTools = tools;
+    slot.skinlyApplier = applier;
+    slot.skinlyToast ??= createToaster(browserToasterEnv(window)).show;
+  } else if (role === "same-origin-frame") {
+    slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): boolean => false, updatePet: (): boolean => false });
+  }
 }

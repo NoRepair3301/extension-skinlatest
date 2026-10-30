@@ -10,10 +10,12 @@ interface Props {
   origin: string;
   record: SiteRecord | undefined;
   onSaved(): void;
+  /** Called after any tool ran on the page; the popup uses it to show the pet there (when it is enabled). */
+  onToolUsed?(): void;
 }
 
 /** Blur, safe screenshot and table tools. The first use injects the page script (activeTab, from the user's click). */
-export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
+export function PrivacyTools({ tabId, origin, record, onSaved, onToolUsed }: Props) {
   const [state, setState] = useState<ToolState | undefined>(undefined);
   const [images, setImages] = useState(record?.blurImages ?? false);
   const [note, setNote] = useState("");
@@ -24,9 +26,21 @@ export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
     if (shot) URL.revokeObjectURL(shot.url);
   }, [shot]);
 
+  // Reflect what the page already has (the popup is new each time it opens). Nothing is injected for this read.
+  useEffect(() => {
+    void (async () => {
+      try {
+        const s = await runTool<ToolState>(tabId, "blurState");
+        if (s) setState(s);
+      } catch {
+        // no page script yet: nothing is on
+      }
+    })();
+  }, [tabId]);
+
   const ready = async (): Promise<boolean> => {
     try {
-      await injectFile(tabId, "applier.js");
+      await injectFile(tabId, "applier.js", true);
       return true;
     } catch {
       setNote("Skinly can't change this kind of page");
@@ -36,7 +50,10 @@ export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
 
   const guard = async (run: () => Promise<void>) => {
     try {
-      if (await ready()) await run();
+      if (await ready()) {
+        await run();
+        onToolUsed?.();
+      }
     } catch {
       setNote("That didn't work; the page was left as it was.");
     }
@@ -60,6 +77,12 @@ export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
         if (saved) await runTool(tabId, "blurTargets", saved.blur, saved.blurImages);
       }
       setState(await runTool<ToolState>(tabId, "blurShare", on));
+    });
+
+  const wholePage = (on: boolean) =>
+    guard(async () => {
+      setState(await runTool<ToolState>(tabId, "blurPage", on));
+      setNote(on ? "The whole page is blurred. Use the Unblur button in the page, or turn this off here." : "Page blur is off.");
     });
 
   const blurImages = (on: boolean) =>
@@ -104,19 +127,24 @@ export function PrivacyTools({ tabId, origin, record, onSaved }: Props) {
   return (
     <section aria-label="Privacy and table tools">
       <h2>Privacy and tables</h2>
+      <label>
+        <input type="checkbox" checked={state?.page ?? false} onChange={(e) => void wholePage((e.currentTarget as HTMLInputElement).checked)} />
+        Blur whole page
+      </label>
       <button type="button" onClick={() => void pick()}>Pick element to blur</button>
       <label>
         <input type="checkbox" checked={state?.share ?? false} onChange={(e) => void share((e.currentTarget as HTMLInputElement).checked)} />
-        Share mode (blur what I picked)
+        Blur picked parts
       </label>
       <label>
         <input type="checkbox" checked={images} onChange={(e) => void blurImages((e.currentTarget as HTMLInputElement).checked)} />
-        Blur all images, video and canvas
+        Blur images and video
       </label>
       {state && <p>{state.count} blurred, {state.missing} not found</p>}
       <button type="button" onClick={() => void save()}>Save picks for this site</button>
       <button type="button" onClick={() => void screenshot()}>Safe screenshot</button>
       <p class="note">{SCREENSHOT_NOTE}</p>
+      {state?.page && <p class="note">Whole-page blur is on, so the picture will be blurred too.</p>}
       {shot && (
         <a href={shot.url} download={shot.name}>Save {shot.name}</a>
       )}

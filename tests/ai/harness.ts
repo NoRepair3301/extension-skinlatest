@@ -19,6 +19,8 @@ export const goodPlan = () => ({
   reasons: ["clear-nav"],
 });
 export const lowContrastPlan = () => ({ ...goodPlan(), themeId: "custom", tokens: { ...getTheme("ocean").tokens, text: "#d0d8dc" } });
+/** Colours that no nudging can fix: high-contrast needs 7:1 and a mid-grey page cannot give it. */
+export const unfixablePlan = () => ({ ...goodPlan(), themeId: "high-contrast", tokens: { ...getTheme("ocean").tokens, bg: "#808080", surface: "#808080" } });
 export const badPlan = () => ({ ...goodPlan(), css: "a{}" });
 
 export const fakePage = (analysis: PageAnalysis | (() => PageAnalysis)) => {

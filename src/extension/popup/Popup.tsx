@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from "preact/hooks";
-import { MSG, consentText } from "../../ai/messages.ts";
+import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
-import { queryActiveTab, runInPage, setBadge } from "../api.ts";
+import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
+import { showPetHere } from "../petActions.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
@@ -41,6 +43,8 @@ export function Popup() {
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
+  const [petNote, setPetNote] = useState("");
+  const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
 
   const refreshSite = async () => {
@@ -56,16 +60,28 @@ export function Popup() {
   useEffect(() => {
     void loadSettings().then(setSettings);
     void refreshSite();
+    // The keys the browser really assigned (a suggested key is dropped when something else already uses it).
+    void (async () => {
+      try {
+        setCommands((await getCommands()).filter((c) => c.name !== "_execute_action"));
+      } catch {
+        setCommands([]);
+      }
+    })();
   }, []);
 
-  /** Tells the applier in the page about the pet setting; does nothing when no applier is injected. */
-  const syncPet = (next: Settings, tabId: number | undefined) => {
+  /**
+   * Tells a pet that is already on the page about a changed setting, or removes it when the pet was turned off.
+   * It never brings a hidden pet back and never injects anything: only the "Show pet on this page" button and the user's
+   * own tool use do that.
+   */
+  const updatePetInPage = (next: Settings, tabId: number | undefined) => {
     if (tabId === undefined) return;
     void (async () => {
       try {
-        await runInPage(tabId, "syncPet", next.pet);
+        await runInPage(tabId, "updatePet", next.pet);
       } catch {
-        // no applier in this tab: nothing to show
+        // no applier in this tab: nothing to update
       }
     })();
   };
@@ -74,7 +90,13 @@ export function Popup() {
     const next = { ...settings, pet };
     setSettings(next);
     void saveSettings(next);
-    syncPet(next, site?.tabId);
+    setPetNote("");
+    updatePetInPage(next, site?.tabId);
+  };
+
+  const showPet = async () => {
+    const r = await showPetHere();
+    setPetNote(r.ok ? "The pet is on this page. Restore original removes it." : r.why);
   };
 
   const petHereOff = site !== undefined && settings.pet.disabledOrigins.includes(site.origin);
@@ -107,9 +129,12 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
-      if (outcome.kind === "preview" || outcome.kind === "baseline") syncPet(await loadSettings(), tab.id);
+      // The pet does not depend on the theme: it shows after a rolled-back theme too (not on blocked pages, not when cancelled).
+      if (outcome.kind !== "blocked" && outcome.kind !== "cancelled") void showPetHere();
     } catch {
-      setView({ state: "error", kind: "error", message: MSG.baselineFailed });
+      // The flow itself threw (usually: the browser refused to inject into this page). The page was not touched.
+      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
+      void showPetHere();
     }
   };
 
@@ -127,7 +152,7 @@ export function Popup() {
     try {
       const tab = await queryActiveTab();
       if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
-      await runInPage(tab.id, "restore");
+      await runInPage(tab.id, "restore", undefined, true);
       badge(tab.id, "");
       setView({ state: "idle", note: "Original restored." });
     } catch {
@@ -142,7 +167,7 @@ export function Popup() {
       badge(tabId, "");
       setView({ state: "idle", note: "Back to the built-in theme." });
     } catch {
-      setView({ state: "error", kind: "error", message: MSG.baselineFailed });
+      setView({ state: "error", kind: "error", message: applyFailureMessage(undefined) });
     }
   };
 
@@ -168,6 +193,8 @@ export function Popup() {
   };
 
   const busy = view.state === "working" || view.state === "consent";
+  const hints = browserHints();
+  const page = shortcutsPage(hints.userAgent, hints.brave);
 
   return (
     <main>
@@ -202,6 +229,8 @@ export function Popup() {
             Disable pet on this site
           </label>
         )}
+        <button type="button" onClick={() => void showPet()}>Show pet on this page</button>
+        <p class="note" aria-live="polite">{petNote}</p>
       </fieldset>
 
       {view.state === "consent" && (
@@ -253,16 +282,18 @@ export function Popup() {
       <button type="button" onClick={() => void restore()} disabled={busy}>Restore original</button>
 
       <p role="status">{statusText(view)}</p>
-      {site && view.state !== "consent" && <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} />}
+      {site && view.state !== "consent" && <PrivacyTools tabId={site.tabId} origin={site.origin} record={site.record} onSaved={() => void refreshSite()} onToolUsed={() => void showPetHere()} />}
 
       <section aria-label="Shortcuts">
         <h2>Keyboard shortcuts</h2>
-        <ul>
-          <li>Alt+Shift+S: apply your built-in theme</li>
-          <li>Alt+Shift+R: restore the original page</li>
-          <li>Alt+Shift+K: find a link or button</li>
-        </ul>
-        <p class="note">To change them, open the extensions menu in your browser and choose Keyboard shortcuts.</p>
+        {commands.length > 0 && (
+          <ul>
+            {commands.map((c) => (
+              <li key={c.name}>{shortcutLine(c, page)}</li>
+            ))}
+          </ul>
+        )}
+        <p class="note">To set or change a key, open {page} in the address bar.</p>
       </section>
       <footer>Skinly AI is not affiliated with any website.</footer>
     </main>

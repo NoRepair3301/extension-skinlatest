@@ -71,3 +71,24 @@ Why it timed out: requests are small (system 1.7k chars, schema 1.2k, user 0.9k 
 - [ ] Run docs/QA.md on Edge, Chrome and Brave. Fix any failure with a fix prompt, one test per bug.
 - [ ] Final privacy check: with the Network tab open, use the extension on a page: the only requests from the extension go to the provider you chose and only after consent.
 - [ ] Look at the icon at 16 px in the toolbar on a light and a dark browser theme; replace scripts/icons.ts if you want another design.
+
+## fix/quality-blur-pet-shortcuts (v0.1.0-rc4)
+Items are added per step; the full list is printed at the end of the final report.
+
+### D. Frames
+- [ ] **Does activeTab cover frames?** Not verifiable without a browser. On a page with a same-origin iframe (e.g. an old portal) click Change my page: the framed part should be themed too. If only the top document changes, `chrome.scripting.executeScript({allFrames:true})` was not covered by the activeTab grant for the frames: record the site type here and in docs/BUGS.md. The code then falls back to the top frame by itself (api.ts `injectFile`), so nothing breaks.
+- [ ] A cross-origin iframe (an embedded video or ad) must stay exactly as it was. Frames added after the click are not themed until you click again.
+
+### H. Shortcuts and toasts
+- [ ] Open edge://extensions/shortcuts. The popup's list must match what that page shows for Skinly AI. Any "Not set" key means the browser dropped the suggested key because something else uses it: assign one there. **This is the most likely reason the commands "did nothing": an unassigned key never fires.**
+- [ ] On a public page press each assigned key: a 2 s toast appears bottom-centre ("Skinly: theme applied", "restored", "blur on"/"blur off", "palette open"). If a key does nothing and no toast shows, tell me which key, the browser version and the page type (docs/BUGS.md).
+- [ ] The browser used to pass the tab without a URL in some cases; the code now asks the page. If Alt+Shift+S still only puts a "!" badge on a normal page, hover the toolbar icon and read the tooltip, and record it.
+- [ ] On edge://extensions or a web store page the keys only set the "!" badge and the tooltip; no toast is possible there (we never inject into those pages).
+
+### I. Pet
+- [ ] Turn the pet on, open a page, click "Show pet on this page": the pet appears. Click Restore original: it disappears. It is off by default and does not appear until you click (or use another tool).
+- [ ] On a page where Change my page reports a rolled-back theme, the pet still shows and the popup says why in plain words.
+- [ ] On edge://extensions the button's one-line message says Skinly can't put the pet there.
+
+### J. Theme failure message
+- [ ] On a legacy portal (e.g. the ERP) click Change my page. If the theme is rolled back the popup says the reason in plain words (no page text). Record which reason you saw.

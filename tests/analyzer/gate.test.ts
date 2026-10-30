@@ -21,7 +21,7 @@ describe("decideGate", () => {
   it("is blocked for restricted urls, stores and blocklisted origins", () => {
     expect(gateFor("<main>x</main>", "chrome://settings")).toMatchObject({ kind: "blocked", reason: "internal" });
     expect(gateFor("<main>x</main>", "https://chromewebstore.google.com/x")).toMatchObject({ kind: "blocked", reason: "store" });
-    expect(gateFor("<main>x</main>", "https://erp.iitkgp.ac.in/")).toMatchObject({ kind: "blocked", reason: "blocklist" });
+    expect(gateFor("<main>x</main>", "https://erp.iitkgp.ac.in/", ["erp.iitkgp.ac.in"])).toMatchObject({ kind: "blocked", reason: "blocklist" });
     expect(gateFor("<main>x</main>", OK, ["example.org"])).toMatchObject({ kind: "blocked", reason: "blocklist" });
   });
   it("blocked wins over no-ai", () => {

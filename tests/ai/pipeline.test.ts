@@ -1,10 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { contrastFailures } from "../../src/plan/contrast.ts";
 import { transform } from "../../src/ai/pipeline.ts";
-import { MSG } from "../../src/ai/messages.ts";
+import { aiApplyFailureMessage, applyFailureMessage, MSG } from "../../src/ai/messages.ts";
 import { buildUserMessage } from "../../src/ai/prompt.ts";
 import { defaultSettings } from "../../src/extension/settings.ts";
 import { sampleSummary } from "../plan/helpers.ts";
-import { badPlan, goodPlan, harness, lowContrastPlan, okAnalysis, T0, URL_OK } from "./harness.ts";
+import { badPlan, goodPlan, harness, lowContrastPlan, okAnalysis, T0, unfixablePlan, URL_OK } from "./harness.ts";
 
 const providerCalls = (h: ReturnType<typeof harness>) => h.mocks.gemini.calls.length + h.mocks.groq.calls.length;
 
@@ -52,20 +53,97 @@ describe("transform: invalid output", () => {
     expect(h.page.calls.some((c) => c.startsWith("applyPlan"))).toBe(false);
   });
 
-  it("treats a failed contrast target like invalid output, using the rejected bg as the hint", async () => {
-    const h = harness({ gemini: [{ type: "ok", json: lowContrastPlan() }], groq: [{ type: "ok", json: lowContrastPlan() }] });
+  it("repairs low-contrast colours by nudging them instead of falling back", async () => {
+    const h = harness({ gemini: [{ type: "ok", json: lowContrastPlan() }] });
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "preview", source: "ai", message: MSG.coloursAdjusted });
+    expect(h.mocks.gemini.calls).toHaveLength(1); // no repair request was needed
+    expect(h.page.calls.at(-1)).toBe("applyPlan:custom");
+    if (out.kind !== "preview") return;
+    expect(contrastFailures(out.plan.themeId, out.plan.tokens)).toEqual([]);
+    expect(out.plan.tokens.text).not.toBe(lowContrastPlan().tokens.text);
+    expect(out.plan.tokens.bg).toBe(lowContrastPlan().tokens.bg); // backgrounds are never changed
+  });
+
+  it("treats a contrast target that nudging cannot reach like invalid output, using the rejected bg as the hint", async () => {
+    const h = harness({ gemini: [{ type: "ok", json: unfixablePlan() }], groq: [{ type: "ok", json: unfixablePlan() }] });
     const out = await transform(URL_OK, h.deps);
     expect(out).toMatchObject({ kind: "preview", source: "fallback" });
     expect(h.mocks.gemini.calls[1]!.user).toMatch(/Reason codes: contrast\.text\./);
-    expect(h.page.calls.at(-1)).toBe("applyTheme:ocean");
+    expect(h.page.calls.at(-1)).toMatch(/^applyTheme:/);
   });
 
   it("keeps the baseline when the validated plan cannot be applied", async () => {
     const h = harness();
     h.page.page.applyPlan = async () => ({ ok: false, reason: "invariants" });
     const out = await transform(URL_OK, h.deps);
-    expect(out).toMatchObject({ kind: "baseline", why: "apply-failed", message: MSG.applyFailed });
+    expect(out).toMatchObject({ kind: "baseline", why: "apply-failed", message: aiApplyFailureMessage({ reason: "invariants" }) });
+    if (out.kind === "baseline") expect(out.message).toContain("links or form controls");
     expect(h.page.calls.at(-1)).toBe("applyTheme:calm-light");
+  });
+});
+
+describe("transform: per-provider time limits", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("gives Groq 20 s in total, then moves on to Gemini (30 s of its own)", async () => {
+    vi.useFakeTimers();
+    const h = harness({ settings: { order: ["groq", "gemini"] }, groq: [{ type: "delay", ms: 60_000, then: { type: "ok", json: goodPlan() } }] });
+    const p = transform(URL_OK, h.deps);
+    await vi.advanceTimersByTimeAsync(19_000);
+    expect(h.mocks.gemini.calls).toHaveLength(0);
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(await p).toMatchObject({ kind: "preview", source: "ai", providerId: "gemini" });
+  });
+
+  it("a Gemini answer slower than 30 s is given up on", async () => {
+    vi.useFakeTimers();
+    const h = harness({ settings: { order: ["gemini"] }, gemini: [{ type: "delay", ms: 60_000, then: { type: "ok", json: goodPlan() } }] });
+    const p = transform(URL_OK, h.deps);
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(h.mocks.gemini.calls).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(1_500);
+    expect(await p).toMatchObject({ kind: "baseline", why: "ai-unavailable" });
+  });
+});
+
+describe("transform: why an apply was rolled back (J)", () => {
+  const reasons: Array<[Record<string, unknown>, string]> = [
+    [{ ok: false, reason: "invariants", detail: ["a[href] changed", "SECRET-PAGE-TEXT"] }, "links or form controls"],
+    [{ ok: false, reason: "invalid-plan", detail: ["contrast"] }, "colours were too hard to read"],
+    [{ ok: false, reason: "invalid-plan", detail: ["region missing on page"] }, "page changed while it was being read"],
+    [{ ok: false, reason: "invalid-plan", detail: ["tokens.bg: SECRET-PAGE-TEXT"] }, "wasn't safe to apply"],
+    [{ ok: false, reason: "too-large" }, "too large"],
+    [{ ok: false, reason: "error" }, "Something went wrong"],
+  ];
+
+  it.each(reasons)("the baseline theme failing with %j says why in plain words", async (result, words) => {
+    const h = harness();
+    h.page.page.applyTheme = async () => result as never;
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "error", errorKind: "baseline" });
+    if (out.kind !== "error") return;
+    expect(out.message).toContain(words);
+    expect(out.message).toContain("page was left as it was");
+    expect(out.message).not.toContain("SECRET");
+    expect(out.message).not.toContain("a[href]");
+  });
+
+  it("the page script not answering at all is reported as the browser not allowing it", async () => {
+    const h = harness();
+    h.page.page.applyTheme = async () => undefined;
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "error", errorKind: "baseline", message: applyFailureMessage(undefined) });
+    expect(out.kind === "error" && out.message).toContain("the browser didn't allow it");
+  });
+
+  it("an AI plan that is rolled back keeps the built-in theme and says why", async () => {
+    const h = harness();
+    h.page.page.applyPlan = async () => ({ ok: false, reason: "invalid-plan", detail: ["contrast"] });
+    const out = await transform(URL_OK, h.deps);
+    expect(out).toMatchObject({ kind: "baseline", why: "apply-failed" });
+    expect(out.kind === "baseline" && out.message).toContain("colours were too hard to read");
+    expect(out.kind === "baseline" && out.message).toContain("built-in theme is kept");
   });
 });
 
@@ -128,7 +206,7 @@ describe("transform: provider errors", () => {
 });
 
 describe("transform: gate", () => {
-  it.each(["chrome://settings", "https://chromewebstore.google.com/x", "https://erp.iitkgp.ac.in/", "file:///a.html", "https://example.org/a.pdf"])("blocks %s without touching the page or any provider", async (url) => {
+  it.each(["chrome://settings", "https://chromewebstore.google.com/x", "file:///a.html", "https://example.org/a.pdf"])("blocks %s without touching the page or any provider", async (url) => {
     const h = harness();
     const out = await transform(url, h.deps);
     expect(out).toMatchObject({ kind: "blocked", message: MSG.blocked });

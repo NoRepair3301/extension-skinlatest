@@ -1,4 +1,4 @@
-import { DEFAULT_MODELS, PROVIDER_ENDPOINTS } from "../config.ts";
+import { DEFAULT_MODELS, PROVIDER_ENDPOINTS, PROVIDER_TIMEOUTS } from "../config.ts";
 import { STYLE_PLAN_SCHEMA } from "../ai/prompt.ts";
 import { callJson, type HttpDeps } from "./http.ts";
 import type { Provider } from "./types.ts";
@@ -42,7 +42,7 @@ export function createGemini(getKey: () => Promise<string | undefined>, deps: Ht
           extractText: extractGeminiText,
         },
         req,
-        deps,
+        { timeoutMs: PROVIDER_TIMEOUTS.gemini.callMs, ...deps },
       );
     },
   };

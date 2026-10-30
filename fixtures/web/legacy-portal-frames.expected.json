@@ -1,0 +1,22 @@
+{
+  "counts": {
+    "nodes": 33,
+    "links": 0,
+    "forms": 1,
+    "tables": 2,
+    "images": 0,
+    "headings": 0,
+    "iframes": 2
+  },
+  "risk": [
+    "password"
+  ],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "form",
+      "childCount": 1,
+      "linkCount": 0
+    }
+  ]
+}

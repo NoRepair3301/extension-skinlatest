@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { checkUrl } from "../../src/analyzer/eligibility.ts";
+import { BUILTIN_BLOCKLIST } from "../../src/config.ts";
 
 const reason = (url: string, list: string[] = []) => {
   const r = checkUrl(url, list);
@@ -30,9 +31,14 @@ describe("checkUrl", () => {
   it("blocks PDFs", () => {
     expect(reason("https://example.org/files/a.PDF")).toBe("pdf");
   });
-  it("honours the built-in and user blocklists, including subdomains", () => {
-    expect(reason("https://erp.iitkgp.ac.in/Acad/")).toBe("blocklist");
-    expect(reason("https://a.erp.iitkgp.ac.in/")).toBe("blocklist");
+  it("no longer blocks legacy portals by default (rc4), but the user blocklist still wins", () => {
+    expect(BUILTIN_BLOCKLIST).toEqual([]);
+    expect(reason("https://erp.iitkgp.ac.in/Acad/")).toBe("allowed");
+    expect(reason("https://a.erp.iitkgp.ac.in/")).toBe("allowed");
+    expect(reason("https://erp.iitkgp.ac.in/Acad/", ["erp.iitkgp.ac.in"])).toBe("blocklist");
+    expect(reason("https://a.erp.iitkgp.ac.in/", ["https://erp.iitkgp.ac.in"])).toBe("blocklist");
+  });
+  it("honours the user blocklist, including subdomains", () => {
     expect(reason("https://example.org/", ["example.org"])).toBe("blocklist");
     expect(reason("https://www.example.org/", ["https://example.org"])).toBe("blocklist");
     expect(reason("https://notexample.org/", ["example.org"])).toBe("allowed");

@@ -1,0 +1,38 @@
+{
+  "counts": {
+    "nodes": 61,
+    "links": 6,
+    "forms": 1,
+    "tables": 4,
+    "images": 0,
+    "headings": 0,
+    "iframes": 0
+  },
+  "risk": [],
+  "regions": [
+    {
+      "id": "r1",
+      "role": "table",
+      "childCount": 1,
+      "linkCount": 6
+    },
+    {
+      "id": "r2",
+      "role": "link-list",
+      "childCount": 12,
+      "linkCount": 6
+    },
+    {
+      "id": "r3",
+      "role": "table",
+      "childCount": 1,
+      "linkCount": 0
+    },
+    {
+      "id": "r4",
+      "role": "form",
+      "childCount": 2,
+      "linkCount": 0
+    }
+  ]
+}
