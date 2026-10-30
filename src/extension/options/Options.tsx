@@ -187,7 +187,8 @@ export function Options() {
 
       {panel(
         "themes",
-        <Card title="Default theme">
+        <fieldset class="default-theme">
+          <legend>Default theme</legend>
           <p class="note">This is the theme the popup starts with. Auto follows your browser's light or dark setting.</p>
           <div class="theme-grid">
             {[...THEMES.map((t) => ({ id: t.id as string, name: t.name })), { id: "auto", name: "Auto" }].map((t) => (
@@ -197,7 +198,7 @@ export function Options() {
               </label>
             ))}
           </div>
-        </Card>,
+        </fieldset>,
       )}
 
       {panel(
