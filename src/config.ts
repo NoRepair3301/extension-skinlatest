@@ -65,3 +65,10 @@ export const MIN_CALL_GAP_MS = 3000;
 export const CONSENT_VERSION = 1;
 
 export const PROVIDER_NAMES: Record<ProviderId, string> = { gemini: "Gemini", groq: "Groq" };
+
+/**
+ * The "field" scene may include one flat, stylised rifle silhouette (it never moves, fires or targets anything).
+ * Set to false to remove every weapon prop in one line before a store submission; store review can be sensitive about weapons
+ * (docs/store/listing.md, docs/HUMAN_CHECKS.md).
+ */
+export const ARMY_WEAPON_PROPS = true;

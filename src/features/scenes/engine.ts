@@ -58,6 +58,31 @@ export function assignActors(actors: readonly Actor[], lanes: number, lane: Lane
   return out;
 }
 
+/** Height of an actor box in px for a lane of width `laneW`. */
+export const actorHeight = (a: Actor, laneW: number): number => Math.max(16, Math.min(a.size, laneW - MIN_GAP_PX * 2)) * (a.ratio ?? 1);
+
+/**
+ * Pure. Resting top (px) of each actor in one lane: its wanted position, pushed down so two actors never overlap.
+ * An actor that no longer fits above the lane's bottom is dropped (null).
+ */
+export function placeActors(actors: readonly Actor[], laneW: number, laneH: number): Array<{ actor: Actor; top: number }> {
+  const backs: Array<{ actor: Actor; top: number }> = [];
+  const out: Array<{ actor: Actor; top: number }> = [];
+  let cursor = 0;
+  for (const a of [...actors].sort((p, q) => p.y - q.y)) {
+    const h = actorHeight(a, laneW);
+    if (a.back) {
+      backs.push({ actor: a, top: Math.max(0, Math.min(laneH - h, Math.round(a.y * laneH - h / 2))) });
+      continue;
+    }
+    const top = Math.max(cursor, Math.round(a.y * laneH - h / 2), 0);
+    if (top + h > laneH) continue;
+    out.push({ actor: a, top });
+    cursor = top + h + 10;
+  }
+  return [...backs, ...out];
+}
+
 function sheet(doc: Document, root: ShadowRoot, css: string): void {
   const win = doc.defaultView as (Window & { CSSStyleSheet?: typeof CSSStyleSheet }) | null;
   try {
@@ -134,7 +159,7 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
 
   const countAnimated = (): number => (rootEl ? rootEl.querySelectorAll("[data-anim]").length : 0);
 
-  const buildActor = (a: Actor, lane: Gutter, ctx: Ctx, laneH: number, index: number): HTMLElement => {
+  const buildActor = (a: Actor, lane: Gutter, ctx: Ctx, laneH: number, index: number, top: number): HTMLElement => {
     const w = Math.max(16, Math.min(a.size, lane.w - MIN_GAP_PX * 2));
     const h = w * (a.ratio ?? 1);
     const box = doc.createElement("div");
@@ -144,7 +169,7 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
     s.setProperty("width", `${w}px`);
     s.setProperty("height", `${h}px`);
     s.setProperty("left", `${Math.max(MIN_GAP_PX, Math.min(lane.w - w - MIN_GAP_PX, a.x * lane.w - w / 2))}px`);
-    s.setProperty("top", `${Math.max(0, Math.min(laneH - h, a.y * laneH - h / 2))}px`);
+    s.setProperty("top", `${top}px`);
     const amp = a.amp ?? AMP_BY_MOTION[a.motion] ?? 0;
     const dur = Math.max(0.8, BASE_DUR[a.motion] / Math.max(0.2, a.speed));
     const delay = (a.delay ?? 0) + (index % 3) * 0.7;
@@ -211,11 +236,11 @@ export function createSceneEngine(env: SceneEnv): SceneEngine {
       lane.style.setProperty("width", `${g.w}px`);
       lane.style.setProperty("--lh", `${laneH}px`);
       r.append(lane);
-      groups[li]!.forEach((a, i) => {
+      placeActors(groups[li]!, g.w, laneH).forEach(({ actor: a, top }, i) => {
         if (countAnimated() >= NODE_BUDGET) return;
         let box: HTMLElement;
         try {
-          box = buildActor(a, g, ctx, laneH, i);
+          box = buildActor(a, g, ctx, laneH, i, top);
         } catch {
           return;
         }

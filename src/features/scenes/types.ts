@@ -31,6 +31,8 @@ export interface Actor {
   y: number;
   /** Seconds before the animation starts; spreads actors out so they do not move in step. */
   delay?: number;
+  /** Drawn first and allowed to overlap others (soft glows). It takes no space from the other actors. */
+  back?: boolean;
   /** Extra movement distance in px for float, drift and orbit. */
   amp?: number;
 }

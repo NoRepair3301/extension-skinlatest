@@ -79,3 +79,32 @@ export function anim<T extends Element>(node: T, name: string, opts: { dur?: num
   }
   return node;
 }
+
+/** Builds an actor: a root <svg>, a <defs> and a main group; `draw` fills them. */
+export function art(ctx: Ctx, w: number, h: number, draw: (defs: SVGElement, g: SVGElement) => void): SVGElement {
+  const defs = el(ctx.doc, "defs");
+  const g = el(ctx.doc, "g");
+  draw(defs, g);
+  return root(ctx, w, h, defs, g);
+}
+
+/** Fill helper: registers a vertical (default) linear gradient in `defs` and returns its url reference. */
+export function vfill(ctx: Ctx, defs: SVGElement, list: readonly Stop[], dir: readonly [number, number, number, number] = [0, 0, 0, 1]): string {
+  const g = lin(ctx, list, dir);
+  defs.append(g.node);
+  return g.ref;
+}
+
+/** Fill helper: registers a radial gradient in `defs` and returns its url reference. */
+export function rfill(ctx: Ctx, defs: SVGElement, list: readonly Stop[], focus?: readonly [number, number]): string {
+  const g = rad(ctx, list, focus);
+  defs.append(g.node);
+  return g.ref;
+}
+
+/** Soft filled glow without a filter: concentric low-opacity circles. */
+export function halo(ctx: Ctx, cx: number, cy: number, r: number, color: string, strength = 0.35): SVGElement {
+  const g = el(ctx.doc, "g");
+  for (let i = 0; i < 5; i++) g.append(el(ctx.doc, "circle", { cx, cy, r: r * (1 - i * 0.18), fill: color, opacity: (strength / 5).toFixed(3) }));
+  return g;
+}
