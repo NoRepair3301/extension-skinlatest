@@ -17,6 +17,8 @@ const api = vi.hoisted(() => ({
   removeOrigins: vi.fn(),
   registerAutoScript: vi.fn(),
   unregisterAutoScript: vi.fn(),
+  getCommands: vi.fn(),
+  browserHints: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 
@@ -72,6 +74,8 @@ describe("popup", () => {
     api.registerAutoScript.mockResolvedValue(undefined);
     api.unregisterAutoScript.mockResolvedValue(undefined);
     api.queryActiveTab.mockResolvedValue(TAB);
+    api.getCommands.mockResolvedValue([]);
+    api.browserHints.mockReturnValue({ userAgent: "Chrome/130 Edg/130", brave: false });
   });
 
   it("idle: shows the title, five themes and the not-affiliated line, and calls nothing yet", async () => {

@@ -84,6 +84,33 @@ export const onCommand = (handler: (command: string, tab: ActiveTab | undefined)
   });
 };
 
+/** Shows a toast through the page script that applier.js or palette.js registered; does nothing when there is none. */
+export const showToast = async (tabId: number, text: string): Promise<void> => {
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (t: string) => (globalThis as unknown as { skinlyToast?: (x: string) => void }).skinlyToast?.(t),
+    args: [text],
+  });
+};
+
+/** The address of the tab as the page sees it, for the gate when the browser did not pass a URL with a command. Needs the activeTab grant. */
+export const getPageUrl = async (tabId: number): Promise<string | undefined> => {
+  const [res] = await chrome.scripting.executeScript({ target: { tabId }, func: () => location.href });
+  return typeof res?.result === "string" ? res.result : undefined;
+};
+
+/** Every command of this extension with the key the browser actually assigned ("" when none). */
+export const getCommands = async (): Promise<Array<{ name: string; description: string; shortcut: string }>> => {
+  const all = await chrome.commands.getAll();
+  return all.map((c) => ({ name: c.name ?? "", description: c.description ?? "", shortcut: c.shortcut ?? "" }));
+};
+
+/** Browser family hints for the shortcuts page address. */
+export const browserHints = (): { userAgent: string; brave: boolean } => ({
+  userAgent: navigator.userAgent,
+  brave: typeof (navigator as unknown as { brave?: unknown }).brave !== "undefined",
+});
+
 /** Opens the palette that palette.js registered in the tab. */
 export const openPaletteInPage = async (tabId: number): Promise<void> => {
   await chrome.scripting.executeScript({

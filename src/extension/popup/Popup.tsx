@@ -3,11 +3,12 @@ import { MSG, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, type BuiltinThemeId } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
-import { queryActiveTab, runInPage, setBadge } from "../api.ts";
+import { browserHints, getCommands, queryActiveTab, runInPage, setBadge } from "../api.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, saveSettings, type Settings } from "../settings.ts";
 import { PrivacyTools } from "./PrivacyTools.tsx";
 import { enableAuto, forgetSite, pauseSite, rememberSite, type ActionResult, type KeptPlan } from "../siteActions.ts";
+import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, originOf, type SiteRecord } from "../sites.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
@@ -41,6 +42,7 @@ export function Popup() {
   const decide = useRef<((ok: boolean) => void) | undefined>(undefined);
   const abort = useRef<AbortController | undefined>(undefined);
   const tabUrl = useRef<string | undefined>(undefined);
+  const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
 
   const refreshSite = async () => {
@@ -56,6 +58,14 @@ export function Popup() {
   useEffect(() => {
     void loadSettings().then(setSettings);
     void refreshSite();
+    // The keys the browser really assigned (a suggested key is dropped when something else already uses it).
+    void (async () => {
+      try {
+        setCommands((await getCommands()).filter((c) => c.name !== "_execute_action"));
+      } catch {
+        setCommands([]);
+      }
+    })();
   }, []);
 
   /** Tells the applier in the page about the pet setting; does nothing when no applier is injected. */
@@ -168,6 +178,8 @@ export function Popup() {
   };
 
   const busy = view.state === "working" || view.state === "consent";
+  const hints = browserHints();
+  const page = shortcutsPage(hints.userAgent, hints.brave);
 
   return (
     <main>
@@ -257,12 +269,14 @@ export function Popup() {
 
       <section aria-label="Shortcuts">
         <h2>Keyboard shortcuts</h2>
-        <ul>
-          <li>Alt+Shift+S: apply your built-in theme</li>
-          <li>Alt+Shift+R: restore the original page</li>
-          <li>Alt+Shift+K: find a link or button</li>
-        </ul>
-        <p class="note">To change them, open the extensions menu in your browser and choose Keyboard shortcuts.</p>
+        {commands.length > 0 && (
+          <ul>
+            {commands.map((c) => (
+              <li key={c.name}>{shortcutLine(c, page)}</li>
+            ))}
+          </ul>
+        )}
+        <p class="note">To set or change a key, open {page} in the address bar.</p>
       </section>
       <footer>Skinly AI is not affiliated with any website.</footer>
     </main>

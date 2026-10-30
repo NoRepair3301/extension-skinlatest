@@ -1,4 +1,4 @@
-import { injectFile, onCommand, onMessage, openPaletteInPage, runInPage, setBadge, setTitle } from "./api.ts";
+import { getPageUrl, injectFile, onCommand, onMessage, openPaletteInPage, runInPage, runTool, setBadge, setTitle, showToast } from "./api.ts";
 import { handleCommand, isCommand, type CommandDeps } from "./commands.ts";
 import { loadSettings } from "./settings.ts";
 import { isBadgeMessage } from "./messages.ts";
@@ -15,6 +15,9 @@ const deps: CommandDeps = {
   inject: (tabId, file) => injectFile(tabId, file, file === "applier.js"),
   runApplier: (tabId, method, arg) => runInPage(tabId, method, arg, method === "applyTheme" || method === "restore"),
   openPalette: openPaletteInPage,
+  runTool: (tabId, method) => runTool(tabId, method),
+  toast: showToast,
+  pageUrl: getPageUrl,
   setBadge,
   setTitle,
 };

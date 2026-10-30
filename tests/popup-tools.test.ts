@@ -16,6 +16,8 @@ const api = vi.hoisted(() => ({
   removeOrigins: vi.fn(),
   registerAutoScript: vi.fn(),
   unregisterAutoScript: vi.fn(),
+  getCommands: vi.fn(),
+  browserHints: vi.fn(),
 }));
 vi.mock("../src/extension/api.ts", () => api);
 vi.mock("../src/extension/flow.ts", () => ({ runTransform: vi.fn(), createPageClient: () => ({ applyTheme: vi.fn() }) }));
@@ -42,6 +44,8 @@ beforeEach(() => {
   api.setBadge.mockResolvedValue(undefined);
   api.queryActiveTab.mockResolvedValue(TAB);
   api.injectFile.mockResolvedValue(undefined);
+  api.getCommands.mockResolvedValue([]);
+  api.browserHints.mockReturnValue({ userAgent: "Chrome/130 Edg/130", brave: false });
 });
 
 describe("popup privacy labels (G)", () => {
@@ -69,5 +73,42 @@ describe("popup privacy labels (G)", () => {
     const root = await mount();
     expect(labelled(root, "Blur whole page")!.querySelector("input")!.checked).toBe(true);
     expect(api.injectFile).not.toHaveBeenCalled();
+  });
+});
+
+describe("popup shortcut list (H)", () => {
+  const cmds = [
+    { name: "transform-page", description: "Apply your built-in theme to this page", shortcut: "Alt+Shift+S" },
+    { name: "restore-page", description: "Restore the original page", shortcut: "" },
+    { name: "open-palette", description: "Find a link or button on this page", shortcut: "Alt+Shift+K" },
+    { name: "toggle-blur-page", description: "Blur or unblur the whole page", shortcut: "" },
+    { name: "_execute_action", description: "", shortcut: "" },
+  ];
+
+  it("lists every command with the key the browser assigned, or how to set one", async () => {
+    api.getCommands.mockResolvedValue(cmds);
+    const root = await mount();
+    const items = Array.from(root.querySelectorAll('[aria-label="Shortcuts"] li')).map((li) => li.textContent);
+    expect(items).toEqual([
+      "Apply your built-in theme to this page: Alt+Shift+S",
+      "Restore the original page: Not set - open edge://extensions/shortcuts",
+      "Find a link or button on this page: Alt+Shift+K",
+      "Blur or unblur the whole page: Not set - open edge://extensions/shortcuts",
+    ]);
+    expect(root.textContent).toContain("open edge://extensions/shortcuts in the address bar");
+  });
+
+  it("still explains where to set keys when the command list cannot be read", async () => {
+    api.getCommands.mockRejectedValue(new Error("x"));
+    const root = await mount();
+    expect(root.querySelectorAll('[aria-label="Shortcuts"] li')).toHaveLength(0);
+    expect(root.textContent).toContain("edge://extensions/shortcuts");
+  });
+
+  it("names Chrome's page on Chrome", async () => {
+    api.browserHints.mockReturnValue({ userAgent: "Mozilla/5.0 Chrome/130 Safari/537.36", brave: false });
+    api.getCommands.mockResolvedValue([cmds[1]!]);
+    const root = await mount();
+    expect(root.textContent).toContain("Not set - open chrome://extensions/shortcuts");
   });
 });

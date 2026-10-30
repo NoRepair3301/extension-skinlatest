@@ -1,4 +1,5 @@
 import { browserEnv, createPetController, type PetConfig } from "../features/pet/pet.ts";
+import { browserToasterEnv, createToaster } from "../features/toast/toast.ts";
 import { createPageTools } from "./pageTools.ts";
 import { createApplier, type Applier, type StyleHost } from "./applier-core.ts";
 import { frameRole } from "./frames.ts";
@@ -22,7 +23,11 @@ const adoptedSheetHost = (doc: Document): StyleHost => ({
 
 export type PageApplier = Applier & { syncPet(cfg: PetConfig): void };
 
-const slot = globalThis as unknown as { skinlyApplier?: PageApplier; skinlyTools?: ReturnType<typeof createPageTools> };
+const slot = globalThis as unknown as {
+  skinlyApplier?: PageApplier;
+  skinlyTools?: ReturnType<typeof createPageTools>;
+  skinlyToast?: (text: string) => void;
+};
 
 function withPet(applier: Applier): PageApplier {
   const pet = createPetController(browserEnv(window));
@@ -44,6 +49,7 @@ if (!slot.skinlyApplier) {
     applier.onRestore(() => tools.restore());
     slot.skinlyTools = tools;
     slot.skinlyApplier = applier;
+    slot.skinlyToast ??= createToaster(browserToasterEnv(window)).show;
   } else if (role === "same-origin-frame") {
     slot.skinlyApplier = Object.assign(createApplier(document, { style: adoptedSheetHost(document), tokensOnly: true }), { syncPet: (): void => undefined });
   }
