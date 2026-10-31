@@ -31,7 +31,8 @@ import { NO_LAYOUT, makeIntent, readIntent, writeIntent, type IntentStage } from
 import type { AutoState } from "../../core/diag.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, isAutoOn, originOf, type SiteRecord } from "../sites.ts";
-import { clampThemeId, type PlanFlag } from "../../core/entitlements.ts";
+import { canUse, clampThemeId, type PlanFlag } from "../../core/entitlements.ts";
+import { PlusDialog } from "./PlusDialog.tsx";
 import { loadPlan } from "../planFlag.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
@@ -63,6 +64,8 @@ export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
   /** Skinly Plus: the derived plan flag (never a token). Free until read. */
   const [planFlag, setPlanFlag] = useState<PlanFlag>("free");
+  /** The locked theme the user clicked: opens the calm Plus dialog. */
+  const [plusFor, setPlusFor] = useState<string | undefined>(undefined);
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
   /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
@@ -501,9 +504,11 @@ export function Popup() {
       <fieldset class="themes">
         <legend>{S.popup.themeLegend}</legend>
         <div class="theme-grid">
-          {THEMES.map((t) => (
-            <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}`}>
-              <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => pickTheme(t.id)} />
+          {THEMES.map((t) => {
+            const locked = !canUse(`theme:${t.id}`, planFlag);
+            return (
+            <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}${locked ? " locked" : ""}`}>
+              <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => (locked ? setPlusFor(t.name) : pickTheme(t.id))} />
               <span class="mini" aria-hidden="true" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
                 <i class="m-head" style={{ background: t.tokens.text }} />
                 <i class="m-line" style={{ background: t.tokens.muted }} />
@@ -514,8 +519,10 @@ export function Popup() {
                 </span>
               </span>
               <span class="theme-name">{t.name}</span>
+              {locked && <span class="plus-mark">{S.plus.mark}</span>}
             </label>
-          ))}
+            );
+          })}
           <label class={`theme-card${settings.theme === "auto" ? " on" : ""}`}>
             <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
             <span class="mini auto" aria-hidden="true" />
@@ -555,7 +562,14 @@ export function Popup() {
         <p class="note" aria-live="polite">{petNote}</p>
       </details>
 
-      {site && view.state !== "consent" && (
+      {site && view.state !== "consent" && !canUse("assets", planFlag) && (
+        <p class="note">
+          {S.plus.assetsLocked}{" "}
+          <Button kind="quiet" onClick={() => setPlusFor(S.options.tabs.assets)}>{S.plus.mark}</Button>
+        </p>
+      )}
+      {plusFor && <PlusDialog what={plusFor} onClose={() => setPlusFor(undefined)} />}
+      {site && view.state !== "consent" && canUse("assets", planFlag) && (
         <AssetHere
           initial={site.record?.look?.asset ?? settings.asset}
           onUse={(p) => useAssetHere(site.tabId, p, artSource.current ? (sceneRequest(settings, artSource.current)?.scene ?? null) : null)}

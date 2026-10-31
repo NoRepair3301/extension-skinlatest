@@ -10,6 +10,9 @@ import { DAILY_AI_CALLS, PROVIDER_IDS, type ProviderId } from "../../config.ts";
 import { Logo } from "../Logo.tsx";
 import { SceneOptions } from "../SceneOptions.tsx";
 import { MyAssets } from "./MyAssets.tsx";
+import { PlanAccount } from "./PlanAccount.tsx";
+import { canUse, type PlanFlag } from "../../core/entitlements.ts";
+import { loadPlan } from "../planFlag.ts";
 import { Welcome } from "./Welcome.tsx";
 import { deleteKey, keyStatus, MASK, saveKey, testKey } from "../keys.ts";
 import { entryHost } from "../../analyzer/eligibility.ts";
@@ -51,6 +54,7 @@ export function Options() {
   const [welcomeOpen, setWelcomeOpen] = useState(false);
   const [diagText, setDiagText] = useState("");
   const [diagNote, setDiagNote] = useState("");
+  const [planFlag, setPlanFlag] = useState<PlanFlag>("free");
   const online = useOnline();
   const hints = safe(() => browserHints(), { userAgent: "", brave: false });
   const version = safe(() => extensionVersion(), "");
@@ -85,6 +89,10 @@ export function Options() {
   };
 
   useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
+  useEffect(() => {
+    void loadPlan().then(setPlanFlag);
+  }, []);
+
   useEffect(() => {
     void (async () => {
       try {
@@ -245,7 +253,19 @@ export function Options() {
         </>,
       )}
 
-      {panel("assets", <MyAssets placement={settings.asset} onPlacement={(asset) => update({ ...settings, asset })} />)}
+      {panel(
+        "assets",
+        canUse("assets", planFlag) ? (
+          <MyAssets placement={settings.asset} onPlacement={(asset) => update({ ...settings, asset })} />
+        ) : (
+          <Card title={S.options.tabs.assets}>
+            <p class="note">{S.plus.assetsLocked}</p>
+            <Button onClick={() => selectTab("plan")}>{S.plus.seePlans}</Button>
+          </Card>
+        ),
+      )}
+
+      {panel("plan", <PlanAccount onPlan={setPlanFlag} />)}
 
       {panel(
         "providers",

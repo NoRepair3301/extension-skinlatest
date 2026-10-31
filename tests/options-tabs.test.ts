@@ -40,9 +40,9 @@ describe("options tabs", () => {
     keys.keyStatus.mockResolvedValue({ gemini: false, groq: false });
   });
 
-  it("has the nine sections, one visible panel, and General first", async () => {
+  it("has the ten sections (Plan and account added in 0.3.0), one visible panel, and General first", async () => {
     const root = await mount();
-    expect(tabs(root).map((t) => t.textContent)).toEqual(["General", "Themes", "Scenes and pets", "My assets", "AI providers", "Sites", "Shortcuts", "Privacy", "About"]);
+    expect(tabs(root).map((t) => t.textContent)).toEqual(["General", "Themes", "Scenes and pets", "My assets", "AI providers", "Sites", "Shortcuts", "Privacy", "Plan and account", "About"]);
     const visible = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]')).filter((p) => !p.hidden);
     expect(visible.map((p) => p.id)).toEqual(["panel-general"]);
   });

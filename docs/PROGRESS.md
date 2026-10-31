@@ -265,3 +265,10 @@ Branch cut from main after the v0.2.1-rc1 merge.
 - Tests: tests/backend-client/client.test.ts, tests/settings.test.ts "entitlements", tests/ai/pipeline.test.ts "Skinly Plus gating", tests/auto.test.ts "B4", tests/scene-page.test.ts "B4", tests/commands.test.ts "B4", tests/build.test.ts "Plus build".
 - Decision: a third storage key `plan` was added (the task names `auth` and `entitlement`): page scripts must read a flag, and reading `entitlement` would hand them the token.
 - Decision: the daily check runs on service-worker start (no alarms permission; no new permission allowed).
+
+### B5: UI (done)
+- Settings tab "Plan and account" (src/extension/options/PlanAccount.tsx): email, code entry, status line per state, renewal date, Upgrade (opens the server's https checkout link in a new tab), Manage, Refresh purchase, Sign out, Delete account behind a modal confirm dialog; "Plus not available in this build" when the build has no config; the server price from the plans table.
+- Popup: locked themes carry a small "Plus" mark (part of the radio's label); choosing one opens src/extension/popup/PlusDialog.tsx (what Plus includes, server price, how to cancel, what Free keeps, a primary "Stay on Free"); the setting does not change. My assets: a calm locked line in the popup and in Settings; files stay.
+- Offline, signed out, expired, wrong code, rate limit, unavailable and server errors each have one line in `S.plus` (src/ui/strings.ts).
+- Tests: tests/plus-ui.test.ts (flows, locked states, dialogs, audit of names, labels and modal dialogs), tests/options-tabs.test.ts (ten tabs).
+- Decision: "Manage" shows how to manage or cancel from the payment receipt; there is no customer-portal endpoint because the only shipped provider is the test one. A real provider adds it through the adapter.
