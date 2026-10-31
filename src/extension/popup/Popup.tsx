@@ -31,6 +31,8 @@ import { NO_LAYOUT, makeIntent, readIntent, writeIntent, type IntentStage } from
 import type { AutoState } from "../../core/diag.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
 import { getSite, isAutoOn, originOf, type SiteRecord } from "../sites.ts";
+import { clampThemeId, type PlanFlag } from "../../core/entitlements.ts";
+import { loadPlan } from "../planFlag.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
 
@@ -59,6 +61,8 @@ const badge = (tabId: number, text: string): void => {
 
 export function Popup() {
   const [settings, setSettings] = useState<Settings>(defaultSettings());
+  /** Skinly Plus: the derived plan flag (never a token). Free until read. */
+  const [planFlag, setPlanFlag] = useState<PlanFlag>("free");
   const [view, setView] = useState<View>({ state: "idle" });
   const [showPayload, setShowPayload] = useState(false);
   /** The theme now on the page, ready to keep for the whole site. Only set after a successful apply. */
@@ -120,6 +124,7 @@ export function Popup() {
   useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
   useEffect(() => {
     void loadSettings().then(setSettings).catch(() => recordErrors(["popup-error"]));
+    void loadPlan().then(setPlanFlag);
     void refreshSite().then(checkPendingIntent);
     // The keys the browser really assigned (a suggested key is dropped when something else already uses it).
     void (async () => {
@@ -210,7 +215,7 @@ export function Popup() {
 
   /** The built-in theme the user picked, as a plan: all that is known inside the click, before the page is read. */
   const clickKept = (s: Settings): KeptPlan => {
-    const plan = themeToPlan(resolveTheme(s.theme, prefersDark()));
+    const plan = themeToPlan(clampThemeId(resolveTheme(s.theme, prefersDark()), planFlag));
     return { plan, fingerprint: NO_LAYOUT, provider: "builtin", model: "builtin", look: lookFor(s, sourceForPlan(plan)) };
   };
 

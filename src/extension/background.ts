@@ -5,6 +5,9 @@ import { isBadgeMessage } from "./messages.ts";
 import { reconcile, scriptId } from "./siteActions.ts";
 import { completeIntent, originsOfPatterns, serial } from "./keeper.ts";
 import { INTENT_KEY } from "./intent.ts";
+import { loadPlan } from "./planFlag.ts";
+import { buildConfig } from "../backend/config.ts";
+import { dailyCheck } from "../backend/entitlement.ts";
 
 onMessage((message, senderTabId) => {
   if (message === "ping") return "pong";
@@ -14,6 +17,7 @@ onMessage((message, senderTabId) => {
 
 const deps: CommandDeps = {
   loadSettings,
+  loadPlan,
   // The applier goes into every frame (it stays out of cross-origin ones by itself); the palette is top frame only.
   inject: (tabId, file) => injectFile(tabId, file, file === "applier.js"),
   runApplier: (tabId, method, arg) => runInPage(tabId, method, arg, method === "applyTheme" || method === "restore"),
@@ -31,6 +35,9 @@ const settle = (): void => {
     .catch(() => undefined)
     .then(() => completeIntent("start"))
     .catch(() => undefined);
+  // Skinly Plus: the daily entitlement check (no alarms permission: worker starts are frequent enough). Nothing without a build config.
+  const cfg = buildConfig();
+  if (cfg) void dailyCheck(cfg).catch(() => undefined);
 };
 
 // Every start of the service worker (it is stopped and started many times a day). Idempotent.

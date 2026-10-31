@@ -2,7 +2,7 @@ import { storageGet, storageRemove, storageSet } from "../extension/api.ts";
 import { savePlanRecord, type PlanRecord } from "../extension/planFlag.ts";
 import type { PlanFlag } from "../core/entitlements.ts";
 import { importVerifyKey, verifyEntitlement } from "../../backend/supabase/functions/_shared/token.ts";
-import { currentSession, wipeAccount, type AuthDeps, type Session } from "./auth.ts";
+import { currentSession, loadSession, wipeAccount, type AuthDeps, type Session } from "./auth.ts";
 import type { BackendConfig } from "./config.ts";
 import { backendCall, type BackendError, type BackendResult } from "./http.ts";
 
@@ -77,10 +77,13 @@ export interface AccountState {
   error?: BackendError;
 }
 
-/** Recomputes the plan flag from what is stored (no network). Used on start, offline and after a failed refresh. */
+/**
+ * Recomputes the plan flag from what is stored (no network). Used on start, offline and after a failed refresh. The stored session
+ * only names the user here (an expired access token still says who signed in); the token's own signature and dates decide.
+ */
 export async function recompute(cfg: BackendConfig, deps: AuthDeps = {}): Promise<AccountState> {
   const now = (deps.now ?? Date.now)();
-  const { session } = await currentSession(cfg, { ...deps, online: () => false });
+  const session = await loadSession();
   const cache = await loadCache();
   const rec = await deriveRecord(cfg, cache, session, now);
   await savePlanRecord(rec).catch(() => undefined);
@@ -111,7 +114,7 @@ export async function refreshEntitlement(cfg: BackendConfig, deps: AuthDeps = {}
 export async function dailyCheck(cfg: BackendConfig, deps: AuthDeps = {}): Promise<AccountState> {
   const now = (deps.now ?? Date.now)();
   const cache = await loadCache();
-  const { session } = await currentSession(cfg, { ...deps, online: () => false });
+  const session = await loadSession();
   if (session && (!cache || now - cache.fetchedAt >= DAILY_MS)) return refreshEntitlement(cfg, deps);
   return recompute(cfg, deps);
 }

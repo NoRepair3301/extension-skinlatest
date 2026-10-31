@@ -2,6 +2,7 @@ import { applyFailureMessage, MSG, TOAST } from "../ai/messages.ts";
 import { checkUrl } from "../analyzer/eligibility.ts";
 import type { ActiveTab } from "./api.ts";
 import { petConfig, type Settings } from "./settings.ts";
+import { clampChoice, type PlanFlag } from "../core/entitlements.ts";
 
 export const COMMANDS = ["transform-page", "restore-page", "open-palette", "toggle-blur-page", "toggle-pet"] as const;
 export type CommandName = (typeof COMMANDS)[number];
@@ -10,6 +11,8 @@ export const isCommand = (v: unknown): v is CommandName => typeof v === "string"
 
 export interface CommandDeps {
   loadSettings(): Promise<Settings>;
+  /** B4: the plan flag; a Plus theme choice without Plus applies the nearest free theme. Default plus (tests). */
+  loadPlan?(): Promise<PlanFlag>;
   inject(tabId: number, file: string): Promise<void>;
   runApplier(tabId: number, method: "applyTheme" | "restore" | "syncPet" | "togglePet", arg?: unknown): Promise<unknown>;
   openPalette(tabId: number): Promise<void>;
@@ -79,7 +82,8 @@ export async function handleCommand(deps: CommandDeps, command: CommandName, tab
       }
       return;
     }
-    const r = (await deps.runApplier(tab.id, "applyTheme", settings.theme)) as { ok?: boolean; reason?: string; detail?: string[] } | undefined;
+    const plan: PlanFlag = deps.loadPlan ? await deps.loadPlan().catch((): PlanFlag => "free") : "plus";
+    const r = (await deps.runApplier(tab.id, "applyTheme", clampChoice(settings.theme, plan))) as { ok?: boolean; reason?: string; detail?: string[] } | undefined;
     if (r?.ok) {
       await deps.setBadge(tab.id, "ON");
       await deps.runApplier(tab.id, "syncPet", petConfig(settings));

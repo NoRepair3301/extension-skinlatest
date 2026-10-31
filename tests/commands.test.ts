@@ -63,6 +63,17 @@ describe("commands", () => {
     expect(TOAST.themeApplied).toBe("Skinly: theme applied");
   });
 
+  it("B4: transform-page with a saved Plus theme and no Plus applies the nearest free theme; with Plus the saved one", async () => {
+    const free = make();
+    free.d.loadSettings = async () => ({ ...defaultSettings(), theme: "warm-paper" });
+    await handleCommand({ ...free.d, loadPlan: async () => "free" }, "transform-page", tab(OK));
+    expect(free.calls).toContain("run:applyTheme:calm-light");
+    const plus = make();
+    plus.d.loadSettings = async () => ({ ...defaultSettings(), theme: "warm-paper" });
+    await handleCommand({ ...plus.d, loadPlan: async () => "plus" }, "transform-page", tab(OK));
+    expect(plus.calls).toContain("run:applyTheme:warm-paper");
+  });
+
   it("restore-page restores, clears the badge and toasts 'restored'", async () => {
     const { d, calls } = make();
     await handleCommand(d, "restore-page", tab(OK));

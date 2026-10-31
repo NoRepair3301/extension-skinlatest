@@ -31,6 +31,21 @@ export function validateManifest(m: Record<string, unknown>): string[] {
   return out;
 }
 
+const BACKEND_HOST = /^[a-z0-9-]{3,63}\.supabase\.co$/;
+
+/** True when every JWT-like string in the text is a token whose payload says role "anon" (Supabase's public legacy key). */
+export function onlyAnonJwts(text: string): boolean {
+  for (const m of text.matchAll(/\beyJ[A-Za-z0-9_-]{8,}\.(eyJ[A-Za-z0-9_-]{8,})\.[A-Za-z0-9_-]{8,}/g)) {
+    try {
+      const payload = JSON.parse(atob(m[1]!.replace(/-/g, "+").replace(/_/g, "/"))) as { role?: unknown };
+      if (payload.role !== "anon") return false;
+    } catch {
+      return false;
+    }
+  }
+  return true;
+}
+
 /** Scans one built JS file. Returns rule names found (never the matched text). */
 export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLOWED_URL_HOSTS): string[] {
   const out: string[] = [];
@@ -38,11 +53,18 @@ export function scanBuiltJs(text: string, allowedHosts: readonly string[] = ALLO
   if (/\bnew\s+Function\b/.test(text)) out.push("new Function");
   if (/[A-Za-z]:\\(?:Users|Downloads)\\|\/(?:Users|home)\/[A-Za-z0-9._-]+\//.test(text)) out.push("developer machine path");
   if (/\/\/# sourceMappingURL=/.test(text)) out.push("source map reference");
-  for (const [rule, re] of KEY_PATTERNS) if (re.test(text)) out.push(rule);
+  for (const [rule, re] of KEY_PATTERNS) {
+    if (!re.test(text)) continue;
+    // A Plus build may embed the project's legacy anon key (a public JWT whose role is anon); any other JWT fails.
+    if (rule === "JWT-like string" && onlyAnonJwts(text)) continue;
+    out.push(rule);
+  }
   if (SERVICE_ROLE_RE.test(text)) out.push("service_role");
   for (const m of text.matchAll(/https?:\/\/([^\s/"'`)<>\\:?#]+)[^\s"'`)<>\\]*/gi)) {
     if (NAMESPACE_URL.test(m[0])) continue;
     const host = (m[1] ?? "").toLowerCase();
+    // The Plus client's Supabase project (VITE_SUPABASE_URL, src/backend/config.ts accepts only this shape).
+    if (BACKEND_HOST.test(host)) continue;
     if (!allowedHosts.includes(host)) out.push(`remote URL: ${host}`);
   }
   return out;
