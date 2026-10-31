@@ -33,6 +33,8 @@ const tick = () => new Promise<void>((r) => setTimeout(r, 20));
 beforeEach(() => {
   vi.resetModules();
   store.clear();
+  // these flows predate Skinly Plus: they run as a Plus user (Plus themes and their scenes); the Free clamp is tested in tests/auto.test.ts
+  store.set("plan", { v: 1, plan: "plus", until: Number.MAX_SAFE_INTEGER });
   api.storageGet.mockImplementation(async (k: string) => store.get(k));
   api.storageSet.mockImplementation(async (k: string, v: unknown) => void store.set(k, v));
   api.sendMessage.mockResolvedValue(undefined);

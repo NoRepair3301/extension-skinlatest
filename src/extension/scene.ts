@@ -12,6 +12,8 @@ import { getAsset } from "./assetStore.ts";
 import { siteRequest, type SceneRequest } from "./sceneConfig.ts";
 import { defaultSettings, loadSettings, type Settings } from "./settings.ts";
 import { getSite, isAutoOn, originOf, type SiteRecord } from "./sites.ts";
+import { canUse, clampPlan } from "../core/entitlements.ts";
+import { loadPlan } from "./planFlag.ts";
 
 /** What the popup learns: whether there was room, and what is showing. Fixed words only. */
 export interface SceneStatusReport {
@@ -124,7 +126,10 @@ export function createPageScene(win: Window): PageScene {
       sceneStatus = def ? engine.show({ scene: def, density: now.scene.density, lane: now.scene.lane, gutters: g, accent: now.scene.accent }) : "none";
     } else engine.hide();
     report = { gutters: g.state, scene: sceneStatus, asset: "none" };
-    if (!now.asset || now.asset.assetId === null) {
+    // My assets are a Plus feature: without Plus they stay stored on this device, only hidden.
+    const assetsOk = now.asset && now.asset.assetId !== null ? canUse("assets", await loadPlan()) : false;
+    if (!alive || req !== now) return;
+    if (!now.asset || now.asset.assetId === null || !assetsOk) {
       assets.hide();
       done?.(report);
       return;
@@ -271,7 +276,8 @@ function install(): void {
   const fromSite = async (site: SiteRecord) => {
     try {
       const settings = await loadSettings().catch(() => defaultSettings());
-      const base = requestFromSite(site, settings);
+      // A stored Plus theme on a lapsed account shows the nearest free theme's art (the auto script applies the same clamp).
+      const base = requestFromSite({ ...site, plan: clampPlan(site.plan, await loadPlan()) }, settings);
       if (base) await slot.skinlyScene?.sync(base);
     } catch {
       recordError("auto-art");

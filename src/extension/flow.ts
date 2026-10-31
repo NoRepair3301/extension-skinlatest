@@ -1,3 +1,4 @@
+import { loadPlan } from "./planFlag.ts";
 import { transform, type CallClock, type ConsentRequest, type Outcome, type PageClient, type Step } from "../ai/pipeline.ts";
 import type { RepairPayload } from "../features/repair/payload.ts";
 import { createProviders } from "../providers/index.ts";
@@ -64,6 +65,7 @@ export function runTransform(tabId: number, url: string, hooks: FlowHooks, signa
       askRepairConsent: hooks.askConsent,
       clock: callClock,
       prefersDark: () => globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches === true,
+      loadPlan,
       onStep: hooks.onStep,
     },
     signal,

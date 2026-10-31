@@ -160,7 +160,7 @@ describe("sentence-ending words", () => {
 describe("storage keys (the scanner list)", () => {
   it("lists exactly the keys the extension uses, diag included", async () => {
     const { STORAGE_KEYS } = await import("../scripts/rules.ts");
-    expect([...STORAGE_KEYS].sort()).toEqual(["assets", "auth", "diag", "entitlement", "intent", "keys", "schema", "settings", "sites"]);
+    expect([...STORAGE_KEYS].sort()).toEqual(["assets", "auth", "diag", "entitlement", "intent", "keys", "plan", "schema", "settings", "sites"]);
   });
   it("flags a key constant or a literal storage key that is not on the list, and allows the listed ones", () => {
     expect(hits(SRC, 'const KEY = "tracking";')).toContain("storage key not on the list: tracking");

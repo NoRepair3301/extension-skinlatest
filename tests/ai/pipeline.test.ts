@@ -324,3 +324,28 @@ describe("transform: rate limits", () => {
     expect(out).toMatchObject({ kind: "baseline", why: "ai-unavailable", message: "Rate limit, try again in 32 seconds" });
   });
 });
+
+describe("transform: Skinly Plus gating (B4)", () => {
+  it("without Plus: a Plus baseline is clamped, the AI is told only the free theme ids, and a Plus theme answer becomes the nearest free one", async () => {
+    const h = harness({ settings: { theme: "ocean" } });
+    const out = await transform(URL_OK, { ...h.deps, loadPlan: async () => "free" });
+    expect(h.page.calls[0]).toBe("applyTheme:calm-light");
+    const call = h.mocks.gemini.calls[0]! as { system: string; schema?: { properties: { themeId: { enum: string[] } } } };
+    expect(call.system).not.toMatch(/"ocean"|"warm-paper"|"field"/);
+    expect(call.system).toContain('"calm-light"');
+    expect(call.schema!.properties.themeId.enum).toEqual(["calm-light", "midnight", "high-contrast", "custom"]);
+    expect(h.page.calls).toContain("applyPlan:calm-light");
+    expect(out).toMatchObject({ kind: "preview", plan: { themeId: "calm-light" }, baselineThemeId: "calm-light" });
+  });
+  it("with Plus: nothing is clamped and every theme is offered", async () => {
+    const h = harness({ settings: { theme: "ocean" } });
+    await transform(URL_OK, { ...h.deps, loadPlan: async () => "plus" });
+    expect(h.page.calls).toEqual(["applyTheme:ocean", "analyze", "applyPlan:ocean"]);
+    expect((h.mocks.gemini.calls[0]! as { system: string }).system).toContain('"field"');
+  });
+  it("a plan flag that cannot be read counts as Free", async () => {
+    const h = harness({ settings: { theme: "field" } });
+    await transform(URL_OK, { ...h.deps, loadPlan: () => Promise.reject(new Error("x")) });
+    expect(h.page.calls[0]).toBe("applyTheme:calm-light");
+  });
+});
