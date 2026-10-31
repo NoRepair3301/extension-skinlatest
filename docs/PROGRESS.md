@@ -272,3 +272,8 @@ Branch cut from main after the v0.2.1-rc1 merge.
 - Offline, signed out, expired, wrong code, rate limit, unavailable and server errors each have one line in `S.plus` (src/ui/strings.ts).
 - Tests: tests/plus-ui.test.ts (flows, locked states, dialogs, audit of names, labels and modal dialogs), tests/options-tabs.test.ts (ten tabs).
 - Decision: "Manage" shows how to manage or cancel from the payment receipt; there is no customer-portal endpoint because the only shipped provider is the test one. A real provider adds it through the adapter.
+
+### B6: docs (done)
+- docs/BACKEND_SETUP.md: the owner's steps (project, email OTP with `{{ .Token }}`, `supabase login`, `supabase link`, `supabase db push`, `supabase test db`, keygen, `supabase secrets set --env-file private/backend.secrets.env`, `supabase functions deploy` x5, `.env.local`, rebuild, the test-mode flow) and the production checklist (real provider through the adapter, KYC, webhook URL, refund and cancellation policy, terms, tax, support email, SMTP, key backup).
+- Store privacy text and data-use draft: email, plan status and billing references held by Skinly's backend (Change Directory 510, placeholder); payments by the payment provider; the backend never receives page data, URLs, sites or keys; accounts are optional. tests/release.test.ts holds these claims.
+- QA (P1 to P9), CHANGELOG 0.3.0, ARCHITECTURE (src/backend, entitlements, backend/), README (Free and Plus, honest gating), listing and permissions texts (no new permission; Plus calls go through CORS).

@@ -76,3 +76,16 @@ Edge first (it closes the popup when it shows the permission prompt), then Chrom
 | W7 | Why | On a themed article, "Why not themed here?" says the theme is on. On a paused site it says paused, with the next step. Copy diagnostics has an `auto:` line with no address in it | | |
 | W8 | Print | On a themed article, print preview shows the site's own colours | | |
 | W9 | Restart | Close and reopen the browser and open an article of the kept site: it is themed | | |
+
+## 0.3.0: Skinly Plus (test mode, docs/BACKEND_SETUP.md steps 1 to 8 done first)
+| # | Check | Steps | Edge | Chrome |
+|---|---|---|---|---|
+| P1 | No config | Build without .env.local: Settings, Plan and account says Plus isn't available; Ocean, Warm paper and Field carry the Plus mark; Free themes work offline | | |
+| P2 | Locked theme | Free: choose Ocean in the popup: the dialog shows the server price, how to cancel and Stay on Free; the theme does not change | | |
+| P3 | Sign in | Email, code from the email, signed in; the code email arrives within a minute | | |
+| P4 | Test purchase | Upgrade: a tab says TEST MODE; Refresh purchase: Plus, with a renewal date; the Plus marks are gone | | |
+| P5 | Assets | Plus: My assets works; webhook "expired", Refresh purchase: My assets shows the locked line, the files are still listed after upgrading again | | |
+| P6 | Lapsed site | Keep Ocean on a site while Plus; expire Plus; reload: the site shows Calm light with its art, nothing breaks | | |
+| P7 | Offline | Plus, go offline, restart the browser: still Plus (grace); the settings page says you're offline | | |
+| P8 | Sign out, delete | Sign out: Free, themes and sites still there. Sign in again, Delete account: confirm dialog, then the user is gone from the dashboard | | |
+| P9 | Network tab | During all of the above, requests go only to <ref>.supabase.co and the AI provider; none carries a page address, site or key | | |

@@ -4,6 +4,8 @@ Version: 0.2.1
 Permissions: activeTab, scripting, storage
 Provider hosts: generativelanguage.googleapis.com, api.groq.com
 
+Publisher: Change Directory 510 (placeholder; the owner confirms the legal name).
+
 Skinly AI is not affiliated with any website.
 
 ## What stays on your computer
@@ -19,10 +21,13 @@ Optionally, and only after a second agreement per site, for the parts of a page 
 
 Only when you click "Change my page", have saved a key, and have accepted the consent text, the extension sends a small description of the page's layout (shapes, sizes and colours) to the AI provider you chose. No text, links or forms are sent: not page text, not links, not form values, not images, not URLs, not titles. The extension never sends this on pages with sign-in, payment or file fields, on blocked pages, or without a key. "Show what will be sent" shows the exact content first.
 
-The provider (Google for Gemini, Groq for Groq) receives that description and your key under its own terms and may keep it. We do not run any server and receive nothing.
+The provider (Google for Gemini, Groq for Groq) receives that description and your key under its own terms and may keep it. Skinly's own server never receives it.
+
+## Skinly Plus (optional account)
+Free needs no account and sends nothing to Skinly. If you sign in for Skinly Plus, Skinly's backend (run by Change Directory 510 on Supabase) holds your email address, your plan status and billing references (the payment provider's customer and subscription ids) and nothing else. Sign-in uses a one-time code sent to your email; there is no password. The extension asks the backend for a signed note of your plan at most once a day, or when you choose Refresh purchase. Payments are handled by the payment provider under its own terms; Skinly never sees your card. The backend never receives page data, page summaries, addresses, site names, the list of your sites, your themes, your pictures or your AI keys. On this device the extension keeps your session and that signed note in its storage. Sign out removes them; Delete account in Settings removes your email, plan status and billing references from the backend too.
 
 ## What we do not do
-No analytics, telemetry, accounts, ads, remote code or remote configuration. The extension never logs in, fills in, submits or clicks on your behalf.
+No analytics, telemetry, ads, remote code or remote configuration. Accounts are optional and only for Skinly Plus. The extension never logs in, fills in, submits or clicks on your behalf.
 
 ## Permissions
 - activeTab and scripting: to change the tab you are looking at after you click.
@@ -30,7 +35,7 @@ No analytics, telemetry, accounts, ads, remote code or remote configuration. The
 - Optional host access: the provider host when you save a key, and the current site's origin when you click "Change my page" and allow it, so every page of that site keeps the theme until you choose Restore. You can remove it with "Forget this site" or in your browser's extension settings.
 
 ## Your choices
-Remove a key, forget a site or forget all sites in the options page, use "Erase all Skinly data" under Privacy to wipe everything, or uninstall the extension to delete everything it stored.
+Remove a key, forget a site or forget all sites in the options page, use "Erase all Skinly data" under Privacy to wipe everything on this device, or uninstall the extension to delete everything it stored. For Skinly Plus, Sign out or Delete account under Plan and account.
 
 ## Contact
-To be added by the publisher.
+Change Directory 510 (placeholder). Support email to be added by the publisher.

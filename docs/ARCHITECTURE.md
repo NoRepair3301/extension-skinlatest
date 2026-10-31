@@ -10,7 +10,10 @@ Chromium MV3 extension. TypeScript, Vite, Preact for our own UI only. Permission
 | `src/extension/popup`, `options`, `src/ui` | Our UI (Preact). `src/ui` holds tokens, components, error boundary. Strings are in `src/ui/strings.ts`. |
 | `src/extension/flow.ts`, `src/ai/pipeline.ts` | The click flow: gate, analyse, consent, ask, validate, repair, apply. |
 | `src/analyzer` | Reads the DOM, writes nothing, returns a StructuralSummary (SPEC 4.1). Also the gate (blocklist, password/payment/file inputs). |
-| `src/providers` | The only place with `fetch`, only to hosts in `src/config.ts`. One adapter per provider. |
+| `src/providers` | `fetch` to AI hosts in `src/config.ts` only. One adapter per provider. |
+| `src/backend` | Skinly Plus client (0.3.0): the other place with `fetch`, only to the Supabase project from the build env. Email-code auth (`auth`), the signed entitlement (`entitlement`), offers, checkout, delete account. Never imported by a page script. |
+| `src/core/entitlements.ts`, `src/extension/planFlag.ts` | Tier config (`TIERS`, `canUse`, clamp to the nearest free theme) and the derived `plan` flag, which page scripts read instead of tokens. |
+| `backend/supabase` | Migrations with RLS, pgTAP RLS test, Edge Functions. All logic lives in pure modules under `functions/_shared`, tested with Vitest; each `index.ts` is one `Deno.serve` line. docs/SECURITY_BACKEND.md is the threat model. |
 | `src/plan` | StylePlan schema, validator, contrast checks and repair, CSS compiler (fixed templates). |
 | `src/themes` | Six built-in themes and Auto. |
 | `src/extension/applier*.ts`, `observer.ts` | Page scripts: apply tokens and our stylesheet, rollback ledger, invariants, fingerprint. `applier-auto` is registered per site after opt-in. |
@@ -24,6 +27,12 @@ user click -> popup -> flow -> analyzer (page, read only) -> StructuralSummary
    -> consent text + "Show what will be sent" -> provider adapter (fetch) -> reply
    -> validator -> StylePlan (or repair, or built-in theme) -> compiler (fixed templates)
    -> applier in the page (ledger, invariants) -> Restore removes it all
+
+Skinly Plus (optional, no page data):
+options page -> src/backend -> Supabase Auth (email code) -> session in `auth`
+   -> get-entitlement (signed Ed25519 token, 3 days) -> verified with the build's public key -> `entitlement`
+   -> derived flag `plan` {free|plus, until} -> popup, pipeline, commands, auto script, scene script clamp Plus themes and hide assets
+payment provider -> billing-webhook (signature, replay window, idempotent) -> entitlements row
 ```
 
 ## Where the AI can and cannot reach

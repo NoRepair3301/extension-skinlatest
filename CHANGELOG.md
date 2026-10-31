@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 (rc1)
+- Skinly Plus, optional and paid: Ocean, Warm paper and Field themes with their scenes, and My assets. Free keeps Calm light, Midnight, High contrast, Auto, all pets, readability repair, your own AI key and per-site memory, with no account.
+- Settings, Plan and account: sign in with an email code (no passwords), see your plan and renewal date, Upgrade, Manage, Refresh purchase, Sign out, Delete account.
+- Locked themes carry a small Plus mark. Choosing one opens a calm dialog with the server's price, how to cancel and a plain "Stay on Free".
+- A lapsed Plus never breaks a page: a saved Plus theme shows as the nearest free theme, and your files stay on the device, hidden.
+- The AI is told only the themes you can use (prompt version 6).
+- Backend (Supabase): RLS on every table, a signed 3-day entitlement token with a 7-day offline grace, webhooks that are signature-checked, replay-protected and idempotent, and a test-mode-only billing provider. The backend never receives page data, URLs, sites or keys.
+- Scanner: refuses payment, webhook and service keys, JWT-like strings and private keys anywhere in the repo or the build.
+
 ## 0.2.1 (rc1)
 - The theme stays on every page of a site until Restore. Edge closes the popup when it shows the permission prompt, which used to stop the popup's own saving and registering. The popup now only records what you asked for and asks for the permission. The background finishes the job (saves the site, sets up every page of it and themes the open tab), also after a browser or extension restart.
 - Restore pauses the site: the popup shows "Paused on this site" with Resume. Change my page also resumes it.
