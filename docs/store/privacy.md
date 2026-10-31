@@ -1,6 +1,6 @@
 # Privacy policy (draft; the human hosts it at a public URL)
 
-Version: 0.2.1
+Version: 0.3.0
 Permissions: activeTab, scripting, storage
 Provider hosts: generativelanguage.googleapis.com, api.groq.com
 
