@@ -118,6 +118,10 @@ describe("privacy text matches the product", () => {
   it("claims nothing the extension does not do", () => {
     for (const forbidden of ["analytics enabled", "we collect", "sell your data"]) expect(privacy.toLowerCase()).not.toContain(forbidden);
     expect(Object.keys(pkg.dependencies)).toEqual(["preact"]);
-    expect(privacy).toContain("No analytics, telemetry, accounts, ads, remote code or remote configuration");
+    expect(privacy).toContain("No analytics, telemetry, ads, remote code or remote configuration");
+    // Skinly Plus (0.3.0): what the backend holds, and what it never receives
+    expect(privacy).toContain("holds your email address, your plan status and billing references");
+    expect(privacy).toContain("never receives page data, page summaries, addresses, site names, the list of your sites, your themes, your pictures or your AI keys");
+    expect(doc("data-use.md")).toContain("The backend never receives page data, URLs, origins, site lists or keys");
   });
 });

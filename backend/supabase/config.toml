@@ -1,0 +1,17 @@
+# Function settings only; `supabase link` fills in the project. See docs/BACKEND_SETUP.md.
+[functions.get-entitlement]
+verify_jwt = true
+
+[functions.create-checkout]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+# Webhooks come from the payment provider without a user JWT; the signature is checked in code.
+[functions.billing-webhook]
+verify_jwt = false
+
+# Test mode only (refused unless BILLING_MODE=test); the test checkout page calls it without a user JWT.
+[functions.test-checkout]
+verify_jwt = false

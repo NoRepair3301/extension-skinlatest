@@ -1,9 +1,10 @@
 # Data-use disclosure (draft for the store form; the human re-checks the current form)
 
-- Personally identifiable information: not collected.
-- Health, financial, authentication, personal communications, location, web history: not collected.
+- Personally identifiable information: only for the optional Skinly Plus account: the email address used to sign in, held by Skinly's backend (Change Directory 510, on Supabase) with the plan status and billing references. Free collects none.
+- Financial and payment information: handled by the payment provider; Skinly's backend keeps only the provider's customer and subscription references, never card details.
+- Health, personal communications, location, web history: not collected. Authentication: a one-time email code; the session stays in extension storage on the device.
 - User activity and website content: a layout-only summary of the current page is sent to the AI provider the user chose, only after the user clicks "Change my page" and accepts the consent text. The summary has shapes, sizes, colours, font family names and counts. It has no text, links, ids, images, form values, URLs or page titles, and is at most 20 KB. Without a key and consent nothing is sent.
 - Website content (optional, separate consent per site): colour details of parts that look unreadable after restyling are sent to the same provider: tag names, up to three class names, computed colours, contrast numbers and colour declarations from the page's own stylesheets, at most 40 elements and 6 KB. No text, links, ids, form values, URLs or titles.
 - Stored locally only: settings, the user's keys, remembered themes by site origin, a pending permission request (origin, tab number, theme; at most 5 minutes), diagnostics made of fixed words, and images or videos the user adds (never uploaded, never sent to a provider). Never page text, titles or full URLs.
-- Not sold, not used for unrelated purposes, not used for creditworthiness or lending. No analytics or remote configuration.
+- Not sold, not used for unrelated purposes, not used for creditworthiness or lending. No analytics or remote configuration. The backend never receives page data, URLs, origins, site lists or keys.
 - Provider terms apply to what the provider receives; they may keep it. Free tiers may use content to improve their products (the consent text says so).

@@ -9,6 +9,7 @@ Optional host permissions: https://*/*, http://*/* (requested one origin at a ti
 - Optional host permissions, why and when:
   - The provider host (generativelanguage.googleapis.com or api.groq.com): requested when the user saves a key for that provider, so the extension can send the layout description to the provider they picked.
   - The visited site's origin (that origin only: scheme, host and port): requested when the user clicks "Change my page", so the chosen theme stays on every page of that one site until Restore. If the user says no, the theme stays on the current page only. "Forget this site" removes it, and Restore pauses the site without removing it.
+- Skinly Plus (optional) needs no extra permission: the settings page and the background call Skinly's own backend (a Supabase project), which answers the extension's origin through CORS. Nothing page-related is sent there.
 - Commands (keyboard shortcuts) is a manifest key, not a permission.
 
 Not requested: tabs, cookies, history, webRequest, downloads, notifications, static host permissions, content scripts in the manifest.

@@ -190,6 +190,34 @@ describe("applier-auto", () => {
     expect(t.doc.querySelector("[data-skinly-ui]")).toBeNull();
   });
 
+  it("B4: a stored Plus theme on a lapsed account applies as the nearest free theme, with its layouts; never a broken page", async () => {
+    const t = setup();
+    const seen: string[] = [];
+    const done = runAuto({ ...t.deps, readPlan: async () => "free", onApplied: (s) => void seen.push(s.plan.themeId) });
+    await tick();
+    expect(t.doc.documentElement.getAttribute("data-skinly")).toBe("on");
+    t.fire();
+    expect(await done).toBe("full");
+    expect(seen).toEqual(["calm-light"]);
+    expect(t.tagged()).toBe(1);
+    // with Plus the stored theme stays
+    const p = setup();
+    const kept: string[] = [];
+    const d2 = runAuto({ ...p.deps, readPlan: async () => "plus", onApplied: (s) => void kept.push(s.plan.themeId) });
+    await tick();
+    p.fire();
+    await d2;
+    expect(kept).toEqual(["ocean"]);
+    // an unreadable flag counts as Free
+    const q = setup();
+    const third: string[] = [];
+    const d3 = runAuto({ ...q.deps, readPlan: () => Promise.reject(new Error("x")), onApplied: (s) => void third.push(s.plan.themeId) });
+    await tick();
+    q.fire();
+    await d3;
+    expect(third).toEqual(["calm-light"]);
+  });
+
   it("an invalid stored plan applies nothing", async () => {
     const bad = { ...setup().site.plan, css: "a{}" } as never;
     const t = setup({ site: { plan: bad } });
@@ -257,11 +285,11 @@ describe("auto path import graph", () => {
     expect(files).not.toContain("src/extension/flow.ts");
   });
 
-  it("no page script (applier, auto, scene, palette) can reach the keys, the intent or the keeper (A3 pass 2)", () => {
+  it("no page script (applier, auto, scene, palette) can reach the keys, the intent, the keeper or the Plus session client (A3 pass 2, B1)", () => {
     for (const entry of ["applier.ts", "applier-auto.ts", "scene.ts", "palette.ts"]) {
       const files = [...graph(`src/extension/${entry}`)];
       for (const f of ["src/extension/keys.ts", "src/extension/intent.ts", "src/extension/keeper.ts", "src/extension/popup/Popup.tsx"]) expect(files, `${entry} -> ${f}`).not.toContain(f);
-      for (const f of files) expect(f, f).not.toMatch(/src\/(providers|ai)\//);
+      for (const f of files) expect(f, f).not.toMatch(/src\/(providers|ai|backend)\//);
     }
   });
 });

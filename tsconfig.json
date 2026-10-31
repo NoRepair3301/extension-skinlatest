@@ -19,5 +19,5 @@
     "jsxImportSource": "preact",
     "types": ["chrome"]
   },
-  "include": ["src", "scripts", "tests", "types", "vite.config.ts", "eslint.config.js"]
+  "include": ["src", "scripts", "tests", "types", "backend/supabase/functions", "vite.config.ts", "eslint.config.js"]
 }

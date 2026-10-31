@@ -18,7 +18,8 @@ import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/r
 import type { ErrorKind, Provider } from "../providers/types.ts";
 import { resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
 import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG, rateLimited } from "./messages.ts";
-import { buildUserMessage, SYSTEM_PROMPT } from "./prompt.ts";
+import { buildUserMessage, styleSchema, systemPrompt } from "./prompt.ts";
+import { clampPlan, clampThemeId, entitledThemes, type PlanFlag } from "../core/entitlements.ts";
 
 /** The page side, reached through scripting. Implemented in src/extension/flow.ts; faked in tests. */
 export interface PageClient {
@@ -58,6 +59,8 @@ export interface PipelineDeps {
   clock: CallClock;
   /** For the "auto" theme: does the browser prefer a dark colour scheme? Default no. */
   prefersDark?(): boolean;
+  /** The plan flag (src/extension/planFlag.ts). Plus-only themes are clamped and never offered to the AI without Plus. Default plus (tests). */
+  loadPlan?(): Promise<PlanFlag>;
   onStep?(step: Step, detail?: string): void;
   now?(): number;
   today?(): string;
@@ -109,7 +112,8 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   const elig = checkUrl(url, settings.blocklist);
   if (!elig.allowed) return { kind: "blocked", reason: elig.reason, message: blockedMessage(elig.reason) };
 
-  const baselineId = resolveTheme(settings.theme, deps.prefersDark?.() ?? false);
+  const plan: PlanFlag = deps.loadPlan ? await deps.loadPlan().catch((): PlanFlag => "free") : "plus";
+  const baselineId = clampThemeId(resolveTheme(settings.theme, deps.prefersDark?.() ?? false), plan);
   /** Set once the page was analysed: the built-in theme as a plan, so the popup can offer to keep it. */
   const known: { plan?: StylePlan; fingerprint?: Fingerprint } = {};
   let fixCount = 0;
@@ -157,13 +161,14 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
   let coloursAdjusted = false;
   let rejectedBg: unknown;
   const entries: ProviderEntry[] = order.map((id) => ({ provider: deps.providers[id], model: current.models[id], overallMs: PROVIDER_TIMEOUTS[id].overallMs }));
-  const result = await generate({ system: SYSTEM_PROMPT, user: payload }, entries, {
+  const result = await generate({ system: systemPrompt(entitledThemes(plan)), user: payload, schema: styleSchema(entitledThemes(plan)) }, entries, {
     budgetMs: Math.max(1000, (deps.budgetMs ?? PIPELINE_BUDGET_MS) - (now() - started)),
     ...(signal ? { signal } : {}),
     validate: (json) => {
       const checked = checkPlan(json, summary);
       if (checked.ok) {
-        validPlan = checked.plan;
+        // A Plus-only theme without Plus becomes the nearest free one (its layouts stay).
+        validPlan = clampPlan(checked.plan, plan);
         coloursAdjusted = checked.repaired;
         return null;
       }
@@ -222,7 +227,7 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
     if (kind === "auth") return { kind: "error", errorKind: "auth", message: authFailed(PROVIDER_NAMES[result.providerId ?? order[0]!]), themeId: baselineId };
     if (kind === "bad-output") {
       step("applying");
-      const id = nearestTheme(summary, rejectedBg);
+      const id = clampThemeId(nearestTheme(summary, rejectedBg), plan);
       const r = await deps.page.applyTheme(id);
       if (!r?.ok) return baseline("apply-failed", aiApplyFailureMessage(r));
       return { kind: "preview", source: "fallback", fixes: r.repairs, plan: themeToPlan(id, summary), baselineThemeId: baselineId, fingerprint: analysis.fingerprint, message: MSG.fallbackTheme };

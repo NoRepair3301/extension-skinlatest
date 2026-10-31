@@ -76,3 +76,23 @@ describe("validateDist", () => {
     expect(validateDist("node_modules/.skinly-no-such-dist")).toEqual(["dist/manifest.json is missing"]);
   });
 });
+
+describe("scanBuiltJs secrets (B1)", () => {
+  it("flags backend secrets and the service role name in built files", () => {
+    expect(scanBuiltJs(`const r = "${["service", "role"].join("_")}"`, [])).toContain("service_role");
+    expect(scanBuiltJs(`const w = "${["whsec", "MfKQ9r8GKYqrTwjUPD8ILPZ"].join("_")}"`, [])).toContain("secret-like string (whsec_)");
+    expect(scanBuiltJs(`const k = "${["-----BEGIN", "PRIVATE", "KEY-----"].join(" ")}"`, [])).toContain("private key");
+  });
+});
+
+describe("scanBuiltJs and a Plus build (B4)", () => {
+  const b64 = (o: unknown) => btoa(JSON.stringify(o)).replace(/=+$/, "").replace(/\+/g, "-").replace(/\//g, "_");
+  it("accepts the project's supabase.co host and a legacy anon key, and still refuses any other JWT", () => {
+    expect(scanBuiltJs('fetch("https://abcdefghijklmnopqrst.supabase.co/auth/v1/otp")', [])).toEqual([]);
+    expect(scanBuiltJs('fetch("https://supabase.co.evil.example/x")', [])).toEqual(["remote URL: supabase.co.evil.example"]);
+    const anon = [b64({ alg: "HS256", typ: "JWT" }), b64({ iss: "supabase", role: "anon", ref: "abcdefghijklmnopqrst" }), "c2lnbmF0dXJlLXBhcnQ"].join(".");
+    expect(scanBuiltJs(`const k = "${anon}"`, [])).toEqual([]);
+    const other = [b64({ alg: "HS256", typ: "JWT" }), b64({ iss: "supabase", role: "authenticated" }), "c2lnbmF0dXJlLXBhcnQ"].join(".");
+    expect(scanBuiltJs(`const k = "${anon}"; const j = "${other}"`, [])).toContain("JWT-like string");
+  });
+});

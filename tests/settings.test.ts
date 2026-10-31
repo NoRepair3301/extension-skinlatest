@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { canUse } from "../src/core/entitlements.ts";
+import { canUse, clampChoice, clampPlan, clampThemeId, entitledThemes } from "../src/core/entitlements.ts";
+import { themeToPlan } from "../src/plan/themeToPlan.ts";
 import { callsOn, defaultSettings, parseSettings } from "../src/extension/settings.ts";
 
 describe("parseSettings", () => {
@@ -28,10 +29,33 @@ describe("provider settings", () => {
   });
 });
 
-describe("entitlements", () => {
-  it("unlocks everything on the free plan", () => {
-    expect(canUse("themes")).toBe(true);
-    expect(canUse("anything-else")).toBe(true);
+describe("entitlements (B4: one config, docs/PLUS_SPEC.md 1)", () => {
+  it("Free: calm light, midnight, high contrast; Plus adds ocean, warm paper, field and custom assets", () => {
+    for (const id of ["calm-light", "midnight", "high-contrast"] as const) expect(canUse(`theme:${id}`, "free")).toBe(true);
+    for (const id of ["ocean", "warm-paper", "field"] as const) {
+      expect(canUse(`theme:${id}`, "free")).toBe(false);
+      expect(canUse(`theme:${id}`, "plus")).toBe(true);
+    }
+    expect(canUse("assets", "free")).toBe(false);
+    expect(canUse("assets", "plus")).toBe(true);
+    expect(entitledThemes("free")).toEqual(["calm-light", "midnight", "high-contrast"]);
+    expect(entitledThemes("plus")).toHaveLength(6);
+  });
+  it("a Plus theme without Plus goes to the nearest free one; layouts and strategy stay; custom AI tokens stay", () => {
+    expect(clampThemeId("ocean", "free")).toBe("calm-light");
+    expect(clampThemeId("warm-paper", "free")).toBe("calm-light");
+    expect(clampThemeId("field", "free")).toBe("calm-light");
+    expect(clampThemeId("ocean", "plus")).toBe("ocean");
+    expect(clampChoice("auto", "free")).toBe("auto");
+    const ocean = { ...themeToPlan("ocean"), strategy: "full" as const, regionRules: [{ region: "r1", layout: "stack" as const, surface: "card" as const, spacing: 2 }] };
+    const clamped = clampPlan(ocean, "free");
+    expect(clamped.themeId).toBe("calm-light");
+    expect(clamped.tokens).toEqual(themeToPlan("calm-light").tokens);
+    expect(clamped.regionRules).toEqual(ocean.regionRules);
+    expect(clamped.strategy).toBe("full");
+    expect(clampPlan(ocean, "plus")).toBe(ocean);
+    const custom = { ...themeToPlan("ocean"), themeId: "custom" as const };
+    expect(clampPlan(custom, "free")).toBe(custom);
   });
 });
 

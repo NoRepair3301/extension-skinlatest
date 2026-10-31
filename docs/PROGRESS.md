@@ -234,3 +234,57 @@ Full task text is in prompt-launch.txt (the starting message was cut off inside 
 - Stage results: A1 PASS, A2 PASS, A3 PASS, A4 PASS. UNVERIFIED (no browser here): the real Edge prompt closing the popup, onAdded timing in a real service worker, runtime.getContexts in Edge, print preview, the look of the paused popup.
 - This entry is written last on fix/launch-1; the branch is then merged into main with --no-ff and the merge is tagged v0.2.1-rc1 (no direct commit on main).
 PART A COMPLETE
+
+## feat/plus (v0.3.0-rc1)
+Branch cut from main after the v0.2.1-rc1 merge.
+
+### B1: spec and rules (done)
+- docs/PLUS_SPEC.md (plans, flows, data held, billing, honesty about gating, build config, company placeholder), docs/SECURITY_BACKEND.md (forged webhook, replay, out-of-order, token theft, spoofing, RLS bypass, service role leak, abuse, CORS, PII in logs, deletion, test billing in production).
+- CLAUDE.md rules 6, 9, architecture and git updated; SPEC 1, 12 and new 18; AUDIT C6, C9 and new C15.
+- Scanner (scripts/rules.ts): fetch allowed in src/providers/ and src/backend/; storage keys `auth` and `entitlement`; secret patterns (sk_live_/rk_live_, rzp_live/test_, whsec_, JWT-like, private keys) in every scanned file and in dist (validate-dist imports the same list); `service_role` refused in src/ and dist; the real-tree scan includes backend/. Page scripts may not import src/backend/ (tests/auto.test.ts). Tests: tests/rules.test.ts, tests/build.test.ts.
+- Decision: tier logic stays in src/core/entitlements.ts (CLAUDE.md names that file and it exists); the prompt's "src/plan/entitlements.ts" is read as that file.
+- .gitignore keeps `.env.example` files.
+
+### B2: backend schema (done)
+- backend/supabase/migrations/20261031000000_plus.sql: profiles, plans, entitlements, billing_events (no payload column). RLS enabled and forced on every table. Select-only policies: own profile, own entitlement, active plans; none for billing_events; insert, update and delete revoked from anon and authenticated (only the service role writes, inside functions). A trigger makes a profile per new auth user (no PII copied).
+- backend/supabase/tests/database/rls.test.sql (pgTAP, run with `supabase test db`; not run here, no database). tests/backend/migrations.test.ts holds the migration to those rules statically.
+- docs/backend/supabase.md: every endpoint, header and command used, with the supabase.com/docs page it came from; PostgREST write syntax and the RLS test role switch are marked CONVENTION (not shown on supabase.com/docs).
+
+### B3: functions (done)
+- Pure modules in backend/supabase/functions/_shared (no Deno API): b64, token (Ed25519, 3-day tokens, strict verify), http (CORS from ALLOWED_ORIGINS, generic errors, logger with an event word and request id only, constant-time compare), ratelimit (fixed window per user, bounded memory), billing (adapter interface, TEST provider with HMAC signature, 5-minute replay window, strict event parse; refused unless BILLING_MODE=test), state (transitions activated, renewed, cancelled, expired, refunded; stale events ignored), rest (Db over plain fetch), handlers (the five functions), deps (environment). Each function's index.ts is one Deno.serve line.
+- scripts/gen-entitlement-keys.mjs writes the private key to private/backend.secrets.env and prints only the public key. .env.example and backend/.env.example hold names only.
+- Tests: tests/backend/token.test.ts (sign, verify, tamper, wrong key, kid, alg, lifetime), webhook.test.ts (forged, replay, idempotent, strict parse), billing.test.ts (transitions, test mode only, checkout from the plans table, test checkout single use), http.test.ts (CORS, validation, crash is generic, logger, rate limit, delete-account, REST request shapes).
+- Decision: the scanner also refuses `sb_secret_` keys (Supabase's new secret key format).
+
+### B4: extension client (done)
+- src/backend/: config.ts (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_ENTITLEMENT_PUBKEY; anything missing or malformed means "Plus not available in this build" and no network), http.ts (the one fetch, 15 s timeout, offline check, fixed error kinds, tokens in headers only), auth.ts (email OTP: /auth/v1/otp, /auth/v1/verify, refresh before expiry with one refresh at a time, sign-out wipes `auth`, `entitlement` and sets the flag to Free), entitlement.ts (get-entitlement, WebCrypto Ed25519 verify against the build key, cache in `entitlement`, 7-day offline grace, foreign or tampered tokens are Free, daily check, offers from the plans table, checkout link must be https, delete account).
+- src/core/entitlements.ts is now real: one config (`TIERS`), `canUse(feature, plan)`, `entitledThemes`, `clampThemeId`, `clampChoice`, `clampPlan` (nearest free theme, layouts kept, custom tokens untouched).
+- The derived flag `plan` (src/extension/planFlag.ts: `{v, plan, until}`, no token) is the only Plus data page scripts read. Scanner list gains `plan`.
+- Clamp points: pipeline (baseline, AI answer, fallback; the prompt and schema list only entitled theme ids; PROMPT_VERSION 6), popup click plan, keyboard command, auto script (also on in-page navigation), scene script (art follows the clamped theme; My assets hidden without Plus, never deleted). Background: daily check on worker start.
+- validate-dist accepts the project's `*.supabase.co` host and a legacy anon JWT (role anon) in a Plus build; any other JWT still fails. vitest reads no env files (`envDir: tests/no-env`), so tests never see .env.local.
+- Tests: tests/backend-client/client.test.ts, tests/settings.test.ts "entitlements", tests/ai/pipeline.test.ts "Skinly Plus gating", tests/auto.test.ts "B4", tests/scene-page.test.ts "B4", tests/commands.test.ts "B4", tests/build.test.ts "Plus build".
+- Decision: a third storage key `plan` was added (the task names `auth` and `entitlement`): page scripts must read a flag, and reading `entitlement` would hand them the token.
+- Decision: the daily check runs on service-worker start (no alarms permission; no new permission allowed).
+
+### B5: UI (done)
+- Settings tab "Plan and account" (src/extension/options/PlanAccount.tsx): email, code entry, status line per state, renewal date, Upgrade (opens the server's https checkout link in a new tab), Manage, Refresh purchase, Sign out, Delete account behind a modal confirm dialog; "Plus not available in this build" when the build has no config; the server price from the plans table.
+- Popup: locked themes carry a small "Plus" mark (part of the radio's label); choosing one opens src/extension/popup/PlusDialog.tsx (what Plus includes, server price, how to cancel, what Free keeps, a primary "Stay on Free"); the setting does not change. My assets: a calm locked line in the popup and in Settings; files stay.
+- Offline, signed out, expired, wrong code, rate limit, unavailable and server errors each have one line in `S.plus` (src/ui/strings.ts).
+- Tests: tests/plus-ui.test.ts (flows, locked states, dialogs, audit of names, labels and modal dialogs), tests/options-tabs.test.ts (ten tabs).
+- Decision: "Manage" shows how to manage or cancel from the payment receipt; there is no customer-portal endpoint because the only shipped provider is the test one. A real provider adds it through the adapter.
+
+### B6: docs (done)
+- docs/BACKEND_SETUP.md: the owner's steps (project, email OTP with `{{ .Token }}`, `supabase login`, `supabase link`, `supabase db push`, `supabase test db`, keygen, `supabase secrets set --env-file private/backend.secrets.env`, `supabase functions deploy` x5, `.env.local`, rebuild, the test-mode flow) and the production checklist (real provider through the adapter, KYC, webhook URL, refund and cancellation policy, terms, tax, support email, SMTP, key backup).
+- Store privacy text and data-use draft: email, plan status and billing references held by Skinly's backend (Change Directory 510, placeholder); payments by the payment provider; the backend never receives page data, URLs, sites or keys; accounts are optional. tests/release.test.ts holds these claims.
+- QA (P1 to P9), CHANGELOG 0.3.0, ARCHITECTURE (src/backend, entitlements, backend/), README (Free and Plus, honest gating), listing and permissions texts (no new permission; Plus calls go through CORS).
+
+### B7: final checks (done)
+- Version 0.3.0 in package.json, manifest.json, listing.md, privacy.md and QA.md (tests/release.test.ts green).
+- AUDIT, run here: C1 PASS (the skip/only/xit/xdescribe grep over src, tests and backend gives no output). C2 PASS (only `.focus(` hits, all on our own palette input, pet, tabs and dialog). C3, C4, C5, C8 PASS (unchanged payload, validator, applier and gate tests are green inside the 1325). C6 and C15 PASS (the secret grep over src, tests, fixtures, backend and dist for AIza, gsk_, xai-, sk-, sk_live_, rzp_, whsec_, BEGIN PRIVATE KEY and sb_secret_ gives no output; `service_role` in src and dist gives no output; tracked env-like files are only `.env.example`, `backend/.env.example` (names only) and `types/env.d.ts`). C7 PASS (`{"p":["activeTab","scripting","storage"],"o":["https://*/*","http://*/*"],"v":"0.3.0"}`; no host_permissions, no content_scripts, no new permission). C9 PASS (no fetch outside src/providers and src/backend; no XHR, WebSocket, sendBeacon, eval, new Function or innerHTML). C10 PASS (no `chrome.` outside api.ts). C11 PASS (synthetic addresses on reserved example domains only). C12 PASS ("84 files changed, 3422 insertions(+), 81 deletions(-)", all named by B1 to B7; dependencies still `preact` only). C13 PASS (`@types/chrome, eslint, jsdom, typescript, typescript-eslint, vite, vitest`). C14 PASS (each B item maps to the tests named in B1 to B6). C15 PASS: RLS on every table with select-only policies (tests/backend/migrations.test.ts; pgTAP file for `supabase test db`), constant-time webhook check with replay window and idempotency (tests/backend/webhook.test.ts), test billing refused outside BILLING_MODE=test (tests/backend/billing.test.ts).
+- Git history: `git log -p --all` grep for live/test payment keys, webhook secrets, private keys, sb_secret_ and AI keys counts 0; added JWT-like lines count 0.
+- Fresh clone (C:/Users/Ashutosh Tanguria/AppData/Local/Temp/skinly-fresh-030-20261031054929, kept): `npm ci` ok, `npm run check` "Test Files 88 passed (88), Tests 1325 passed (1325)", validate-dist ok, contrast ok (6 themes). `npm run release` produced release/skinly-ai-0.3.0.zip with 20 entries, all dist files.
+- Budgets (gzip): popup.js 16.3 KB of 60, applier.js 29.1 KB of 50, applier-auto.js 7.4 KB of 20, scene.js 76.6 KB minified of 150. validate-dist ok.
+- Stage results: B1 PASS, B2 PASS (SQL not run here), B3 PASS, B4 PASS, B5 PASS, B6 PASS, B7 PASS.
+- UNVERIFIED (no browser, no live Supabase, no real payment): the real email OTP and the verify response shape; the PostgREST write conventions (docs/backend/supabase.md, CONVENTION); RLS in a real database (`supabase test db`); CORS from the extension origin to Auth, REST and functions; Ed25519 WebCrypto in the user's browser (Chromium 137 or later; older ones count as Free); the test checkout page; the look of the new screens.
+- This entry is written last on feat/plus; the branch is then merged into main with --no-ff and the merge is tagged v0.3.0-rc1.
+ALL DONE

@@ -44,6 +44,8 @@ beforeEach(async () => {
   hooks = [];
   wide = false;
   store.clear();
+  // pictures are a Plus feature (B4); these cases run as a Plus user, the Free case is below
+  store.set("plan", { v: 1, plan: "plus", until: Number.MAX_SAFE_INTEGER });
   api.storageGet.mockImplementation(async (k: string) => store.get(k));
   api.storageSet.mockImplementation(async (k: string, v: unknown) => void store.set(k, v));
   vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
@@ -127,6 +129,16 @@ describe("scene.js page script", () => {
     const r = await slot.skinlyScene!.sync({ scene: null, asset: { ...defaultPlacement(), assetId: "0a1b2c3d" }, fallback: null });
     expect(r.asset).toBe("shown");
     expect(document.querySelector('[data-skinly-scene="asset"]')).not.toBeNull();
+  });
+
+  it("B4: without Plus a saved picture stays stored but is not shown; the scene still shows", async () => {
+    store.set("plan", { v: 1, plan: "free", until: 0 });
+    store.set("assets", [asset]);
+    const r = await slot.skinlyScene!.sync({ scene: scene(), asset: { ...defaultPlacement(), assetId: "0a1b2c3d" }, fallback: null });
+    expect(r.asset).toBe("none");
+    expect(r.scene).toBe("shown");
+    expect(document.querySelector('[data-skinly-scene="asset"]')).toBeNull();
+    expect(store.get("assets")).toEqual([asset]);
   });
 
   it("a deleted or corrupt picture is reported missing and nothing breaks", async () => {

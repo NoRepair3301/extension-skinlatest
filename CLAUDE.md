@@ -1,5 +1,5 @@
 # Skinly AI (working name): rules for Claude Code
-Chromium MV3 extension: the user clicks "Change my page"; a local analyser builds a small structural summary; the AI provider the user chose returns a style plan (JSON); we validate it, compile the CSS ourselves and apply it. Free plan only. Source of truth: docs/SPEC.md.
+Chromium MV3 extension: the user clicks "Change my page"; a local analyser builds a small structural summary; the AI provider the user chose returns a style plan (JSON); we validate it, compile the CSS ourselves and apply it. Free plan plus the optional Skinly Plus (docs/PLUS_SPEC.md, backend in backend/). Source of truth: docs/SPEC.md.
 
 ## Session
 - Read only this file, docs/SPEC.md and docs/PHASE_<n>.md (plus docs/providers/*.md when the phase says so).
@@ -20,20 +20,20 @@ Tests are unit tests, the rule scanner, validate-dist and the contrast script. N
 3. AI output is untrusted. Only a validated StylePlan or ValidRepairPlan is used; CSS comes from our fixed templates and the structural repair rules (colour and background-color, hex values) of src/plan/readability.ts. Never apply AI-written CSS, selectors or code. No eval, new Function, innerHTML, remote code or remote config.
 4. Never break the site: no deleting, cloning, reordering or hiding original nodes; no changes to forms, hrefs or handlers. Only data-skinly-* attributes and our stylesheet. Every change is in the rollback ledger and Restore removes all of it. Sole exceptions: user-clicked table sort and filter in P8.
 5. Fail safe: an error in the apply itself, or a structural invariant that fails, leaves the page as it was (or at the built-in theme) with a short message. Readability is never a reason to refuse or roll back a theme: unreadable parts are repaired or keep the site's own colours. Never hide the page while waiting.
-6. Keys live only in storage.local under "keys". Never log them, put them in URLs, the repo or dist. The developer key lives only in .env.local (gitignored), read only by scripts/.
+6. Keys live only in storage.local under "keys"; the Plus session only under "auth" and the signed entitlement only under "entitlement". Never log them, put them in URLs, errors, the repo or dist, and never hand them to content scripts or pages (the auto script reads only a derived plan flag). The developer key lives only in .env.local (gitignored), read only by scripts/. Backend secrets (service role, signing private key, webhook secret) live only in private/ (gitignored) and Supabase function secrets.
 7. Permissions: activeTab, scripting, storage, plus optional_host_permissions requested per origin from a user click. Never static host_permissions, <all_urls>, content_scripts in the manifest, tabs, cookies, history, webRequest, downloads or notifications.
 8. Never run on browser-internal pages, web stores or PDF viewers. Honour the blocklist. No AI call on pages with password, payment or file inputs.
-9. No telemetry, analytics or remote config. fetch() only in src/providers/, only to hosts allowlisted in src/config.ts.
+9. No telemetry, analytics or remote config. fetch() only in src/providers/ (hosts allowlisted in src/config.ts) and src/backend/ (the Supabase project URL from the build env). The backend never receives page data, URLs, origins, site lists or keys.
 10. Our UI never imitates the visited site or an official body and says it is not affiliated with any website. Assets: original procedural SVG/CSS only; system font stacks only.
 11. Never store page text, titles, full URLs or query strings. Per-site data is keyed by origin only.
 
 ## Architecture
 - Scene art follows the theme and is drawn only in measured empty space: the side gutters, or with none, one small corner strip (at most 120 by 160 px, the least covered corner), always pointer-events none, never over content.
-- All tier logic only in src/core/entitlements.ts (free plan: everything unlocked). No backend, accounts or payments.
+- All tier logic and the Free/Plus lists only in src/core/entitlements.ts (`canUse`). Accounts are optional (email code, no passwords); billing only through the adapter in backend/supabase/functions/_shared/billing.ts (test provider only, refused unless BILLING_MODE=test). Extension gating is a convenience; the signed entitlement is the enforcement.
 - One module each for Restore/rollback, invariants and fingerprint. No duplicates.
 - src/features/* take selectors and models as parameters and never mention specific site names.
 - Plans reference regions by id (rN) that we tag; never by class name.
 
 ## Git
 - Run `npm run check` before every commit; commit each green step as `phase<n>: <step>`. Never commit to main or force-push.
-- Never commit .env*, private/, keys, dist/ or real personal data. Fixtures come only from public pages without login and are scrubbed.
+- Never commit .env* (except .env.example with names only), private/, keys, dist/ or real personal data. Fixtures come only from public pages without login and are scrubbed. The scanner refuses service_role, sk_live, rzp_, whsec_, JWT-like strings and private keys in src, tests, scripts, docs, backend and dist.

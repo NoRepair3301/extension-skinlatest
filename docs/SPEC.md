@@ -4,7 +4,7 @@ Chromium MV3 extension. The user opens any website and clicks "Change my page". 
 If this file and a phase doc disagree, this file wins. Items marked UNSURE must not be guessed: stop and ask.
 
 ## 1. Non-goals (this version)
-No backend, accounts, payments, Plus/Pro tiers, Firefox build, shared API key, telemetry, remote config, e2e or browser-automation tests, rebuilding page DOM, form handling, login handling, screenshots sent anywhere.
+No cloud sync, hosted AI, Pro tier, Firefox build, shared API key, telemetry, remote config, e2e or browser-automation tests, rebuilding page DOM, form handling, login handling, screenshots sent anywhere.
 
 ## 2. User flow
 1. User clicks the toolbar button (or a keyboard command). Chrome grants `activeTab` for that tab only.
@@ -123,7 +123,7 @@ calm-light (default), midnight, ocean, warm-paper, high-contrast, field (olive, 
 - Footer in popup: "Skinly AI is not affiliated with any website."
 
 ## 12. Entitlements
-src/core/entitlements.ts is the only place with tier logic. Free plan: `canUse(feature)` returns true for everything. Plus and Pro are not built.
+src/core/entitlements.ts is the only place with tier logic and the Free/Plus lists (v0.3.0, docs/PLUS_SPEC.md). `canUse(feature)` answers from a derived plan flag (`free` or `plus`) that src/backend/ computes from a verified, signed entitlement. Free: calm-light, midnight, high-contrast, Auto, five pets, the scenes of those themes, readability repair, own AI key, per-site memory. Plus: ocean, warm-paper, field with their scenes, and custom assets. Not entitled: a Plus theme is clamped to the nearest free one (popup, AI validator, auto script); local assets are hidden, never deleted.
 
 ## 13. Features after the core
 Pet (P6), palette and shortcuts (P7), blur, safe screenshot and table tools (P8). All live in src/features and take selectors and models as parameters (no site-specific code). Exceptions to "never reorder or hide original nodes": user-clicked table sort and filter in P8, with a Restore order control.
@@ -148,3 +148,6 @@ Pet (P6), palette and shortcuts (P7), blur, safe screenshot and table tools (P8)
 - Re-applying a theme (or the auto script's second apply) keeps the pet, scene and blur; only a real Restore runs their removal hooks.
 - Persistence (rc5): "Change my page" asks for the visited origin's optional host permission first, inside the click and before any other await (one browser prompt, none if already granted), then applies; once the theme is on it saves the plan and the repair rules (colour-only structural CSS, at most 10 KB, parsed strictly on every read) with the site and registers the auto script. Denied: the theme applies for this document only and the popup says so in one line; a "Keep on this site" button asks again. The auto script applies the stored plan and repair rules at document_start with no provider call and re-applies after in-page navigation.
 - Restore (rc5): always works. With a ledger it undoes exactly what it recorded; without one (fresh script instance, navigated page) it removes everything carrying our markers (our adopted sheets, `data-skinly-ui` and `data-skinly-scene` hosts, `data-skinly*` attributes) and nothing else. Restore also pauses automatic theming for the site (record kept, script unregistered) until the user applies again. Forget removes record, registration and permission.
+
+## 18. Skinly Plus (v0.3.0, owner decisions)
+docs/PLUS_SPEC.md is the source of truth for plans, flows and the data the backend holds; docs/SECURITY_BACKEND.md is the threat model. In short: accounts optional (email OTP), price from the server `plans` table, billing through an adapter with only a test provider (refused unless BILLING_MODE=test), no cloud sync, hosted AI or telemetry, the backend never receives page data, URLs, origins, site lists or keys. Storage adds `auth` (session) and `entitlement` (signed token cache, 7-day offline grace). fetch() is allowed in src/providers/ and src/backend/ only. Missing build config means "Plus not available in this build" and Free works as before.
