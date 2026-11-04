@@ -1,8 +1,8 @@
 import type { Tokens } from "../plan/schema.ts";
 import type { Theme } from "../themes/index.ts";
 import { isDark } from "../plan/contrast.ts";
-import { normalizeCssColor, parseRgb, toHex } from "./color.ts";
-import { makeTransform, type ColorTransformer, type NativeLook, type Role } from "./transform.ts";
+import { parseRgb, toHex } from "./color.ts";
+import { makeTransform, type NativeLook, type Role } from "./transform.ts";
 
 export interface EngineInstance {
   apply(): void;
@@ -51,6 +51,12 @@ const OBSERVER_OPTS: MutationObserverInit = {
 
 const COLOR_ATTR_RE = /color|background|border|outline|fill|stroke|^--/i;
 const GRADIENT_COLOR_RE = /rgba?\([^)]+\)|hsla?\([^)]+\)|#(?:[0-9a-fA-F]{3,8})\b/gi;
+
+interface PropRecord {
+  o: string; // original inline value ("" if the property had none)
+  p: string; // original priority ("" or "important")
+  m: string; // value the engine wrote
+}
 
 interface ElementRecord {
   origStyle: string | null;

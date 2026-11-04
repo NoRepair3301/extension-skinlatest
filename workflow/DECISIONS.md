@@ -16,3 +16,4 @@
 
 ## Log
 - 2026-11-04 S0.2: gate.mjs runs tools via `process.execPath <bin>` (no shell); vitest JSON goes to os.tmpdir(), never the repo. Output capped at 40 lines unless `--full`.
+- 2026-11-04 S1.1: PropRecord fields are plain string (put() always assigns strings, m starts ""); module-private. Dropped unused normalizeCssColor/ColorTransformer imports from dom.ts only.
