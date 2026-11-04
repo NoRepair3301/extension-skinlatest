@@ -4,7 +4,7 @@
  * and every data-skinly attribute. Nothing else on the page is touched.
  */
 const OUR_SHEET = /data-skinly/;
-const ATTRS = ["data-skinly", "data-skinly-r", "data-skinly-table", "data-skinly-sort", "data-skinly-share", "data-skinly-hide", "data-skinly-found", "data-skinly-cover", "data-skinly-blur"];
+const ATTRS = ["data-skinly", "data-skinly-engine", "data-skinly-r", "data-skinly-table", "data-skinly-sort", "data-skinly-share", "data-skinly-hide", "data-skinly-found", "data-skinly-cover", "data-skinly-blur"];
 
 const isOurSheet = (s: CSSStyleSheet): boolean => {
   try {

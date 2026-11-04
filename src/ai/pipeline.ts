@@ -16,7 +16,7 @@ import { validatePlan, type StylePlan } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
 import type { ErrorKind, Provider } from "../providers/types.ts";
-import { resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
+import { isBuiltinThemeId, resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
 import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG, rateLimited } from "./messages.ts";
 import { buildUserMessage, styleSchema, systemPrompt } from "./prompt.ts";
 import { clampPlan, clampThemeId, entitledThemes, type PlanFlag } from "../core/entitlements.ts";
@@ -243,6 +243,6 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
     await deps.page.applyTheme(baselineId);
     return baseline("apply-failed", aiApplyFailureMessage(shown));
   }
-  const extra = await aiRepair(shown);
-  return { kind: "preview", source: "ai", plan: validPlan, fixes: shown.repairs + extra, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model, ...(coloursAdjusted ? { message: MSG.coloursAdjusted } : {}) };
+
+  return { kind: "preview", source: "ai", plan: validPlan, fixes: shown.repairs, baselineThemeId: baselineId, fingerprint: analysis.fingerprint, providerId: result.providerId, model: result.model, ...(coloursAdjusted ? { message: MSG.coloursAdjusted } : {}) };
 }
