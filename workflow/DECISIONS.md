@@ -15,3 +15,4 @@
 | D11 | A zero-dependency real-browser harness (Node built-ins + raw Chrome DevTools Protocol, Chrome is installed) is allowed as a dev tool outside `npm run check`. It overrides the legacy "NO e2e" rule only for that harness. If the owner rejects it, skip S7.1 and S7.2 (mark `SKIPPED`). |
 
 ## Log
+- 2026-11-04 S0.2: gate.mjs runs tools via `process.execPath <bin>` (no shell); vitest JSON goes to os.tmpdir(), never the repo. Output capped at 40 lines unless `--full`.

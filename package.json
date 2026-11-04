@@ -14,7 +14,8 @@
     "check": "npm run typecheck --silent && npm run lint --silent && npm run test --silent && npm run build --silent && npm run validate-dist --silent && npm run contrast --silent",
     "release": "npm run build --silent && node scripts/release.ts",
     "bakeoff": "node scripts/bakeoff.ts",
-    "preview": "node scripts/preview.ts"
+    "preview": "node scripts/preview.ts",
+    "gate": "node scripts/gate.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",
