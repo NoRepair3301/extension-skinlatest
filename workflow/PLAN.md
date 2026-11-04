@@ -5,7 +5,7 @@
 | S0.1 | Bootstrap workspace | Sonnet 5.5 / medium | DONE | 2026-11-04 |
 | S0.2 | Gate tooling and baseline | Sonnet 5.5 / medium | DONE | 2026-11-04 |
 | S1.1 | T1: PropRecord and unused imports (tsc 0) | Haiku 5.5 / low | DONE | 2026-11-04 |
-| S1.2 | T4/D6: remove aiRepair layer (eslint 0) | Sonnet 5.5 / high | TODO | |
+| S1.2 | T4/D6: remove aiRepair layer (eslint 0) | Sonnet 5.5 / high | DONE | 2026-11-04 |
 | S2.1 | Ledger and guarded per-prop reset | Opus 5.5 / high | TODO | |
 | S2.2 | Refresh path without whole-attribute reset | Opus 5.5 / high | TODO | |
 | S2.3 | Fresh-instance restore (D4) | Opus 5.5 / high | TODO | |

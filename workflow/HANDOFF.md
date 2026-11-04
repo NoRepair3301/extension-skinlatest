@@ -1,30 +1,43 @@
-# HANDOFF — S1.1 PropRecord and unused imports (tsc 0)
-Status: DONE     Date: 2026-11-04     Model/effort used: Haiku 5.5 / low (per owner)
-## What changed
-- src/engine/dom.ts — added non-exported `interface PropRecord { o: string; p: string; m: string }` before ElementRecord (+7 lines incl. comments)
-- src/engine/dom.ts — import from ./color.ts drops `normalizeCssColor`; import from ./transform.ts drops `type ColorTransformer`
-- diff: 8 insertions, 2 deletions (`git diff --ignore-cr-at-eol`). No runtime change; put()/reset() untouched.
-- workflow/PLAN.md, LOG.md, DECISIONS.md, HANDOFF.md — session close
+# HANDOFF — S1.2 Remove the dead aiRepair layer (T4, D6)
+Status: DONE     Date: 2026-11-04     Model/effort used: Sonnet 5.5 / high (per prompt)
+## What changed (git diff --ignore-cr-at-eol: 13 files, +13 / -202)
+- src/ai/pipeline.ts — deleted aiRepair closure; dropped repairPayload/applyRepair from PageClient, "repairing" from Step, ConsentRequest.purpose, PipelineDeps.askRepairConsent; removed unused imports (isBuiltinThemeId, RepairPayload, originOf, validateRepair, repair.ts, REPAIR_CONSENT_VERSION); fixed checkPlan doc comment
+- src/ai/repair.ts — DELETED (REPAIR_SCHEMA/SYSTEM, buildRepairMessage, repairConsentText, REPAIR_PROMPT_VERSION)
+- src/ai/messages.ts — removed repairConsentText re-export
+- src/config.ts — removed REPAIR_CONSENT_VERSION
+- src/extension/applier-core.ts — removed repairPayload/applyRepair stubs + RepairPayload import
+- src/extension/flow.ts — removed repairPayload/applyRepair client methods, askRepairConsent wiring, RepairPayload import
+- src/extension/api.ts — PageMethod drops "repairPayload" | "applyRepair" (applier.ts had no references)
+- src/extension/settings.ts — removed repairConsent field, default and parser block
+- src/extension/popup/Popup.tsx — consent view always uses consentText; STAGE_OF drops repairing
+- src/extension/options/Options.tsx — removed repair note + "Withdraw readability agreement" button from Privacy card
+- src/ui/strings.ts — removed steps.repairing, options.repairNote, options.repairWithdraw
+- tests/repair.test.ts, tests/options-tabs.test.ts — see tests below
+## Inventory (symbol -> files, before edits)
+aiRepair: pipeline.ts. REPAIR_SYSTEM/REPAIR_SCHEMA: ai/repair.ts, pipeline.ts, tests/repair.test.ts. repairPayload/applyRepair: pipeline.ts, applier-core.ts, flow.ts, api.ts, tests/repair.test.ts. repairConsent: pipeline.ts, settings.ts, Options.tsx, tests/repair.test.ts, tests/options-tabs.test.ts. "repairing": pipeline.ts (only emitter: step("repairing") inside aiRepair), strings.ts, Popup.tsx. 11 src files, no protected zones.
 ## Gate results
-Pre-edit: tsc 1 (dom.ts(57,25) TS2304 PropRecord); eslint 4 (pipeline.ts:19,187; dom.ts:4,5). Matches BASELINE.md.
-Post-edit: tsc 0 errors; eslint 2 errors (both src/ai/pipeline.ts: isBuiltinThemeId:19, aiRepair:187 — S1.2 scope);
-vitest full: 1324 pass / 19 fail / 1343 tests in 91 files; failing set diff-identical to workflow/BASELINE_FAILURES.txt (no new failures, none newly passing).
-`--only vitest --tests tests/engine`: 18 pass / 0 fail — GREEN.
-Overall gate: RED (expected: eslint 2 + 19 vitest failures belong to S1.2 / S2.x / S3.x).
-## Decisions made
-- PropRecord fields are plain `string`: put() assigns getPropertyValue/getPropertyPriority (always string, "" when absent) and `m` is "" before being set to a string. No need for `string | null`.
-- No new type exports; PropRecord stays module-private (nothing else imports it).
+tsc 0 errors; eslint 0 errors; vitest 1321 pass / 18 fail / 1339 tests in 91 files.
+Failing set = BASELINE_FAILURES.txt minus "AI repair in the flow asks only after consent..." and nothing new. Overall gate RED as expected (legacy/restore/guard failures belong to Stages 2-3).
+## Tests deleted / adapted
+- tests/repair.test.ts "AI repair in the flow" describe: BOTH tests deleted (prompt named only the first, a baseline failure). The second ("makes no repair request without consent...") passed before but only drives askRepairConsent/repairPayload/applyRepair, which no longer exist (would not type-check). Net: 24 -> 21 tests (-1 flow, -1 flow2, -1 prompt/schema).
+- tests/repair.test.ts "the prompt tells the model to ignore instructions ... gives a schema": deleted, tests REPAIR_SYSTEM/SCHEMA (file removed).
+- tests/repair.test.ts payload tests: adapted, buildRepairMessage(x) -> JSON.stringify(x) (identical behaviour, assertions unchanged); unused imports dropped.
+- tests/options-tabs.test.ts "Privacy: withdrawing the readability agreement ...": deleted, UI removed.
+## Decisions made (also in DECISIONS.md)
+- D6 recorded. repairConsent and ConsentRequest.purpose removed with no schema bump; parseSettings starts from defaults and reads known keys only, so stored old field is ignored (verified by reading it) and dropped on next save.
+- "repairing" removed: only aiRepair emitted it.
 ## Out-of-scope touches
 None.
-## Bugs found / notes
-- normalizeCssColor is still exported from src/engine/color.ts and still used by src/engine/transform.ts:40 (2 importers in src+tests: dom.ts import removed, transform.ts remains). Export is NOT unused — no action needed.
-- ColorTransformer is still exported from src/engine/transform.ts and used by transform.ts itself (makeTransform return type). Not unused.
-- Git warns "LF will be replaced by CRLF" for dom.ts on the working copy; diff is clean with --ignore-cr-at-eol. Left untouched.
+## Left on purpose (for S3.3)
+- src/plan/repair.ts (still used by pipeline checkPlan), src/plan/readability.ts (validateRepair/compileRepair: now importers are tests/repair.test.ts only; parseRepairCss etc. still used elsewhere), src/features/repair/payload.ts (now only importer: tests/repair.test.ts; src importers gone), repairCss/seedCss in sites.ts, PageMethod "repairRules" (still used by Popup.tsx:388).
+## Bugs found
+None new.
+## Docs still mentioning aiRepair / repair consent (for S4.5)
+specs.md, STAGES.md, docs/SPEC.md, docs/PROGRESS.md, docs/AUDIT.md, CLAUDE.legacy.md. Also strings.ts freeIncludes says "readability repair" (deterministic, left).
 ## Owner manual checks
-None required (type-only + unused import removal; engine tests green). Optional: `npm run build` should still succeed.
+Build, load unpacked. With a provider key: "Change my page" on an ordinary page, confirm consent, generate, apply, preview, and no second (readability) consent prompt. Without a key: picking a theme + "Change my page" still reaches the consent/permission step with no errors. Settings > Privacy no longer shows the readability agreement.
 ## Suggested commit message
-fix(engine): declare PropRecord and drop unused imports (S1.1)
+refactor(ai): remove dead aiRepair layer (S1.2)
 
-Co-Authored-By: Claude Haiku 5.5 <noreply@anthropic.com>
-## Next substage: S1.2 — preconditions it relies on from this session
-tsc clean (0 errors) and eslint showing only the two src/ai/pipeline.ts errors (isBuiltinThemeId, aiRepair). Vitest failing set unchanged from BASELINE_FAILURES.txt.
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+## Next substage: S2.1 — relies on tsc 0 and eslint 0 (both now true); vitest failing set = 18 baseline failures.

@@ -394,10 +394,6 @@ export function Options() {
             <p class="note">{T.privacy.keys}</p>
             <p class="note">{T.privacy.local}</p>
             <p class="note">{T.privacy.sent}</p>
-            <p class="note">{S.options.repairNote}</p>
-            <div class="row">
-              <Button disabled={Object.keys(settings.repairConsent).length === 0} onClick={() => update({ ...settings, repairConsent: {} })}>{S.options.repairWithdraw} ({Object.keys(settings.repairConsent).length})</Button>
-            </div>
           </Card>
           <Card title={S.options.eraseTitle}>
             <p class="note">{T.privacy.eraseNote}</p>

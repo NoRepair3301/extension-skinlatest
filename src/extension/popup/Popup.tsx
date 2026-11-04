@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { applyUiTheme } from "../../ui/theme.ts";
 import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { S } from "../../ui/strings.ts";
-import { MSG, applyFailureMessage, consentText, repairConsentText } from "../../ai/messages.ts";
+import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, resolveTheme, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
@@ -579,7 +579,7 @@ export function Popup() {
 
       {view.state === "consent" && (
         <section aria-label={S.popup.consentLabel} class="consent">
-          <p>{(view.req.purpose === "repair" ? repairConsentText : consentText)(view.req.providerNames.join(" or "))}</p>
+          <p>{consentText(view.req.providerNames.join(" or "))}</p>
           <div class="row">
             <Button kind="primary" onClick={() => answer(true)}>{S.popup.send}</Button>
             <Button onClick={cancel}>{S.popup.cancel}</Button>
@@ -652,7 +652,7 @@ function keptRecord(k: KeptPlan, previous: SiteRecord | undefined): SiteRecord {
 }
 
 /** Which of the three visible stages each step belongs to: Reading the page, Checking readability, Applying. */
-const STAGE_OF: Record<Step, number> = { checking: 0, analysing: 0, consent: 1, asking: 1, repairing: 1, baseline: 2, applying: 2 };
+const STAGE_OF: Record<Step, number> = { checking: 0, analysing: 0, consent: 1, asking: 1, baseline: 2, applying: 2 };
 
 const themeName = (id: string): string => THEMES.find((t) => t.id === id)?.name ?? S.popup.yourTheme;
 

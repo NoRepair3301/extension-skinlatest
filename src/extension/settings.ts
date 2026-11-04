@@ -57,8 +57,6 @@ export interface Settings {
   aiCallsToday: { date: string; count: number };
   /** Set once the user accepts the consent text; asked again when CONSENT_VERSION changes. */
   consent: { version: number; acceptedAt: string } | null;
-  /** Second consent (colour details of unreadable parts), per origin. Revocable in Settings, Privacy. Origins only. */
-  repairConsent: Record<string, { version: number; acceptedAt: string }>;
   pet: PetSettings;
   scene: SceneSettings;
   /** Which saved picture or video to show, and how (Phase 10). Only an id: the file lives under the `assets` key. */
@@ -78,7 +76,6 @@ export const defaultSettings = (): Settings => ({
   models: { ...DEFAULT_MODELS },
   aiCallsToday: { date: "", count: 0 },
   consent: null,
-  repairConsent: {},
   pet: { enabled: false, kind: "fox", size: "medium", corner: "bottom-right", motion: "still", direction: "bounce", edge: "bottom", speed: "normal", sleepWhenIdle: false, keepInFreeSpace: true, edgeFallback: true, disabledOrigins: [] },
   scene: { enabled: true, choice: "theme", density: "normal", lane: "both" },
   asset: defaultPlacement(),
@@ -119,13 +116,6 @@ export function parseSettings(raw: unknown): Settings {
     const { version, acceptedAt } = consent as Record<string, unknown>;
     if (typeof version === "number" && Number.isInteger(version) && version >= 0 && typeof acceptedAt === "string" && acceptedAt.length <= 40) {
       out.consent = { version, acceptedAt };
-    }
-  }
-  const rc = r["repairConsent"];
-  if (typeof rc === "object" && rc !== null && !Array.isArray(rc)) {
-    for (const [origin, v] of Object.entries(rc as Record<string, unknown>).slice(0, 200)) {
-      const { version, acceptedAt } = (v ?? {}) as Record<string, unknown>;
-      if (/^https?:\/\/[^/?#]+$/.test(origin) && typeof version === "number" && Number.isInteger(version) && typeof acceptedAt === "string" && acceptedAt.length <= 40) out.repairConsent[origin] = { version, acceptedAt };
     }
   }
   const pet = r["pet"];

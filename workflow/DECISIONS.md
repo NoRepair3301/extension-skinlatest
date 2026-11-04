@@ -17,3 +17,5 @@
 ## Log
 - 2026-11-04 S0.2: gate.mjs runs tools via `process.execPath <bin>` (no shell); vitest JSON goes to os.tmpdir(), never the repo. Output capped at 40 lines unless `--full`.
 - 2026-11-04 S1.1: PropRecord fields are plain string (put() always assigns strings, m starts ""); module-private. Dropped unused normalizeCssColor/ColorTransformer imports from dom.ts only.
+- 2026-11-04 S1.2 | D6 | aiRepair removed | The engine enforces contrast per element through `makeTransform` (invariant I10), and `applier-core.ts` already stubbed `repairPayload()` and `applyRepair()` (returning nothing), so the AI repair pass could no longer change a page; keeping it would only add a second consent prompt and a provider call with zero effect.
+- 2026-11-04 S1.2: `repairConsent` settings field and `ConsentRequest.purpose` removed outright (no schema bump, no migration); `parseSettings` builds from defaults and reads only known keys, so old stored `repairConsent` is ignored and dropped on next save.

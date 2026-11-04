@@ -64,6 +64,4 @@ export const consentText = (provider: string): string =>
 /** Every configured provider is rate limited and told us how long to wait (more than the 5 s we are willing to sleep). */
 export const rateLimited = (retryAfterMs: number): string => S.fail.rate(Math.min(3600, Math.max(1, Math.ceil(retryAfterMs / 1000))));
 
-export { repairConsentText } from "./repair.ts";
-
 export const blockedMessage = (_reason: BlockReason): string => MSG.blocked;

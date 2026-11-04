@@ -1,12 +1,8 @@
 import { checkUrl } from "../analyzer/eligibility.ts";
 import { decideGate } from "../analyzer/gate.ts";
-import { CONSENT_VERSION, REPAIR_CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, PROVIDER_TIMEOUTS, type ProviderId } from "../config.ts";
+import { CONSENT_VERSION, DAILY_AI_CALLS, MIN_CALL_GAP_MS, PROVIDER_NAMES, PROVIDER_TIMEOUTS, type ProviderId } from "../config.ts";
 import type { BlockReason, Fingerprint, StructuralSummary } from "../core/types.ts";
 import { debug } from "../core/log.ts";
-import type { RepairPayload } from "../features/repair/payload.ts";
-import { originOf } from "../extension/origin.ts";
-import { validateRepair } from "../plan/readability.ts";
-import { buildRepairMessage, REPAIR_SCHEMA, REPAIR_SYSTEM } from "./repair.ts";
 import type { ApplyResult, PageAnalysis } from "../extension/applier-core.ts";
 import { callsOn, type Settings } from "../extension/settings.ts";
 import { contrastFailures } from "../plan/contrast.ts";
@@ -16,7 +12,7 @@ import { validatePlan, type StylePlan } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { generate, PIPELINE_BUDGET_MS, type ProviderEntry } from "../providers/registry.ts";
 import type { ErrorKind, Provider } from "../providers/types.ts";
-import { isBuiltinThemeId, resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
+import { resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
 import { aiApplyFailureMessage, applyFailureMessage, authFailed, blockedMessage, busy, MSG, rateLimited } from "./messages.ts";
 import { buildUserMessage, styleSchema, systemPrompt } from "./prompt.ts";
 import { clampPlan, clampThemeId, entitledThemes, type PlanFlag } from "../core/entitlements.ts";
@@ -27,16 +23,11 @@ export interface PageClient {
   applyTheme(id: BuiltinThemeId): Promise<ApplyResult | undefined>;
   applyPlan(plan: StylePlan): Promise<ApplyResult | undefined>;
   restore(): Promise<void>;
-  /** Optional: the sanitised description of the parts that needed repair, and the way to apply the AI's answer. */
-  repairPayload?(): Promise<RepairPayload | undefined>;
-  applyRepair?(json: unknown): Promise<{ ok: boolean; applied: number } | undefined>;
 }
 
-export type Step = "checking" | "baseline" | "analysing" | "consent" | "asking" | "applying" | "repairing";
+export type Step = "checking" | "baseline" | "analysing" | "consent" | "asking" | "applying";
 
 export interface ConsentRequest {
-  /** layout: the page summary (default). repair: colour details of unreadable parts. */
-  purpose?: "layout" | "repair";
   providerNames: string[];
   /** The exact JSON that would be sent. Shown read-only. */
   payload: string;
@@ -54,8 +45,6 @@ export interface PipelineDeps {
   saveSettings(s: Settings): Promise<void>;
   keyStatus(): Promise<Record<ProviderId, boolean>>;
   askConsent(req: ConsentRequest): Promise<boolean>;
-  /** Second consent, asked once per site (REPAIR_CONSENT_VERSION). Without it no repair request is made. */
-  askRepairConsent?(req: ConsentRequest): Promise<boolean>;
   clock: CallClock;
   /** For the "auto" theme: does the browser prefer a dark colour scheme? Default no. */
   prefersDark?(): boolean;
@@ -80,8 +69,8 @@ export type PlanCheck = { ok: true; plan: StylePlan; repaired: boolean } | { ok:
 
 /**
  * Validator (schema, eligibility) then contrast targets. A plan whose colours miss a target is first repaired by nudging
- * its foreground colours (src/plan/repair.ts); only when that cannot work are reason codes returned, which lead to the
- * repair request and then the nearest built-in theme. Reason codes are paths only and never contain plan values.
+ * its foreground colours (src/plan/repair.ts); only when the plan is invalid are reason codes returned, which lead to
+ * the nearest built-in theme. Reason codes are paths only and never contain plan values.
  */
 export function checkPlan(json: unknown, summary: StructuralSummary): PlanCheck {
   const v = validatePlan(json, summary);
@@ -179,47 +168,6 @@ export async function transform(url: string, deps: PipelineDeps, signal?: AbortS
       if (kind === "rate" || kind === "quota") deps.onStep?.("asking", busy(PROVIDER_NAMES[from], PROVIDER_NAMES[next]));
     },
   });
-
-  /**
-   * Optional second pass: when the deterministic repair touched more than a quarter of the sampled text, the AI may suggest colours
-   * for those parts (after its own consent, once per site). Any problem keeps the deterministic result. One attempt only.
-   */
-  const aiRepair = async (stats: { repairs: number; samples: number }): Promise<number> => {
-    const page = deps.page;
-    if (!page.repairPayload || !page.applyRepair || stats.samples === 0 || stats.repairs / stats.samples <= 0.25 || signal?.aborted) return 0;
-    try {
-      const payload = await page.repairPayload();
-      const origin = originOf(url);
-      if (!payload || payload.elements.length === 0 || !origin) return 0;
-      const text = buildRepairMessage(payload);
-      if (current.repairConsent[origin]?.version !== REPAIR_CONSENT_VERSION) {
-        if (!deps.askRepairConsent) return 0;
-        step("consent");
-        const ok = await deps.askRepairConsent({ purpose: "repair", providerNames: order.map((id) => PROVIDER_NAMES[id]), payload: text });
-        if (!ok) return 0;
-        current = { ...current, repairConsent: { ...current.repairConsent, [origin]: { version: REPAIR_CONSENT_VERSION, acceptedAt: new Date(now()).toISOString() } } };
-        await deps.saveSettings(current);
-      }
-      if (signal?.aborted) return 0;
-      const day = today();
-      current = { ...current, aiCallsToday: { date: day, count: callsOn(current, day) + 1 } };
-      await deps.saveSettings(current);
-      step("repairing");
-      const bgs = payload.elements.map((e) => e.bg);
-      const fixed = await generate({ system: REPAIR_SYSTEM, user: text, schema: REPAIR_SCHEMA }, entries, {
-        budgetMs: Math.max(1000, (deps.budgetMs ?? PIPELINE_BUDGET_MS) - (now() - started)),
-        ...(signal ? { signal } : {}),
-        validate: (json) => {
-          const v = validateRepair(json, bgs);
-          return v.ok ? null : v.errors.slice(0, 10).map((e) => e.split(":")[0] ?? "plan");
-        },
-      });
-      if (!fixed.ok) return 0;
-      return (await page.applyRepair(fixed.json))?.applied ?? 0;
-    } catch {
-      return 0;
-    }
-  };
 
   if (!result.ok) {
     const kind = result.error.kind;

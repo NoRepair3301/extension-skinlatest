@@ -7,7 +7,6 @@ import { validatePlan, type Strategy, type StylePlan, type Tokens } from "../pla
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { DEFAULT_THEME_ID, getTheme, isBuiltinThemeId, isThemeChoice, resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
 import { createColorEngine, type EngineInstance, type EngineOptions } from "../engine/index.ts";
-import type { RepairPayload } from "../features/repair/payload.ts";
 import type { GuardProvider } from "../plan/guard.ts";
 
 export interface StyleHandle {
@@ -182,12 +181,6 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     isActive: (): boolean => activeEngine !== undefined && activeEngine.isActive(),
     shownTheme: (): { themeId: string; strategy: Strategy } | undefined => (activeEngine?.isActive() ? shown : undefined),
     repairStats: (): RepairStats => ({ samples: activeEngine?.modifiedCount() ?? 0, repairs: repairSheetHandle ? 1 : 0, failing: 0 }),
-    repairPayload(): RepairPayload | undefined {
-      return undefined;
-    },
-    applyRepair(_input: unknown): { ok: boolean; applied: number } {
-      return { ok: false, applied: 0 };
-    },
   };
 }
 

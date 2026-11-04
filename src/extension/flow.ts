@@ -1,6 +1,5 @@
 import { loadPlan } from "./planFlag.ts";
 import { transform, type CallClock, type ConsentRequest, type Outcome, type PageClient, type Step } from "../ai/pipeline.ts";
-import type { RepairPayload } from "../features/repair/payload.ts";
 import { createProviders } from "../providers/index.ts";
 import type { ApplyResult, PageAnalysis } from "./applier-core.ts";
 import { runInPage } from "./api.ts";
@@ -30,14 +29,6 @@ export function createPageClient(tabId: number): PageClient {
       await ready();
       return runInPage<ApplyResult>(tabId, "apply", plan, true);
     },
-    repairPayload: async () => {
-      await ready();
-      return runInPage<RepairPayload>(tabId, "repairPayload");
-    },
-    applyRepair: async (json) => {
-      await ready();
-      return runInPage<{ ok: boolean; applied: number }>(tabId, "applyRepair", json);
-    },
     restore: async () => {
       await runInPage(tabId, "restore", undefined, true);
     },
@@ -62,7 +53,6 @@ export function runTransform(tabId: number, url: string, hooks: FlowHooks, signa
       saveSettings,
       keyStatus,
       askConsent: hooks.askConsent,
-      askRepairConsent: hooks.askConsent,
       clock: callClock,
       prefersDark: () => globalThis.matchMedia?.("(prefers-color-scheme: dark)").matches === true,
       loadPlan,
