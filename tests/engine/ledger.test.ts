@@ -167,3 +167,83 @@ describe("engine ledger and guarded restore", () => {
     expect(decls(el)).toEqual({ color: ["red", "important"], width: ["10px", ""] });
   });
 });
+
+describe("engine original style text (D12)", () => {
+  it("I2: restore is byte-exact for legacy un-normalised inline styles", () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><head></head><body style="background-color:#336699" background="tile.gif">
+      <div id="t" style="background:#336699;padding:4px"><span style="background-color:yellow">x</span></div></body></html>`);
+    const doc = dom.window.document;
+    const before = doc.documentElement.outerHTML;
+    const engine = createColorEngine(doc, midnight);
+    engine.apply();
+    const el = doc.getElementById("t")!;
+    expect(el.hasAttribute("data-skinly-engine")).toBe(true);
+    expect(el.getAttribute("style")).not.toBe("background:#336699;padding:4px");
+    engine.restore();
+    expect(doc.documentElement.outerHTML).toBe(before);
+  });
+
+  it("I4: a page change blocks the text restore and survives", () => {
+    const { engine, el } = setup(`<div id="t" style="background-color:#336699;color:#000001">x</div>`);
+    engine.apply();
+    el.style.width = "50px";
+    el.style.color = "blue";
+    engine.restore();
+    expect(el.getAttribute("style")).not.toBe("background-color:#336699;color:#000001");
+    expect(decls(el)).toEqual({
+      "background-color": ["rgb(51, 102, 153)", ""],
+      color: ["blue", ""],
+      width: ["50px", ""],
+    });
+  });
+
+  it("I5 groundwork: a refresh never writes the original style text back", async () => {
+    // An SVG element: refreshBatch does not suppress transitions on it, so only the ledger
+    // touches its style during the refresh.
+    const dom = new JSDOM(`<!DOCTYPE html><html><head></head>
+      <body style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"><svg id="t" style="color:#336699"></svg></body></html>`);
+    const doc = dom.window.document;
+    const win = dom.window;
+    const engine = createColorEngine(doc, midnight);
+    engine.apply();
+    const el = doc.getElementById("t")!;
+    expect(el.hasAttribute("data-skinly-engine")).toBe(true);
+    const seen: Array<string | null> = [];
+    const mo = new win.MutationObserver((rs) => {
+      for (const r of rs) if (r.attributeName === "style") seen.push(r.oldValue);
+    });
+    mo.observe(el, { attributes: true, attributeOldValue: true });
+    el.setAttribute("class", "again");
+    await new Promise((r) => win.setTimeout(r, 20));
+    for (const r of mo.takeRecords()) if (r.attributeName === "style") seen.push(r.oldValue);
+    mo.disconnect();
+    // The refresh ran (reset + re-put changed the attribute) and never passed through the original text.
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.slice(1)).not.toContain("color:#336699");
+    expect(el.getAttribute("style")).not.toBe("color:#336699");
+    engine.restore();
+    expect(el.getAttribute("style")).toBe("color:#336699");
+  });
+  it("I2: if the page refuses the text write (strict CSP), the declarations are put back via CSSOM", () => {
+    const dom = new JSDOM(`<!DOCTYPE html><html><head></head>
+      <body style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"><div id="t" style="color:#336699;width:10px">x</div></body></html>`);
+    const doc = dom.window.document;
+    const engine = createColorEngine(doc, midnight);
+    engine.apply();
+    const el = doc.getElementById("t")! as HTMLElement;
+    // Emulate CSP: the attribute text is stored but its declarations are dropped.
+    const proto = dom.window.Attr.prototype;
+    const desc = Object.getOwnPropertyDescriptor(proto, "value")!;
+    Object.defineProperty(proto, "value", {
+      configurable: true,
+      get: desc.get!,
+      set(this: Attr, v: string) {
+        desc.set!.call(this, v);
+        if (this.name === "style") (this.ownerElement as HTMLElement).style.cssText = "";
+      },
+    });
+    engine.restore();
+    Object.defineProperty(proto, "value", desc);
+    expect(decls(el)).toEqual({ color: ["rgb(51, 102, 153)", ""], width: ["10px", ""] });
+  });
+});
