@@ -55,11 +55,11 @@ const GRADIENT_COLOR_RE = /rgba?\([^)]+\)|hsla?\([^)]+\)|#(?:[0-9a-fA-F]{3,8})\b
 interface PropRecord {
   o: string; // original inline value ("" if the property had none)
   p: string; // original priority ("" or "important")
-  m: string; // value the engine wrote
+  m: string; // value the engine wrote, as read back from the element (normalised)
 }
 
 interface ElementRecord {
-  origStyle: string | null;
+  hadStyleAttr: boolean; // style attribute present before the engine's first write
   props: Record<string, PropRecord>;
 }
 
@@ -191,7 +191,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     let r = recMap.get(el);
     if (!r) {
       r = {
-        origStyle: el.getAttribute("style"),
+        hadStyleAttr: el.hasAttribute("style"),
         props: {},
       };
       recMap.set(el, r);
@@ -208,28 +208,26 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       };
     }
     st.setProperty(prop, val, "important");
+    // Read back: the DOM normalises values (hex -> rgb), and reset() compares against this.
     entry.m = st.getPropertyValue(prop);
   }
 
   function reset(el: HTMLElement | SVGElement): void {
     const r = recMap.get(el);
     if (!r) return;
-    if (r.origStyle === null) {
-      el.removeAttribute("style");
-    } else {
-      const attr = el.getAttributeNode("style");
-      if (attr) {
-        attr.value = r.origStyle;
-      } else {
-        const owner = el.ownerDocument;
-        const newAttr = owner.createAttribute("style");
-        newAttr.value = r.origStyle;
-        el.setAttributeNode(newAttr);
-      }
+    const st = el.style;
+    for (const prop of Object.keys(r.props)) {
+      const e = r.props[prop]!;
+      // Only undo our own write if it is still in place; a page change wins (I3, I4).
+      if (st.getPropertyValue(prop) !== e.m || st.getPropertyPriority(prop) !== "important") continue;
+      if (e.o) st.setProperty(prop, e.o, e.p);
+      else st.removeProperty(prop);
     }
     recMap.delete(el);
     el.removeAttribute("data-skinly-engine");
     modifiedElements.delete(el);
+    // I6: drop only an attribute the engine itself created and that is now empty.
+    if (!r.hadStyleAttr && st.length === 0 && el.hasAttribute("style")) el.removeAttribute("style");
   }
 
   function svgRole(el: SVGElement): Role {
@@ -656,7 +654,9 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       const marked = r.querySelectorAll("[data-skinly-engine]");
       for (let i = 0; i < marked.length; i++) {
         const el = marked[i]!;
-        if (el instanceof win!.HTMLElement || el instanceof win!.SVGElement) reset(el);
+        // A marker without a record (record lost): nothing to compare against, so leave its styles.
+        if ((el instanceof win!.HTMLElement || el instanceof win!.SVGElement) && recMap.has(el)) reset(el);
+        else el.removeAttribute("data-skinly-engine");
       }
     }
     roots.length = 0;
