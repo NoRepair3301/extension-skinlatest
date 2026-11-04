@@ -145,10 +145,11 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   const roots: Array<Document | ShadowRoot> = [];
   const queue = new Set<Element>();
   const hoverSet = new Set<Element>();
-  const pendingTransitions = new Map<HTMLElement, [string, string, string | null]>();
+  // Elements whose `transition: none` (a ledger entry) is undone on the next frame.
+  const pendingTransitions = new Set<HTMLElement | SVGElement>();
   const recMap = new WeakMap<HTMLElement | SVGElement, ElementRecord>();
   const modifiedElements = new Set<HTMLElement | SVGElement>();
-  // Original style text kept across a refresh's reset/put, so the new record still holds it.
+  // Original style text of a record a refresh released (nothing left to write), for restore() or a later record.
   const carriedText = new Map<HTMLElement | SVGElement, string>();
   let seen = new WeakSet<Element>();
 
@@ -214,6 +215,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
         m: "",
       };
     }
+    // An existing entry keeps o/p: lift() has already re-based them if the page changed the prop (I5).
     st.setProperty(prop, val, "important");
     // Read back: the DOM normalises values (hex -> rgb), and reset() compares against this.
     entry.m = st.getPropertyValue(prop);
@@ -253,18 +255,73 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     for (const [prop, [v, p]] of have) el.style.setProperty(prop, v, p);
   }
 
-  // final: only restore() passes true; the refresh path must not rewrite the attribute text.
-  function reset(el: HTMLElement | SVGElement, final = false): void {
+  // Is the engine's own write still in place? Anything else means the page changed it (I4, I5).
+  function owned(st: CSSStyleDeclaration, prop: string, e: PropRecord): boolean {
+    return st.getPropertyValue(prop) === e.m && st.getPropertyPriority(prop) === "important";
+  }
+
+  function revert(st: CSSStyleDeclaration, prop: string, e: PropRecord): void {
+    if (e.o) st.setProperty(prop, e.o, e.p);
+    else st.removeProperty(prop);
+  }
+
+  // restore() only. The refresh path keeps the record (lift/prune) and never rewrites the attribute text.
+  function reset(el: HTMLElement | SVGElement): void {
     const r = recMap.get(el);
     if (!r) return;
     const st = el.style;
     for (const prop of Object.keys(r.props)) {
       const e = r.props[prop]!;
       // Only undo our own write if it is still in place; a page change wins (I3, I4).
-      if (st.getPropertyValue(prop) !== e.m || st.getPropertyPriority(prop) !== "important") continue;
-      if (e.o) st.setProperty(prop, e.o, e.p);
-      else st.removeProperty(prop);
+      if (owned(st, prop, e)) revert(st, prop, e);
     }
+    release(el, r, true);
+  }
+
+  // Undo one ledger entry (guarded like reset) and release the record once it holds nothing.
+  function unput(el: HTMLElement | SVGElement, prop: string): void {
+    const r = recMap.get(el);
+    const e = r?.props[prop];
+    if (!r || !e) return;
+    if (owned(el.style, prop, e)) revert(el.style, prop, e);
+    delete r.props[prop];
+    if (Object.keys(r.props).length === 0) release(el, r, false);
+  }
+
+  // Refresh, before recomputing: show the page's own values again without dropping the record.
+  // A prop the page changed since our write is re-based to the page's value (I5), so a later
+  // restore yields the page's latest value and the re-theme starts from it.
+  function lift(el: HTMLElement | SVGElement): void {
+    const r = recMap.get(el);
+    if (!r) return;
+    const st = el.style;
+    for (const prop of Object.keys(r.props)) {
+      // The pending transition override must stay on while the new values are written.
+      if (prop === "transition" && pendingTransitions.has(el)) continue;
+      const e = r.props[prop]!;
+      if (owned(st, prop, e)) {
+        revert(st, prop, e);
+      } else {
+        e.o = st.getPropertyValue(prop);
+        e.p = st.getPropertyPriority(prop);
+      }
+    }
+  }
+
+  // Refresh, after re-writing: entries the new pass did not write already hold o (lifted or re-based).
+  function prune(el: HTMLElement | SVGElement, written: ReadonlyArray<[string, string]>): void {
+    const r = recMap.get(el);
+    if (!r) return;
+    for (const prop of Object.keys(r.props)) {
+      if (written.some(([p]) => p === prop)) continue;
+      if (prop === "transition" && pendingTransitions.has(el)) continue;
+      delete r.props[prop];
+    }
+    if (Object.keys(r.props).length === 0) release(el, r, false);
+  }
+
+  function release(el: HTMLElement | SVGElement, r: ElementRecord, final: boolean): void {
+    const st = el.style;
     recMap.delete(el);
     el.removeAttribute("data-skinly-engine");
     modifiedElements.delete(el);
@@ -373,11 +430,12 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     return out;
   }
 
+  // The override is an inline write like any other, so it goes through the ledger (I2): the record
+  // keeps hadStyleAttr from before it, and undoing it is guarded against page changes.
   function suppressTransition(el: HTMLElement): void {
     if (pendingTransitions.has(el)) return;
-    const st = el.style;
-    pendingTransitions.set(el, [st.getPropertyValue("transition"), st.getPropertyPriority("transition"), el.getAttribute("style")]);
-    st.setProperty("transition", "none", "important");
+    put(el, "transition", "none");
+    pendingTransitions.add(el);
     if (!rafTrans && win) {
       if (typeof win.requestAnimationFrame === "function") {
         rafTrans = win.requestAnimationFrame(restoreTransitions);
@@ -390,12 +448,9 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   function restoreTransitions(): void {
     rafTrans = 0;
     quiet(() => {
-      for (const [el, [val, prio, origStyle]] of pendingTransitions) {
-        if (val) el.style.setProperty("transition", val, prio);
-        else el.style.removeProperty("transition");
-        if (origStyle === null && el.style.length === 0) el.removeAttribute("style");
-      }
+      const list = [...pendingTransitions];
       pendingTransitions.clear();
+      for (const el of list) unput(el, "transition");
     });
   }
 
@@ -410,28 +465,30 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       }
     }
 
-    // Phase 1: Reset and compute styles (Read phase without interleaving writes)
-    for (const el of todo) reset(el);
+    // Phase 1: Lift our values (records stay) and compute styles (Read phase without interleaving writes)
+    for (const el of todo) lift(el);
 
-    const plannedChanges: Array<{ el: HTMLElement | SVGElement; changes: Array<[string, string]> }> = [];
+    const plannedChanges = new Map<HTMLElement | SVGElement, Array<[string, string]>>();
     for (const el of todo) {
       try {
         const cs = win.getComputedStyle(el);
         const par = el.parentElement || ((el.getRootNode?.() as ShadowRoot)?.host as Element) || null;
         const pcs = par ? win.getComputedStyle(par) : null;
         const changes = inspectElement(el, cs, pcs);
-        if (changes.length > 0) plannedChanges.push({ el, changes });
+        if (changes.length > 0) plannedChanges.set(el, changes);
         seen.add(el);
       } catch {
         // ignore
       }
     }
 
-    // Phase 2: Apply planned styles (Write phase)
-    for (const { el, changes } of plannedChanges) {
+    // Phase 2: Apply planned styles (Write phase), then forget entries this pass no longer writes
+    for (const el of todo) {
+      const changes = plannedChanges.get(el) ?? [];
       for (const [prop, val] of changes) {
         put(el, prop, val);
       }
+      prune(el, changes);
     }
   }
 
@@ -691,7 +748,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     restoreTransitions();
 
     for (const el of modifiedElements) {
-      reset(el, true);
+      reset(el);
     }
     modifiedElements.clear();
     // Refreshed elements that needed no new write since: no record, but the text may still apply.
@@ -703,7 +760,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       for (let i = 0; i < marked.length; i++) {
         const el = marked[i]!;
         // A marker without a record (record lost): nothing to compare against, so leave its styles.
-        if ((el instanceof win!.HTMLElement || el instanceof win!.SVGElement) && recMap.has(el)) reset(el, true);
+        if ((el instanceof win!.HTMLElement || el instanceof win!.SVGElement) && recMap.has(el)) reset(el);
         else el.removeAttribute("data-skinly-engine");
       }
     }

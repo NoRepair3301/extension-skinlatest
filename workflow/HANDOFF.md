@@ -1,27 +1,26 @@
-# HANDOFF — S2.1 Guarded per-property restore (ledger + reset())
-Status: DONE     Date: 2026-11-04     Model/effort used: Opus 5.5 / high (per prompt); resumed after owner decision B (D12)
+# HANDOFF — S2.2 Refresh path without whole-attribute reset
+Status: DONE     Date: 2026-11-04     Model/effort used: Opus 5.5 / high (autopilot; task from STAGES.md row, plan in workflow/plans/S2.2.md)
 ## What changed
-- src/engine/dom.ts — `ElementRecord = { hadStyleAttr: boolean; origStyleText: string | null; props: Record<string, PropRecord> }`, `PropRecord = { o, p, m }` (m = read-back value). Whole-attribute snapshot restore removed. Guarded per-prop `reset(el, final)`. Final-only, equivalence-guarded text restore (`restoreStyleText`, D12). `carriedText` keeps the original text across refreshBatch's reset/put. restore() strips the marker from record-less elements and leaves their styles alone
-- tests/engine/ledger.test.ts — new, 17 tests (prompt's 12 + re-theme case + owner's 3 + a CSP fallback test)
-- reset() semantics: for each recorded prop only: if inline value === m and priority === important, put back o/p (removeProperty if o is ""); else the page's value stays. Then the record, marker and modifiedElements entry are dropped. If !hadStyleAttr and the style is empty, the attribute is removed; if hadStyleAttr, it is kept even if empty. With final (restore() only), the original text is written back if it parses to exactly the current declarations (same props, values, priorities); otherwise the per-prop result stays. Without final (refresh), the text is only carried to the next record
+- src/engine/dom.ts — refreshBatch no longer calls reset(): `lift(el)` (own write in place -> put back o/p; page changed it -> re-base o,p := current, I5), compute, `put()`, then `prune(el, written)` drops entries no longer written and releases an empty record (marker off, I6 rule, original text carried). Records survive refreshes, so hadStyleAttr/origStyleText stay from the first write. reset() is now restore-only (always final). Helpers `owned`/`revert`/`unput`/`release`
+- src/engine/dom.ts — suppressTransition writes `transition: none !important` through put() (I2); restoreTransitions undoes it with unput() (guarded: a page change to `transition` wins) and releases records left empty. pendingTransitions is now a Set
+- tests/engine/refresh.test.ts — new, 14 tests
+- workflow/plans/S2.2.md — the plan (no prompts/S2.2.md existed)
 ## Gate results
-tsc 0 errors; eslint 0 errors; vitest 1338 pass / 18 fail / 1356 tests in 92 files. Failing set == the 18 baseline failures exactly (diffed). tests/engine/* 35/35. Linux baseline matched the Windows list; no Linux-specific differences seen.
-## Tests added (ledger.test.ts)
-I6 no attr ends with none · I2/I4 originals + priorities · I2/I4 !important kept · I6 empty attr kept · I3 page width survives · I4 page-changed colour not overwritten · I4 removed attr not resurrected · I6 attr kept with page's own prop · I2 custom property exact · I4 read-back guard (emulated serialiser) · I7 idempotent · I7 no markers · re-theme then restore · D12 (a) byte-exact outerHTML for `background-color:#336699` / `background:#336699;padding:4px` · (b) page change blocks text restore and survives · (c) refresh never writes the original text (MutationObserver trace on an SVG element), and restore after the refresh is still byte-exact · CSP fallback. Mutation-checked: each fails on its own mutation (old reset, m = val, final in the refresh path, no text write, no CSP fallback)
-## Decisions made (DECISIONS.md: D12 + log line)
-- Deviation from the literal `setAttribute("style", text)`: `scripts/rules.ts:55` (tests/rules.test.ts) flags it as CSP-unsafe in src. The text goes through the existing Attr node (`attr.value = text`, as the pre-S2.1 engine did), and the scratch parse uses `style.cssText`. After the write, the declarations are re-checked; if a strict CSP dropped them, the same declarations go back via CSSOM. So the worst case is the per-prop result, never lost styles
-- The original text is carried across refresh (`carriedText`, cleared in restore()); otherwise any refreshed (for example, hovered) element would lose byte-exact restore. It is never written in the refresh path. restore() also applies the guarded text restore to carried elements that have no record now
-- Record-lost marker: only `data-skinly-engine` is removed, styles left (S2.3)
+tsc 0 errors; eslint 0 errors; vitest 1352 pass / 18 fail / 1370 tests in 93 files. Failing set == the 18 baseline failures exactly (diffed against BASELINE_FAILURES.txt minus the S1.2-removed test). tests/engine/* 49/49.
+## Tests added (refresh.test.ts)
+I5 page change survives a refresh, restore yields page's latest value · I5 survives two refreshes (hover + class) · I5 page-removed prop not resurrected · I5 page-replaced style attribute survives · I3 unrelated page prop survives a refresh · I5 stylesheet change that drops the colour: engine stops writing, attribute gone · no-change refresh writes the same values, restore byte-exact · I6 class-change refresh then restore: no attribute (the S2.1 bug) · I6/I7 restore with the override pending: no attribute, override, frame · I6 override-only element released after the frame · I2 original inline transition back after the frame and on restore · I5 page change to transition during the override wins · I7 refresh settles (no further style writes) · I7 no engine writes after restore.
+Mutation-checked: HEAD engine fails 6; no re-base fails 3; unguarded unput 1; no prune 1; lifting the pending transition 3; flush without quiet() 2 (loop detected).
+## Decisions made (DECISIONS.md: 2 lines)
+- Re-basing lives in lift(), not put(): after a lift, put() cannot tell "lifted" from "page changed", so it keeps o/p
+- Transition override is an ordinary ledger entry; while pending, lift/prune skip it. It briefly marks override-only elements with data-skinly-engine (released on the next frame)
+- No rate limiter for page-vs-engine ping-pong (scope: the engine's own writes never re-trigger it)
 ## Out-of-scope touches
-None. (Temporary probe tests created and deleted; dom.ts swapped temporarily for mutation checks and restored byte-identical.)
-## Bugs found (for S2.2)
-- dom.ts `suppressTransition`/`restoreTransitions` (around lines 360-385) write `transition` outside the ledger (I2)
-- As a result, refreshBatch runs suppressTransition before reset: an element with no original style attr keeps `transition` during reset, and put() re-records `hadStyleAttr = true`. A stylesheet-themed element, refreshed by a class change, ends with `style=""` after restore (I6). Verified; left as is, per "no original attribute: unchanged behaviour"
-- restore(): `instanceof win!.HTMLElement` uses the top-window realm, so marked elements in same-origin iframe docs skip reset (pre-existing)
-## Performance
-One read-back per write, two reads per prop in reset, and one scratch parse per element with an original style attribute at final restore. Negligible.
+None. (dom.ts swapped temporarily with mutants from the scratchpad; restored, sha1 verified.)
+## Bugs found (outside scope)
+- dom.ts refreshBatch/restore: `instanceof win.HTMLElement` uses the top-window realm, so elements in same-origin iframes are never refreshed/themed nor reset (pre-existing; noted in S2.1 too)
+- dom.ts modifiedElements holds strong refs to removed nodes until restore (pre-existing, memory only)
 ## Owner manual checks
-Build, load unpacked, open a Wikipedia article: `window.__a = document.documentElement.outerHTML`, apply a theme, hover around, press Restore original, then `document.documentElement.outerHTML === window.__a` should be true. Restore leaves no tinted background. Also try a strict-CSP site (github.com): inline styles still intact after Restore.
+Build, load unpacked, open a page with hover effects (GitHub repo page): apply a theme, hover menus and buttons for a while, then Restore original: no element keeps an empty `style=""` that it did not have (DevTools: `$$('[style=""]')` before vs after), no tint left. On a page that changes inline colours itself (an animated or React page), the page's latest colours remain after Restore. Wikipedia: `window.__a = document.documentElement.outerHTML`, theme, hover, Restore, `=== window.__a` still true.
 ## Suggested commit message
-fix(engine): guarded per-property restore ledger (S2.1)
-## Next substage: S2.2 — relies on per-prop guarded reset(el, final), hadStyleAttr/origStyleText in the record, carriedText, and the bugs above
+fix(engine): refresh path keeps the ledger and re-bases page changes (S2.2)
+## Next substage: S2.3 — relies on records persisting across refreshes, reset() being restore-only, transition writes being ledger entries (so the marker set == every element with engine inline writes), and carriedText for released records
