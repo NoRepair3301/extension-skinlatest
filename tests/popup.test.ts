@@ -109,6 +109,16 @@ describe("popup", () => {
     expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ theme: "midnight" }));
   });
 
+  it("every theme is selectable and none carries a mark or lock (all free)", async () => {
+    const root = await mount();
+    for (const id of ["midnight", "ocean", "warm-paper", "high-contrast", "field", "calm-light"]) {
+      await act(() => root.querySelector<HTMLInputElement>(`input[value="${id}"]`)!.click());
+      expect(api.storageSet).toHaveBeenLastCalledWith("settings", expect.objectContaining({ theme: id }));
+    }
+    expect(root.querySelectorAll(".theme-card.locked, .plus-mark")).toHaveLength(0);
+    expect(root.querySelector('[role="dialog"]')).toBeNull();
+  });
+
   it("restores the last saved theme from storage", async () => {
     store.set("settings", { theme: "ocean", blocklist: [] });
     const root = await mount();

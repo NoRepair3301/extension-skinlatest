@@ -38,4 +38,3 @@ fieldset.default-theme legend { font-weight: 600; padding: 0 var(--sp-1); }
 @media (max-width: 560px) { main.options { padding: var(--sp-3); } .options-head h1 { font-size: var(--fs-5); } }
 @media (prefers-reduced-motion: reduce) { .options-nav .ui-tab, .theme-card, input { transition: none; } }
 /* Skinly Plus (0.3.0) */
-.plus-list { margin: 0; padding-left: var(--sp-4); }

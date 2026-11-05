@@ -17,7 +17,7 @@
 | S3.5 | Engine bug B (contrast vs effective backdrop, not theme bg); acceptance: BUG tests named in STAGES | Opus 5.5 / high | DONE | 2026-11-05 |
 | S3.6 | Residual failures: full vitest incl. build/budgets/release green; remove BUG markers in TEST_CLASSIFICATION | Sonnet 5.5 / medium | DONE | 2026-11-05 |
 | S4.1 | Neutralise gating | Sonnet 5.5 / high | DONE (4 lock tests red, owned by S4.2/S4.4) | 2026-11-05 |
-| S4.2 | UI: remove Plus, un-gate My assets | Sonnet 5.5 / high | TODO | |
+| S4.2 | UI: remove Plus, un-gate My assets | Sonnet 5.5 / high | DONE | 2026-11-05 |
 | S4.3 | Backend deletion and config | Sonnet 5.5 / medium | TODO | |
 | S4.4 | Tests: remove/adapt premium tests | Sonnet 5.5 / high | TODO | |
 | S4.5 | Docs sweep; archive premium docs | Haiku 5.5 / medium | TODO | |

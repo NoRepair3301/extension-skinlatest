@@ -1,31 +1,31 @@
-# HANDOFF — S4.1 Neutralise gating (F3: everything free)
+# HANDOFF — S4.2 Remove premium UI; un-gate My assets
 Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / high (per prompt)
-## What changed (logic and the directly related tests)
-- src/core/entitlements.ts — only `PlanFlag`, `Feature`, `canUse` (always true), `entitledThemes()` (all 6), `clampThemeId`/`clampPlan` (pass-through) remain; the rest deleted.
-- src/ai/pipeline.ts, src/ai/prompt.ts — no plan flag, no clamps, AI offered all 6 themes (comments updated).
-- src/extension/{auto-core,applier-auto,flow,commands,background}.ts — `loadPlan`/`readPlan` and clamp calls removed.
-- tests/settings.test.ts, ai/pipeline.test.ts, commands.test.ts, auto.test.ts — lock expectations flipped to free behaviour.
-- workflow/PREMIUM_INVENTORY.md (new), PLAN, LOG, DECISIONS.
+## What changed
+- Deleted: src/extension/popup/PlusDialog.tsx, src/extension/options/PlanAccount.tsx (importers: only Popup.tsx, Options.tsx, each other, tests/plus-ui.test.ts), tests/plus-ui.test.ts (could not compile; every case mounts the deleted UI).
+- src/extension/popup/Popup.tsx — no plan flag, lock, Plus mark, dialog or "assets locked" note; AssetHere shows for everyone; clickKept no longer clamps.
+- src/extension/options/Options.tsx — no `plan` panel, My assets panel always the MyAssets component.
+- src/ui/strings.ts — `plus` block and `options.tabs.plan` removed. popup.css, options.css — plus-mark, locked, plus-list rules removed.
+- src/core/entitlements.ts — `canUse`, `Feature`, `clampThemeId` deleted; kept `entitledThemes`, `PlanFlag`, `clampPlan` (see below).
+- src/extension/scene.ts (protected) — only the My-assets gate. Before (l.129-132): `assetsOk = ... canUse("assets", await loadPlan())`, re-check, `if (... || !assetsOk)`. After (l.129): `if (!now.asset || now.asset.assetId === null) {`. `canUse` import dropped.
+- Tests: options-tabs (nine sections; new `#plan` hash falls back to General), scene-page B4 flipped (a stale free flag no longer hides the picture), settings (canUse/clampThemeId assertions removed), popup (new: six themes selectable, no mark/lock/dialog).
+- workflow/{PLAN,LOG,DECISIONS,PREMIUM_INVENTORY}.md.
 ## Gate results
-tsc 0; eslint 0; vitest 1477 pass / 4 fail / 1481 tests in 96 files; build ok; validate-dist ok; `git diff --stat -- src/engine` empty.
-Note: the opening baseline gate (green, 1482/1482) ran while I was already editing, so it is only a rough check; the S3.6 baseline in BASELINE.md is the reference.
-## Red tests (all lock assertions, owned by later substages)
-- tests/plus-ui.test.ts "My assets shows a calm locked state on Free…", "Free: Ocean, Warm paper and Field carry a small Plus mark…", "an expired plan flag counts as Free" — S4.2 (UI) / deleted in S4.4.
-- tests/scene-page.test.ts "B4: without Plus a saved picture stays stored but is not shown…" — asserts the gate line in scene.ts: S4.2 un-gates it and adapts the test (S4.4 otherwise).
+tsc 0; eslint 0; vitest 1474 pass / 0 fail / 95 files (before: 1477 pass / 4 fail, the S4.1 lock tests; plus-ui flake gone with the file); build + validate-dist ok; `git diff -- src/engine` empty.
+## Final grep (src, case-insensitive, engine and src/backend excluded)
+Remaining hits: `entitledThemes` (pipeline.ts, entitlements.ts: the "all six themes" list, ordinary name); `PlanFlag`/`clampPlan`/`planFlag.ts`/`loadPlan` (scene.ts:15-16,277, planFlag.ts, entitlements.ts: S4.3, see below); `dailyCheck` + Plus comment in background.ts:9,36 (S4.3 backend); "unsubscribe" in diag.ts and pet/animate.ts, "upgraded" in sites.ts (ordinary words). No hit in popup, options or ui code. Ordinary "sign-in form" in ai/messages.ts is the AI-eligibility copy, not account UI.
 ## Decisions made (also in DECISIONS.md)
-Neutralised, not removed, the helpers UI/scene.ts still call; planFlag.ts untouched; PROMPT_VERSION stays "6".
+- scene.ts: only the My-assets gate touched (prompt says "the one line"). The second premium line `clampPlan(site.plan, await loadPlan())` (scene.ts:277, protected, no-op) was left; that is why `clampPlan`, `PlanFlag` and `loadPlan` still exist. S4.3 can drop it (one line + import) or the owner can allow it now.
+- Removed Options tab needs no migration: tabs derive from `S.options.tabs`; the only stored last-tab is the URL hash and unknown ids already fall back to General.
 ## Out-of-scope touches
-None. scene.ts and all .tsx untouched.
+tests/plus-ui.test.ts deleted whole (S4.4's file; could not compile).
 ## Bugs found
-None. Surprise: scene.ts:280 also clamps a stored Plus theme by plan (not only the My-assets line); now a no-op.
-## Inventory summary (workflow/PREMIUM_INVENTORY.md; lines matched)
-logic 31 (done), UI 103, backend src 47, backend dir 129, config 27, protected 7, tests 296, docs 216. Storage keys `plan`, `entitlement`, `auth` unchanged.
-- S4.2: remove Plus UI and strings/CSS, un-gate My assets (Popup, Options, scene.ts gate line + clampPlan call), then delete `canUse`, `clampThemeId`, `clampPlan`, `PlanFlag`, planFlag.ts; adapt scene-page B4.
-- S4.3: delete src/backend, backend/, dailyCheck in background.ts, premium scripts/config/env; migrate away keys.
-- S4.4: delete backend, backend-client and plus-ui tests; clean other premium mentions.
-- S4.5: docs sweep, archive premium docs.
+None.
 ## Owner manual checks
-Load dist: all 6 themes selectable in the popup (Plus marks/dialog still show until S4.2 but no theme is locked); the AI "Change my page" and the keyboard command apply ocean/warm-paper/field.
+Load dist: popup shows 6 themes + Auto with no Plus badge; clicking Ocean/Warm paper/Field applies them; the "My assets" box shows in the popup on a normal page; Options has 9 tabs (no "Plan and account"), My assets tab fully usable; open options.html#plan lands on General; a saved picture shows on a page.
+## Still to do
+- S4.3: delete src/backend, backend/, dailyCheck in background.ts, scripts/config/env; scene.ts:277 clampPlan call; clampPlan/PlanFlag/planFlag.ts; migrate away keys `plan`, `entitlement`, `auth`.
+- S4.4: delete tests/backend/*, tests/backend-client/*; clean Plus mentions in build, rules, release, scene-flow, scene-page tests.
+- S4.5: docs sweep, archive premium docs. Owner decision: `about.free` copy ("Skinly AI is free...") kept as ordinary text; no icons/images were Plus-specific.
 ## Suggested commit message
-refactor(premium): neutralise gating, all six themes available (S4.1)
-## Next substage: S4.2 — remove premium UI and un-gate My assets. Relies on: canUse/clampThemeId/clampPlan still exported (deprecated), planFlag.ts present.
+refactor(premium): remove Plus UI, plan and account screens; un-gate My assets (S4.2)
+## Next substage: S4.3 — relies on: UI no longer imports src/backend, buildConfig or planFlag (only scene.ts via loadPlan, background.ts via dailyCheck remain).

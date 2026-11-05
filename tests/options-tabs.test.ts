@@ -40,9 +40,9 @@ describe("options tabs", () => {
     keys.keyStatus.mockResolvedValue({ gemini: false, groq: false });
   });
 
-  it("has the ten sections (Plan and account added in 0.3.0), one visible panel, and General first", async () => {
+  it("has the nine sections, one visible panel, and General first", async () => {
     const root = await mount();
-    expect(tabs(root).map((t) => t.textContent)).toEqual(["General", "Themes", "Scenes and pets", "My assets", "AI providers", "Sites", "Shortcuts", "Privacy", "Plan and account", "About"]);
+    expect(tabs(root).map((t) => t.textContent)).toEqual(["General", "Themes", "Scenes and pets", "My assets", "AI providers", "Sites", "Shortcuts", "Privacy", "About"]);
     const visible = Array.from(root.querySelectorAll<HTMLElement>('[role="tabpanel"]')).filter((p) => !p.hidden);
     expect(visible.map((p) => p.id)).toEqual(["panel-general"]);
   });
@@ -61,6 +61,14 @@ describe("options tabs", () => {
     const root = await mount();
     expect(panelOf(root, "about").hidden).toBe(false);
     expect(panelOf(root, "about").textContent).toContain("Version 0.2.0");
+  });
+
+  it("an address hash naming the removed Plan and account tab falls back to General", async () => {
+    location.hash = "#plan";
+    const root = await mount();
+    expect(panelOf(root, "general").hidden).toBe(false);
+    expect(root.querySelector('[role="tabpanel"]#panel-plan')).toBeNull();
+    expect(tabs(root).map((t) => t.textContent)).not.toContain("Plan and account");
   });
 
   it("Shortcuts lists each command with its real key or how to set one", async () => {

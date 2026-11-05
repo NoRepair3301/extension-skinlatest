@@ -37,3 +37,10 @@ Method: case-insensitive grep for `canUse|entitle*|planFlag|PlanFlag|loadPlan|re
 - **S4.3:** delete `src/backend/`, `backend/`, `dailyCheck`/`buildConfig` in background.ts, `gen-entitlement-keys`, validate-dist Supabase allowances, tsconfig include, vite/vitest/env types, `.env.example`; migrate (remove) storage keys `plan`, `entitlement`, `auth`.
 - **S4.4:** delete tests/backend/*, tests/backend-client/*, tests/plus-ui.test.ts; clean premium mentions in build, rules, popup, popup-pet, release, scene-flow tests.
 - **S4.5:** README, CHANGELOG, manifest text, docs updated; premium docs moved to docs/archive/premium/.
+
+## S4.2 status (2026-11-05)
+- [x] UI rows: PlusDialog, PlanAccount, Popup/Options locks/marks/dialog/tab, `S.plus`, `options.tabs.plan`, CSS (plus-mark, locked, plus-list) - done.
+- [x] My assets un-gated in Popup, Options and scene.ts (gate line).
+- [x] `canUse`, `Feature`, `clampThemeId` deleted. tests/plus-ui.test.ts deleted (could not compile).
+- [ ] Left for S4.3: `clampPlan` call in scene.ts:277 (protected, no-op) + `loadPlan` import there, `clampPlan`/`PlanFlag` in entitlements.ts, `planFlag.ts`, `dailyCheck` in background.ts, src/backend, backend/, config, scripts, storage keys.
+- [ ] Left for S4.4: tests/backend/*, tests/backend-client/*, "Plus" comments in tests/scene-flow.test.ts and tests/scene-page.test.ts (plan store.set lines), build/rules/release tests.
