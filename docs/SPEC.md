@@ -1,10 +1,10 @@
 # Skinly AI (working name): product spec, source of truth
 
-Chromium MV3 extension. The user opens any website and clicks "Change my page". A local analyser builds a small structural summary. The AI provider the user chose returns a JSON style plan. We validate it, compile CSS ourselves and apply it. The result can be remembered per site. Free plan only for now (6 themes plus Auto, everything unlocked).
+Chromium MV3 extension. The user opens any website and clicks "Change my page". A local analyser builds a small structural summary. The AI provider the user chose returns a JSON style plan. We validate it, compile CSS ourselves and apply it. The result can be remembered per site. Everything is free: 6 themes plus Auto, all unlocked.
 If this file and a phase doc disagree, this file wins. Items marked UNSURE must not be guessed: stop and ask.
 
 ## 1. Non-goals (this version)
-No cloud sync, hosted AI, Pro tier, Firefox build, shared API key, telemetry, remote config, e2e or browser-automation tests, rebuilding page DOM, form handling, login handling, screenshots sent anywhere.
+No cloud sync, hosted AI, Firefox build, shared API key, telemetry, remote config, e2e or browser-automation tests, rebuilding page DOM, form handling, login handling, screenshots sent anywhere.
 
 ## 2. User flow
 1. User clicks the toolbar button (or a keyboard command). Chrome grants `activeTab` for that tab only.
@@ -114,7 +114,7 @@ kind = auth | rate | quota | network | timeout | blocked | bad-output | server |
 ## 9. Permissions
 `permissions: ["activeTab","scripting","storage"]`; `optional_host_permissions: ["https://*/*","http://*/*"]` (requested one origin at a time, from a user click: the visited origin for "Always on this site", or the provider host when saving a key). No static host_permissions, no content_scripts in the manifest, no `tabs`, cookies, history, webRequest, downloads. Keyboard commands: transform-page (Alt+Shift+S), restore-page (Alt+Shift+R), open-palette (Alt+Shift+K), toggle-blur-page (Alt+Shift+B, rc4). The browser drops a suggested key that something else already uses, so the popup lists each command with the key the commands API really reports (through api.ts), or "Not set - open edge://extensions/shortcuts" (chrome:// or brave:// on those browsers; shown as text, opening it would need the tabs permission). Every command that reaches a page ends with a 2 s extension-owned toast ("Skinly: theme applied", "Skinly: restored", "Skinly: blur on", "Skinly: blur off", "Skinly: palette open", "Skinly: couldn't change this page"). Blocked pages (internal, store, PDF, blocklist) are never injected into, so the "blocked page" case uses the toolbar badge "!" and the action title instead of a toast. If the browser passes no URL with a command, the gate asks the page for its address (activeTab covers it) instead of treating the page as blocked.
 
-## 10. Themes (free plan: all six, plus Auto)
+## 10. Themes (all six, plus Auto; all free)
 calm-light (default), midnight, ocean, warm-paper, high-contrast, field (olive, khaki, dark green). "Auto" is a popup choice, not a theme: it applies calm-light, or midnight when the browser prefers a dark colour scheme (resolved on the page). Each theme has a default scene (calm-light: calm, midnight: midnight-stars, ocean: ocean, warm-paper: paper, field: field, high-contrast: none; `DEFAULT_SCENE_BY_THEME` in src/themes/index.ts). Each is a JSON token set (same keys as StylePlan tokens). Contrast targets (tested by script): text/bg at least 4.5 (high-contrast at least 7), link/bg at least 4.5, muted/bg at least 4.5, accent/bg at least 3, focus/bg at least 3. Colour is never the only status cue.
 
 ## 11. UX copy (short, plain)
@@ -123,7 +123,7 @@ calm-light (default), midnight, ocean, warm-paper, high-contrast, field (olive, 
 - Footer in popup: "Skinly AI is not affiliated with any website."
 
 ## 12. Entitlements
-src/core/entitlements.ts is the only place with tier logic and the Free/Plus lists (v0.3.0, docs/PLUS_SPEC.md). `canUse(feature)` answers from a derived plan flag (`free` or `plus`) that src/backend/ computes from a verified, signed entitlement. Free: calm-light, midnight, high-contrast, Auto, five pets, the scenes of those themes, readability repair, own AI key, per-site memory. Plus: ocean, warm-paper, field with their scenes, and custom assets. Not entitled: a Plus theme is clamped to the nearest free one (popup, AI validator, auto script); local assets are hidden, never deleted.
+None. There are no tiers, accounts or backend: all six themes, Auto, the pets, scenes and My assets are free for everyone. The removed design is kept in docs/archive/premium/ for history only.
 
 ## 13. Features after the core
 Pet (P6), palette and shortcuts (P7), blur, safe screenshot and table tools (P8). All live in src/features and take selectors and models as parameters (no site-specific code). Exceptions to "never reorder or hide original nodes": user-clicked table sort and filter in P8, with a Restore order control.
@@ -149,5 +149,5 @@ Pet (P6), palette and shortcuts (P7), blur, safe screenshot and table tools (P8)
 - Persistence (rc5): "Change my page" asks for the visited origin's optional host permission first, inside the click and before any other await (one browser prompt, none if already granted), then applies; once the theme is on it saves the plan and the repair rules (colour-only structural CSS, at most 10 KB, parsed strictly on every read) with the site and registers the auto script. Denied: the theme applies for this document only and the popup says so in one line; a "Keep on this site" button asks again. The auto script applies the stored plan and repair rules at document_start with no provider call and re-applies after in-page navigation.
 - Restore (rc5): always works. With a ledger it undoes exactly what it recorded; without one (fresh script instance, navigated page) it removes everything carrying our markers (our adopted sheets, `data-skinly-ui` and `data-skinly-scene` hosts, `data-skinly*` attributes) and nothing else. Restore also pauses automatic theming for the site (record kept, script unregistered) until the user applies again. Forget removes record, registration and permission.
 
-## 18. Skinly Plus (v0.3.0, owner decisions)
-docs/PLUS_SPEC.md is the source of truth for plans, flows and the data the backend holds; docs/SECURITY_BACKEND.md is the threat model. In short: accounts optional (email OTP), price from the server `plans` table, billing through an adapter with only a test provider (refused unless BILLING_MODE=test), no cloud sync, hosted AI or telemetry, the backend never receives page data, URLs, origins, site lists or keys. Storage adds `auth` (session) and `entitlement` (signed token cache, 7-day offline grace). fetch() is allowed in src/providers/ and src/backend/ only. Missing build config means "Plus not available in this build" and Free works as before.
+## 18. Accounts and payments
+None. There are no accounts, payments or backend. The removed design is kept in docs/archive/premium/ for history only.

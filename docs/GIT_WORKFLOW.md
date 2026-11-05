@@ -50,7 +50,7 @@ git tag phase-<n>-done
 5. Next phase starts from main.
 
 ## If a session dies mid-phase
-Use the resume prompt from PROMPTS.md. Uncommitted work is either committed (if it passes check) or stashed with `git stash -m "phase<n> wip"`. Nothing is silently thrown away.
+Use the resume prompt from docs/archive/premium/PROMPTS.md. Uncommitted work is either committed (if it passes check) or stashed with `git stash -m "phase<n> wip"`. Nothing is silently thrown away.
 
 ## Tags
 - phase-0-done ... phase-9-done after each merge.

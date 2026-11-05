@@ -20,7 +20,7 @@
 | S4.2 | UI: remove Plus, un-gate My assets | Sonnet 5.5 / high | DONE | 2026-11-05 |
 | S4.3 | Backend deletion and config | Sonnet 5.5 / medium | DONE | 2026-11-05 |
 | S4.4 | Tests: remove/adapt premium tests | Sonnet 5.5 / high | DONE | 2026-11-05 |
-| S4.5 | Docs sweep; archive premium docs | Haiku 5.5 / medium | TODO | |
+| S4.5 | Docs sweep; archive premium docs | Haiku 5.5 / medium | DONE | 2026-11-05 |
 | S5.1 | F1 design only | Opus 5.5 / high | TODO | |
 | S5.2 | F1 implement: theme click applies | Opus 5.5 / high | TODO | |
 | S5.3 | Restore polish | Sonnet 5.5 / high | TODO | |

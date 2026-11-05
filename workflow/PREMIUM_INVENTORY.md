@@ -56,3 +56,10 @@ Method: case-insensitive grep for `canUse|entitle*|planFlag|PlanFlag|loadPlan|re
 ## S4.4 status (2026-11-05)
 - [x] tests row: tests/backend/*, tests/backend-client/*, tests/plus-ui.test.ts gone (S4.2/S4.3); scene-flow, scene-page, release, popup adapted; T6 positive tests added (see TEST_CLASSIFICATION S4.4).
 - [ ] Left for S4.5: README, CHANGELOG, docs/* (PRIVACY and data-use still describe the Plus backend; then add a negative assert in tests/release.test.ts), STAGES/specs mentions, CLAUDE.legacy.md, prompt-launch.txt.
+
+## S4.5 status (2026-11-05)
+- [x] README, CHANGELOG (Unreleased added, history kept), docs/store/{listing,privacy,permissions,data-use}, ARCHITECTURE, SPEC, AUDIT, QA, GIT_WORKFLOW link edited.
+- [x] Moved to docs/archive/premium/: PROMPTS.md, PLUS_SPEC.md, SECURITY_BACKEND.md, BACKEND_SETUP.md, supabase.md. prompt-launch Part B split out. Sections copied to removed-sections.md.
+- [x] manifest.json checked: no backend, Plus or payment text, host, CSP or externally_connectable entry. Unchanged.
+- [ ] Left for S6.6: old name Skinly AI in docs (kept on purpose in S4.5); docs/ARCHITECTURE.md line about the removed AI repair layer (not paid-tier, stale).
+- [ ] Left for owner: negative no-Plus doc assert in tests/release.test.ts (S4.4 note; needs tests/ in scope).

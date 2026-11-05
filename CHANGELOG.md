@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+- Removed: all paid tiers, Plus, accounts and the backend.
+- Changed: all 6 themes and My assets are available to everyone.
+- Changed: restore is exact and per-property (page changes win).
+- Changed: stale plan and account data is removed on update.
+- Removed: the unused AI repair layer.
+
 ## 0.3.0 (rc1)
 - Skinly Plus, optional and paid: Ocean, Warm paper and Field themes with their scenes, and My assets. Free keeps Calm light, Midnight, High contrast, Auto, all pets, readability repair, your own AI key and per-site memory, with no account.
 - Settings, Plan and account: sign in with an email code (no passwords), see your plan and renewal date, Upgrade, Manage, Refresh purchase, Sign out, Delete account.

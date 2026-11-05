@@ -1,26 +1,51 @@
-# HANDOFF — S4.4 Premium tests: remove dead, adapt, prove "everything is free"
-Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / high (per prompt)
+# HANDOFF — S4.5 Docs: remove paid-tier copy, archive premium docs, manifest check
+Status: DONE     Date: 2026-11-05     Model/effort used: Haiku 5.5 / medium (set by owner via /model)
 ## What changed
-- tests/scene-flow.test.ts, tests/scene-page.test.ts — Plus plan fixture + comments removed; scene-page "My assets" test is now T6 (no entitlement key is read).
-- tests/release.test.ts — 3 backend/plan privacy-doc asserts removed (docs still say it until S4.5).
-- tests/popup.test.ts — theme test renamed T6, added no-disabled / checked / no Plus words.
-- tests/ai/prompt.test.ts (+1 T6 theme list), tests/ai/pipeline.test.ts (+6, one per theme), tests/options-tabs.test.ts (+1 T6 tabs).
-- tests/free-for-all.test.ts (new, 2): src scan for removed symbols/paths; entitlements.ts shape.
-- workflow/{PLAN,LOG,DECISIONS,TEST_CLASSIFICATION,PREMIUM_INVENTORY,HANDOFF}.md.
+- README.md — Plus/account/backend text removed; "Free and Plus" is now "Everything is free". Name kept.
+- CHANGELOG.md — `## Unreleased` on top (5 entries, no version bump, D10). All old entries kept.
+- docs/store/listing.md — Plus, paid and account text removed (long description, "never does").
+- docs/store/privacy.md — "Skinly Plus" section is now "Accounts and servers"; Plus line in "Your choices" removed. Version, Permissions, Provider hosts lines unchanged (tests read them).
+- docs/store/permissions.md — Skinly Plus backend (Supabase/CORS) bullet removed.
+- docs/store/data-use.md — account and payment rows and the backend sentence rewritten as "not collected" / "no backend". 20 KB and no-text phrase unchanged.
+- docs/ARCHITECTURE.md — src/backend, backend/supabase and entitlements/planFlag rows and the Plus data-flow block removed.
+- docs/SPEC.md — "Free plan only" wording, "Pro tier" non-goal, §10 title, §12 and §18 replaced by "None" lines.
+- docs/AUDIT.md — C6 backend dirs and "Plus session" text, C9 backend fetch, C15 (backend) removed; PROMPTS.md link path updated.
+- docs/QA.md — "0.3.0: Skinly Plus" check section (P1–P9) removed. `release/skinly-ai-0.3.0.zip` line (read by a test) untouched.
+- docs/GIT_WORKFLOW.md — PROMPTS.md link path updated.
+- prompt-launch.txt — Part B (lines 20–34) removed; line 1 header points to the archive. Part A and the shared final line kept.
+- Moved (plain move, bytes kept): PROMPTS.md, docs/PLUS_SPEC.md, docs/SECURITY_BACKEND.md, docs/BACKEND_SETUP.md, docs/backend/supabase.md → docs/archive/premium/ (docs/backend/ removed, empty).
+- Split copy: prompt-launch.txt lines 20–34 → docs/archive/premium/prompt-launch-part-b.txt.
+- New: docs/archive/premium/README.md (5 lines); docs/archive/premium/removed-sections.md (verbatim copies of SPEC §12/§18, ARCHITECTURE rows and flow, AUDIT C15, QA Plus section).
 ## Gate results
-Before: tsc 0; eslint 0; vitest 1430 pass / 0 fail / 90 files (no failing set). After: tsc 0; eslint 0; vitest 1440 pass / 0 fail / 91 files. build + validate-dist ok. git diff --ignore-cr-at-eol --stat -- src is empty. tests/engine green. The plus-ui flake: file gone since S4.2; no flake seen in the 2 full gate runs.
-## TEST_CLASSIFICATION S4.4 summary
-Deleted 0 (files removed earlier: S4.2 plus-ui.test.ts; S4.3 tests/backend/* x6 + tests/backend-client/client.test.ts); adapted 5; kept the rest (build "backend secrets" scan kept: the scanner still exists); BUG 0.
-## Positive tests, mutation-checked on a scratch copy (all failed as expected, copy removed)
-free-for-all (added a canUse export), prompt theme list (dropped "field"), pipeline per theme (field to calm-light), popup (disabled field radio), options tabs (added a plan tab), My assets (extra storage read of "plan" inside assetStore; a first attempt at module level did not fail because mockClear runs later, so it was redone inside the read path), migration (dropped the "plan" key).
+tsc 0 errors; eslint 0 errors; vitest 1440 pass / 0 fail / 91 files (`npm run gate` GREEN). `npm run build` ok; `npm run validate-dist` ok. `git diff --ignore-cr-at-eol --stat -- src tests scripts` empty. manifest.json unchanged (checked: no backend, Plus, payment, host or CSP leftovers).
 ## Decisions made (also in DECISIONS.md)
-Guard pattern leaves out entitledThemes (S4.1 kept it as the no-arg helper; its shape is pinned instead). No negative doc assert in release.test.ts yet (it would fail until S4.5).
+- PROMPTS.md moved as the prompt says, though it has no paid-tier text.
+- Part B = lines 20–34. Old line 36 ("Final print") names both parts, so it stays in the original file.
+- Removed sections copied to archive so nothing is lost.
+- Privacy/data-use keep the lines tests/release.test.ts reads.
+- No negative no-Plus doc assert added to tests/release.test.ts: tests/ is out of scope here.
+- Not edited: docs/PROGRESS.md, PHASE_*.md, FINAL_REPORT.md, HUMAN_CHECKS.md, PERF.md, providers/*, fixtures/web/INDEX.md (history or ordinary words).
 ## Out-of-scope touches
-None (src/ untouched).
+None in src/, tests/, scripts/, package.json, configs. `dist/` rebuilt by `npm run build` (build output only).
 ## Bugs found
-None. Note: src/core/entitlements.ts still has the name entitledThemes (pipeline.ts:18,150): behaviour is free; a rename is cosmetic, owner's call.
+None. Not fixed (not paid-tier, out of scope):
+- docs/ARCHITECTURE.md line ~39 still describes the removed AI repair layer (src/ai/repair.ts).
+- autopilot-all.ps1 reads prompt-launch.txt (now Part A only). CLAUDE.md says never run it.
 ## Owner manual checks
-None needed beyond the earlier stages (tests only).
+- Read README "Everything is free" and CHANGELOG "Unreleased"; check store listing and privacy wording before publishing.
+- Store images (outside the repo) must not show Plus marks or the Plus dialog. No binary asset was edited.
+- Confirm docs/archive/premium/ holds what you want archived.
+- Decide: add the negative no-Plus doc assert in tests/release.test.ts (S4.4 note).
+## Remaining grep hits (prompt regex, excluding archive, workflow, prompts, CLAUDE.legacy, node_modules, dist)
+- CHANGELOG: 0.3.0 history (lines 11–16); the new Unreleased entry; ordinary "plus" (line 50).
+- docs: history logs (PROGRESS, PHASE_*, FINAL_REPORT, HUMAN_CHECKS); provider pricing/free-tier pages; SPEC ordinary "plus"; QA/privacy sign-in and payment gate wording; AUDIT C6 secret-scanner list.
+- src/ and tests/ (out of scope): `entitledThemes` symbol (S4.4 note), ordinary "plus", migration.test names retired keys on purpose.
+- Paid-tier copy in README, CHANGELOG (Unreleased), docs/store, ARCHITECTURE, SPEC, AUDIT, QA: none left.
 ## Suggested commit message
-test(premium): remove paid-tier tests, cover free behaviour for all six themes (S4.4)
-## Next substage: S4.5 (Haiku 5.5, medium) — docs. Checklist: README, CHANGELOG, docs/* (PRIVACY.md and data-use.md still describe the Plus backend: edit, then add a negative assert to tests/release.test.ts), archive premium docs, specs/STAGES/CLAUDE.legacy/prompt-launch mentions, manifest check.
+docs(premium): remove paid-tier copy, archive premium docs, add Unreleased changelog (S4.5)
+Commands for the owner, after the manual check (not run here):
+  git add -A
+  git commit -m "docs(premium): remove paid-tier copy, archive premium docs, add Unreleased changelog (S4.5)"
+  git tag stage-S4.5
+  git push
+## Next substage: S5.1 — F1 design only (Opus 5.5, high), writes workflow/F1_DESIGN.md, no code. Preconditions: S4.5 DONE; the archive folder exists; no src changes.

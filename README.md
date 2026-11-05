@@ -14,13 +14,12 @@ Make the web page you are on easier on the eyes. Click **Change my page** and Sk
 
 ## Your privacy in short
 - Nothing leaves your browser unless you click **Change my page**, saved a key and accepted the consent text. What is sent is layout only: shapes, sizes and colours. Never text, links, images, forms, addresses or titles. **Show what will be sent** shows it first.
-- No analytics, ads or remote code. Accounts are optional and only for Skinly Plus: Skinly's backend then holds your email, plan status and billing references, never page data, addresses, sites or keys.
+- No analytics, ads or remote code. There are no accounts. Skinly runs no server: nothing is sent to Skinly, and the only network call is to the AI provider you choose, after you agree.
 - Settings, keys, saved sites and your own files live in this browser profile. **Settings, Privacy, Erase all Skinly data** removes all of it.
 - It never logs in, fills in, submits or clicks anything for you.
 
-## Free and Plus
-Free: Calm light, Midnight, High contrast and Auto, all five pets, the scenes of those themes, readability repair, your own AI key and per-site memory. No account, no network beyond your own AI provider.
-Skinly Plus (optional): Ocean, Warm paper and Field with their scenes, and your own pictures and videos as side art. Sign in with an email code in Settings, Plan and account. The price comes from Skinly's server. The code is open, so the gating in the extension is a convenience; the real check is a signed token from the server. Owners: docs/BACKEND_SETUP.md.
+## Everything is free
+All six built-in themes with their scenes, Auto, all five pets, My assets (your own pictures and videos as side art), readability repair, your own AI key and per-site memory. No account, no payments, and no network beyond your own AI provider.
 
 ## Install for testing
 1. `npm ci`, then `npm run build`.

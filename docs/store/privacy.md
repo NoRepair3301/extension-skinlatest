@@ -23,11 +23,11 @@ Only when you click "Change my page", have saved a key, and have accepted the co
 
 The provider (Google for Gemini, Groq for Groq) receives that description and your key under its own terms and may keep it. Skinly's own server never receives it.
 
-## Skinly Plus (optional account)
-Free needs no account and sends nothing to Skinly. If you sign in for Skinly Plus, Skinly's backend (run by Change Directory 510 on Supabase) holds your email address, your plan status and billing references (the payment provider's customer and subscription ids) and nothing else. Sign-in uses a one-time code sent to your email; there is no password. The extension asks the backend for a signed note of your plan at most once a day, or when you choose Refresh purchase. Payments are handled by the payment provider under its own terms; Skinly never sees your card. The backend never receives page data, page summaries, addresses, site names, the list of your sites, your themes, your pictures or your AI keys. On this device the extension keeps your session and that signed note in its storage. Sign out removes them; Delete account in Settings removes your email, plan status and billing references from the backend too.
+## Accounts and servers
+There are no accounts. Skinly has no server: the extension never contacts Skinly, and the only network calls go to the AI provider you choose, as described above. Nothing about you is kept outside this browser profile.
 
 ## What we do not do
-No analytics, telemetry, ads, remote code or remote configuration. Accounts are optional and only for Skinly Plus. The extension never logs in, fills in, submits or clicks on your behalf.
+No analytics, telemetry, ads, remote code or remote configuration. There are no accounts. The extension never logs in, fills in, submits or clicks on your behalf.
 
 ## Permissions
 - activeTab and scripting: to change the tab you are looking at after you click.
@@ -35,7 +35,7 @@ No analytics, telemetry, ads, remote code or remote configuration. Accounts are 
 - Optional host access: the provider host when you save a key, and the current site's origin when you click "Change my page" and allow it, so every page of that site keeps the theme until you choose Restore. You can remove it with "Forget this site" or in your browser's extension settings.
 
 ## Your choices
-Remove a key, forget a site or forget all sites in the options page, use "Erase all Skinly data" under Privacy to wipe everything on this device, or uninstall the extension to delete everything it stored. For Skinly Plus, Sign out or Delete account under Plan and account.
+Remove a key, forget a site or forget all sites in the options page, use "Erase all Skinly data" under Privacy to wipe everything on this device, or uninstall the extension to delete everything it stored.
 
 ## Contact
 Change Directory 510 (placeholder). Support email to be added by the publisher.
