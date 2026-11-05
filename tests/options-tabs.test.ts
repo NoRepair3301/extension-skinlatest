@@ -63,6 +63,15 @@ describe("options tabs", () => {
     expect(panelOf(root, "about").textContent).toContain("Version 0.2.0");
   });
 
+  it("T6: Options lists all remaining tabs and none refers to plan or account", async () => {
+    const root = await mount();
+    const names = tabs(root).map((t) => t.textContent!);
+    expect(names).toHaveLength(9);
+    for (const n of names) expect(n, n).not.toMatch(/plan|account|plus|premium|upgrade|sign.?in/i);
+    expect(Array.from(root.querySelectorAll('[role="tabpanel"]')).map((p) => p.id)).not.toContain("panel-plan");
+    expect(root.textContent).not.toMatch(/(upgrade|premium|skinly plus)/i);
+  });
+
   it("an address hash naming the removed Plan and account tab falls back to General", async () => {
     location.hash = "#plan";
     const root = await mount();

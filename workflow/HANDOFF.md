@@ -1,29 +1,26 @@
-# HANDOFF — S4.3 Remove backend, premium config and scripts; migrate old plan data
-Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / medium (per prompt)
+# HANDOFF — S4.4 Premium tests: remove dead, adapt, prove "everything is free"
+Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / high (per prompt)
 ## What changed
-- Deleted (evidence: importers were only each other, background.ts, planFlag.ts, scene.ts, rules/validate-dist words and the deleted tests; no dynamic imports, vite/manifest refs): src/backend/ (4), backend/ (19 tracked files incl. .env.example; `.env.local` untouched), tests/backend/ (6), tests/backend-client/client.test.ts, scripts/gen-entitlement-keys.mjs, types/env.d.ts, types/deno-min.d.ts, root .env.example (only premium vars), src/extension/planFlag.ts.
-- src/extension/background.ts — dailyCheck/buildConfig removed. src/core/entitlements.ts — only `entitledThemes` left.
-- src/extension/sites.ts — migration: STORAGE_VERSION 3, `migrateStorage` removes keys `auth`, `entitlement`, `plan`.
-- tsconfig.json — backend include. scripts/validate-dist.ts — Supabase host + anon-JWT allowances (all other checks kept). scripts/rules.ts — backend dir, 3 storage keys, fetch message.
-- Tests: new tests/migration.test.ts (4 cases); adapted rules, build (B4 supabase test removed), settings (clampPlan), auto (regex), persistence (schema v3).
-- manifest.json, package.json, vite.config.ts: no backend entries, unchanged. workflow/{PLAN,LOG,DECISIONS,PREMIUM_INVENTORY}.md.
+- tests/scene-flow.test.ts, tests/scene-page.test.ts — Plus plan fixture + comments removed; scene-page "My assets" test is now T6 (no entitlement key is read).
+- tests/release.test.ts — 3 backend/plan privacy-doc asserts removed (docs still say it until S4.5).
+- tests/popup.test.ts — theme test renamed T6, added no-disabled / checked / no Plus words.
+- tests/ai/prompt.test.ts (+1 T6 theme list), tests/ai/pipeline.test.ts (+6, one per theme), tests/options-tabs.test.ts (+1 T6 tabs).
+- tests/free-for-all.test.ts (new, 2): src scan for removed symbols/paths; entitlements.ts shape.
+- workflow/{PLAN,LOG,DECISIONS,TEST_CLASSIFICATION,PREMIUM_INVENTORY,HANDOFF}.md.
 ## Gate results
-tsc 0; eslint 0; vitest 1430 pass / 0 fail / 90 files (before: 1474/0/95); build + validate-dist ok; `git diff -- src/engine` empty. Bundles (bytes, minified): applier 86218, scene 74117, popup 45651, options 17700, applier-auto 15580, background 3635.
-## Final grep (case-insensitive, excl. docs/, workflow/, prompts/, README, CHANGELOG, .env*)
-Source/scripts/config/manifest: only `entitledThemes` (ordinary name, pipeline.ts, entitlements.ts, settings.test.ts) and sites.ts:17-18 + tests/migration.test.ts (the retired key names the migration must delete; unavoidable). Other hits are meta text for S4.5: CLAUDE.legacy.md, prompt-launch.txt, specs.md, STAGES.md.
+Before: tsc 0; eslint 0; vitest 1430 pass / 0 fail / 90 files (no failing set). After: tsc 0; eslint 0; vitest 1440 pass / 0 fail / 91 files. build + validate-dist ok. git diff --ignore-cr-at-eol --stat -- src is empty. tests/engine green. The plus-ui flake: file gone since S4.2; no flake seen in the 2 full gate runs.
+## TEST_CLASSIFICATION S4.4 summary
+Deleted 0 (files removed earlier: S4.2 plus-ui.test.ts; S4.3 tests/backend/* x6 + tests/backend-client/client.test.ts); adapted 5; kept the rest (build "backend secrets" scan kept: the scanner still exists); BUG 0.
+## Positive tests, mutation-checked on a scratch copy (all failed as expected, copy removed)
+free-for-all (added a canUse export), prompt theme list (dropped "field"), pipeline per theme (field to calm-light), popup (disabled field radio), options tabs (added a plan tab), My assets (extra storage read of "plan" inside assetStore; a first attempt at module level did not fail because mockClear runs later, so it was redone inside the read path), migration (dropped the "plan" key).
 ## Decisions made (also in DECISIONS.md)
-See DECISIONS.md S4.3 lines (migration reuse, manifest unchanged, rules.ts keys, scene.ts no-op line, .env.example deleted).
+Guard pattern leaves out entitledThemes (S4.1 kept it as the no-arg helper; its shape is pinned instead). No negative doc assert in release.test.ts yet (it would fail until S4.5).
 ## Out-of-scope touches
-scripts/rules.ts, src/core/entitlements.ts, src/extension/background.ts, src/extension/scene.ts (protected: one no-op premium line + imports), tests/{rules,build,settings,auto,persistence}.test.ts. Over 3 files but all forced by the deletions and listed for S4.3 in the S4.1/S4.2 handoffs.
+None (src/ untouched).
 ## Bugs found
-None.
+None. Note: src/core/entitlements.ts still has the name entitledThemes (pipeline.ts:18,150): behaviour is free; a rename is cosmetic, owner's call.
 ## Owner manual checks
-Load dist; popup/options work; AI themes list unchanged. Old-install check: in the service-worker console run `await chrome.storage.local.set({auth:{x:1},entitlement:{x:1},plan:{v:1,plan:"plus",until:9e15},schema:{v:2}})`, reload the extension at chrome://extensions, then `await chrome.storage.local.get(["auth","entitlement","plan","schema","settings"])` — expect `{schema:{v:3}, settings:...}` with the three old keys gone.
-## Packages to uninstall
-None (src/backend imported only Node/web built-ins and relative files).
-## Remaining
-- S4.4: tests/release.test.ts Plus/backend doc asserts (lines ~122-125), Plus comments in scene-flow and scene-page tests.
-- S4.5: README, CHANGELOG, docs/*, specs/STAGES/CLAUDE.legacy/prompt-launch mentions, manifest/package name stay for Stage 6.
+None needed beyond the earlier stages (tests only).
 ## Suggested commit message
-chore(premium): delete backend, entitlement tooling and config; migrate away old plan data (S4.3)
-## Next substage: S4.4 — relies on: src/backend, backend/, planFlag and their tests are gone; gate green at 1430 tests.
+test(premium): remove paid-tier tests, cover free behaviour for all six themes (S4.4)
+## Next substage: S4.5 (Haiku 5.5, medium) — docs. Checklist: README, CHANGELOG, docs/* (PRIVACY.md and data-use.md still describe the Plus backend: edit, then add a negative assert to tests/release.test.ts), archive premium docs, specs/STAGES/CLAUDE.legacy/prompt-launch mentions, manifest check.

@@ -98,3 +98,31 @@ No BUG rows remain open. Resolved this session or earlier:
 - Fixed in the engine with the original assertions kept: bug A (4 guard tests, S3.4), bug B (6 tests, S3.5). Bug C: engine adopts late roots on a signal (28 new tests); the one no-signal test adapted as above.
 - New tests: rerender (37), inheritance (37), shadow-late (28), backdrop (76).
 - Test determinism fixes (S3.6): scene-flow diagnostics test (stale 4 s snapshot timers cleared per test), client.test.ts signature tamper (was a no-op 1 time in 16).
+
+---
+
+# TEST_CLASSIFICATION — S4.4 premium tests (2026-11-05)
+
+Search (case-insensitive) over tests/: plus|premium|paywall|subscri|checkout|entitle|canUse|planFlag|clampThemeId|clampChoice|clampPlan|free"|locked|upgrade|sign.?in|account|supabase|backend|license, plus the words plan, free, tier, auth, clamp. Most hits are ordinary words ("blocked", "plan" as the theme-plan type, "free" gutter/space, "auth" provider error, "account" as redacted page text, "clamp" maths). The paid-tier files themselves (tests/backend/*, tests/backend-client/*, tests/plus-ui.test.ts) were deleted in S4.2/S4.3 with the code they tested.
+
+| file | test | what it protects | verdict | reason |
+|---|---|---|---|---|
+| tests/scene-flow.test.ts | beforeEach fixture store.set("plan", plus) + "predate Skinly Plus" comment | scene flows as a Plus user | ADAPT | nothing reads plan any more; fixture and comment removed, no assertion touched |
+| tests/scene-page.test.ts | beforeEach fixture plan: plus + "pictures are a Plus feature (B4)" comment | same | ADAPT | fixture and comment removed |
+| tests/scene-page.test.ts | "My assets is free: a leftover free plan flag..." | My assets shows a picture with no entitlement | ADAPT | renamed T6, no plan fixture, now also asserts that storage reads never touch plan/entitlement/auth |
+| tests/release.test.ts | "claims nothing the extension does not do" (3 asserts on the backend/plan wording of PRIVACY and data-use.md) | docs describe the Plus backend | ADAPT | the three asserts removed; the other claims stay. The docs still contain the old text until S4.5, which must add a negative assert |
+| tests/popup.test.ts | "every theme is selectable and none carries a mark or lock (all free)" | six themes selectable | ADAPT | renamed T6; added: no disabled/aria-disabled radio, selected radio is checked, no plus/premium/upgrade words |
+| tests/settings.test.ts | "entitlements (F3: everything is free)" | entitledThemes() lists all six | KEEP | already free behaviour (adapted S4.1), no plan argument |
+| tests/ai/pipeline.test.ts | "transform: all six themes are free (F3)" (2) | saved baseline and AI theme list | KEEP | already free behaviour (S4.1) |
+| tests/options-tabs.test.ts | "an address hash naming the removed Plan and account tab falls back to General" | removed tab id falls back | KEEP | already covers "stored last-tab pointing at a removed tab" (the hash is the only stored last tab) |
+| tests/options-tabs.test.ts | "has the nine sections..." | tab list | KEEP | already free |
+| tests/migration.test.ts | 4 cases | retired keys removed, others intact, idempotent | KEEP | S4.3 coverage is complete |
+| tests/build.test.ts | "flags backend secrets and the service role name in built files" | validate-dist secret scan (service_role, whsec_, private key) | KEEP | the scanner is still in scripts/validate-dist.ts as a generic secret guard (S4.3 decision); only the test name carries old wording |
+| tests/rules.test.ts, tests/auto.test.ts, tests/persistence.test.ts | S4.3 adaptations | | KEEP | already free |
+| tests/diag.test.ts, scrub, options-tabs, scene-flow ("account" markers) | page-text leak markers | | KEEP | unrelated ("account" is fake page text) |
+| all "blocked" / "auth" / "free space" hits | | | KEEP | unrelated words |
+
+Verdict counts: DELETE 0 (all done earlier: S4.2 plus-ui, S4.3 backend and backend-client), ADAPT 5, KEEP the rest, BUG 0.
+
+New T6 tests (10 cases): tests/free-for-all.test.ts (2: no removed symbol or path in src; entitlements.ts exports only a no-arg entitledThemes), tests/ai/prompt.test.ts (1: theme list in prompt and schema), tests/ai/pipeline.test.ts (6: each built-in theme applied as itself), tests/options-tabs.test.ts (1: nine tabs, none about plan/account), plus the renamed popup and scene-page tests.
+Note: the guard pattern omits entitledThemes (listed in the prompt) because S4.1 kept it on purpose as the "all six themes" helper used by pipeline.ts; the test pins its shape instead.

@@ -3,7 +3,7 @@ import { contrastFailures } from "../../src/plan/contrast.ts";
 import { transform } from "../../src/ai/pipeline.ts";
 import { aiApplyFailureMessage, applyFailureMessage, MSG } from "../../src/ai/messages.ts";
 import { buildUserMessage } from "../../src/ai/prompt.ts";
-import { defaultSettings } from "../../src/extension/settings.ts";
+import { defaultSettings, type Settings } from "../../src/extension/settings.ts";
 import { sampleSummary } from "../plan/helpers.ts";
 import { badPlan, goodPlan, harness, lowContrastPlan, okAnalysis, T0, unfixablePlan, URL_OK } from "./harness.ts";
 
@@ -339,5 +339,11 @@ describe("transform: all six themes are free (F3)", () => {
     const h = harness({ settings: { theme: "field" } });
     await transform(URL_OK, h.deps);
     expect(h.page.calls[0]).toBe("applyTheme:field");
+  });
+  it.each(["calm-light", "midnight", "ocean", "warm-paper", "high-contrast", "field"])("T6: the built-in theme %s is applicable: the saved baseline is applied as itself, never replaced", async (id) => {
+    const h = harness({ settings: { theme: id as Settings["theme"] } });
+    const out = await transform(URL_OK, h.deps);
+    expect(h.page.calls[0]).toBe(`applyTheme:${id}`);
+    expect(out).toMatchObject({ baselineThemeId: id });
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildUserMessage, PROMPT_VERSION, STYLE_PLAN_SCHEMA, SYSTEM_PROMPT } from "../../src/ai/prompt.ts";
 import { COLOR_KEYS } from "../../src/plan/schema.ts";
+import { BUILTIN_THEME_IDS } from "../../src/themes/index.ts";
 import { sampleSummary } from "../plan/helpers.ts";
 
 describe("prompt", () => {
@@ -18,6 +19,13 @@ describe("prompt", () => {
   it("has a schema requiring every top-level key and no free-form fields", () => {
     expect([...STYLE_PLAN_SCHEMA.required].sort()).toEqual(["reasons", "regionRules", "themeId", "tokens", "v"]);
     expect(JSON.stringify(STYLE_PLAN_SCHEMA)).not.toMatch(/css|selector|fontName/i);
+  });
+  it("T6: the AI prompt's theme list contains all 6 themes in app order", () => {
+    expect(BUILTIN_THEME_IDS).toHaveLength(6);
+    const quoted = BUILTIN_THEME_IDS.map((t) => `"${t}"`);
+    expect(SYSTEM_PROMPT).toContain(`Prefer a built-in themeId (${quoted.join(", ")})`);
+    expect(SYSTEM_PROMPT).toContain(`one of ${[...quoted, '"custom"'].join(", ")}`);
+    expect(STYLE_PLAN_SCHEMA.properties.themeId.enum).toEqual([...BUILTIN_THEME_IDS, "custom"]);
   });
   it("sends the summary and nothing else", () => {
     const s = sampleSummary();

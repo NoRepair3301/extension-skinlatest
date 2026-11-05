@@ -109,13 +109,16 @@ describe("popup", () => {
     expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ theme: "midnight" }));
   });
 
-  it("every theme is selectable and none carries a mark or lock (all free)", async () => {
+  it("T6: all 6 built-in themes are selectable and applicable from the popup logic, with no lock state anywhere", async () => {
     const root = await mount();
+    expect(root.querySelectorAll('input[type="radio"]:disabled, [aria-disabled="true"]')).toHaveLength(0);
     for (const id of ["midnight", "ocean", "warm-paper", "high-contrast", "field", "calm-light"]) {
       await act(() => root.querySelector<HTMLInputElement>(`input[value="${id}"]`)!.click());
       expect(api.storageSet).toHaveBeenLastCalledWith("settings", expect.objectContaining({ theme: id }));
+      expect(root.querySelector<HTMLInputElement>(`input[value="${id}"]`)!.checked).toBe(true);
     }
     expect(root.querySelectorAll(".theme-card.locked, .plus-mark")).toHaveLength(0);
+    expect(root.textContent).not.toMatch(/(plus|premium|upgrade|unlock)/i);
     expect(root.querySelector('[role="dialog"]')).toBeNull();
   });
 

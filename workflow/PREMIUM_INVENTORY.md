@@ -52,3 +52,7 @@ Method: case-insensitive grep for `canUse|entitle*|planFlag|PlanFlag|loadPlan|re
 - [x] tests/backend/* (6 files) and tests/backend-client/client.test.ts deleted (sole subject deleted code).
 - [ ] Left for S4.4: Plus wording in tests/release.test.ts (docs asserts, S4.5 docs), comments in scene-flow / scene-page tests.
 - [ ] Left for S4.5: README, CHANGELOG, docs/*, STAGES/specs mentions, CLAUDE.legacy.md, prompt-launch.txt.
+
+## S4.4 status (2026-11-05)
+- [x] tests row: tests/backend/*, tests/backend-client/*, tests/plus-ui.test.ts gone (S4.2/S4.3); scene-flow, scene-page, release, popup adapted; T6 positive tests added (see TEST_CLASSIFICATION S4.4).
+- [ ] Left for S4.5: README, CHANGELOG, docs/* (PRIVACY and data-use still describe the Plus backend; then add a negative assert in tests/release.test.ts), STAGES/specs mentions, CLAUDE.legacy.md, prompt-launch.txt.

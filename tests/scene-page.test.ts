@@ -44,8 +44,6 @@ beforeEach(async () => {
   hooks = [];
   wide = false;
   store.clear();
-  // pictures are a Plus feature (B4); these cases run as a Plus user, the Free case is below
-  store.set("plan", { v: 1, plan: "plus", until: Number.MAX_SAFE_INTEGER });
   api.storageGet.mockImplementation(async (k: string) => store.get(k));
   api.storageSet.mockImplementation(async (k: string, v: unknown) => void store.set(k, v));
   vi.spyOn(window, "innerWidth", "get").mockReturnValue(1200);
@@ -131,14 +129,17 @@ describe("scene.js page script", () => {
     expect(document.querySelector('[data-skinly-scene="asset"]')).not.toBeNull();
   });
 
-  it("My assets is free: a leftover free plan flag in storage does not hide a saved picture; the scene shows too", async () => {
-    store.set("plan", { v: 1, plan: "free", until: 0 });
+  it("T6: My assets works without any entitlement: a saved picture and the scene show, and no plan, account or entitlement key is read", async () => {
     store.set("assets", [asset]);
+    api.storageGet.mockClear();
     const r = await slot.skinlyScene!.sync({ scene: scene(), asset: { ...defaultPlacement(), assetId: "0a1b2c3d" }, fallback: null });
     expect(r.asset).toBe("shown");
     expect(r.scene).toBe("shown");
     expect(document.querySelector('[data-skinly-scene="asset"]')).not.toBeNull();
     expect(store.get("assets")).toEqual([asset]);
+    const read = api.storageGet.mock.calls.map((c) => c[0]);
+    expect(read).toContain("assets");
+    for (const retired of ["plan", "entitlement", "auth"]) expect(read, retired).not.toContain(retired);
   });
 
   it("a deleted or corrupt picture is reported missing and nothing breaks", async () => {
