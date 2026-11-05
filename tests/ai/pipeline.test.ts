@@ -325,27 +325,19 @@ describe("transform: rate limits", () => {
   });
 });
 
-describe("transform: Skinly Plus gating (B4)", () => {
-  it("without Plus: a Plus baseline is clamped, the AI is told only the free theme ids, and a Plus theme answer becomes the nearest free one", async () => {
+describe("transform: all six themes are free (F3)", () => {
+  it("a saved ocean baseline and an ocean answer are applied as they are; the AI is offered every built-in theme in the app's order", async () => {
     const h = harness({ settings: { theme: "ocean" } });
-    const out = await transform(URL_OK, { ...h.deps, loadPlan: async () => "free" });
-    expect(h.page.calls[0]).toBe("applyTheme:calm-light");
-    const call = h.mocks.gemini.calls[0]! as { system: string; schema?: { properties: { themeId: { enum: string[] } } } };
-    expect(call.system).not.toMatch(/"ocean"|"warm-paper"|"field"/);
-    expect(call.system).toContain('"calm-light"');
-    expect(call.schema!.properties.themeId.enum).toEqual(["calm-light", "midnight", "high-contrast", "custom"]);
-    expect(h.page.calls).toContain("applyPlan:calm-light");
-    expect(out).toMatchObject({ kind: "preview", plan: { themeId: "calm-light" }, baselineThemeId: "calm-light" });
-  });
-  it("with Plus: nothing is clamped and every theme is offered", async () => {
-    const h = harness({ settings: { theme: "ocean" } });
-    await transform(URL_OK, { ...h.deps, loadPlan: async () => "plus" });
+    const out = await transform(URL_OK, h.deps);
     expect(h.page.calls).toEqual(["applyTheme:ocean", "analyze", "applyPlan:ocean"]);
-    expect((h.mocks.gemini.calls[0]! as { system: string }).system).toContain('"field"');
+    const call = h.mocks.gemini.calls[0]! as { system: string; schema?: { properties: { themeId: { enum: string[] } } } };
+    for (const id of ["calm-light", "midnight", "ocean", "warm-paper", "high-contrast", "field"]) expect(call.system).toContain(`"${id}"`);
+    expect(call.schema!.properties.themeId.enum).toEqual(["calm-light", "midnight", "ocean", "warm-paper", "high-contrast", "field", "custom"]);
+    expect(out).toMatchObject({ kind: "preview", plan: { themeId: "ocean" }, baselineThemeId: "ocean" });
   });
-  it("a plan flag that cannot be read counts as Free", async () => {
+  it("a saved field baseline is applied as field", async () => {
     const h = harness({ settings: { theme: "field" } });
-    await transform(URL_OK, { ...h.deps, loadPlan: () => Promise.reject(new Error("x")) });
-    expect(h.page.calls[0]).toBe("applyTheme:calm-light");
+    await transform(URL_OK, h.deps);
+    expect(h.page.calls[0]).toBe("applyTheme:field");
   });
 });

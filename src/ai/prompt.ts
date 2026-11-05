@@ -1,10 +1,10 @@
 import type { StructuralSummary } from "../core/types.ts";
 import { COLOR_KEYS, FONT_KEYS, LAYOUTS, REASONS, STRATEGIES, SURFACES, THEME_IDS } from "../plan/schema.ts";
 
-/** 6: the theme list in the prompt and schema is the user's entitled themes only (Skinly Plus, v0.3.0). */
+/** 6: the theme list in the prompt and schema is a parameter; callers pass all six built-in themes. */
 export const PROMPT_VERSION = "6";
 
-/** The built-in theme ids the AI may name: the user's entitled ones (src/core/entitlements.ts), plus "custom". */
+/** The built-in theme ids the AI may name (all six, in the app's order), plus "custom". */
 const themeIdsFor = (builtins: readonly string[]): string[] => [...THEME_IDS.filter((t) => t !== "custom" && builtins.includes(t)), "custom"];
 const ALL_BUILTINS = THEME_IDS.filter((t) => t !== "custom");
 

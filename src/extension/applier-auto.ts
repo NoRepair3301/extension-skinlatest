@@ -1,4 +1,3 @@
-import { loadPlan } from "./planFlag.ts";
 import { checkUrl } from "../analyzer/eligibility.ts";
 import type { PageApplier } from "./applier.ts";
 import type { PetConfig } from "../features/pet/pet.ts";
@@ -33,7 +32,6 @@ if (applier && origin && !slot.skinlyAutoLive) {
     origin,
     applier,
     readSite: getSite,
-    readPlan: loadPlan,
     isBlocked: async () => !checkUrl(location.href, (await loadSettings()).blocklist).allowed,
     whenReady: (cb) => {
       if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => cb(), { once: true });

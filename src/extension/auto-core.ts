@@ -2,7 +2,6 @@ import { similar } from "../analyzer/fingerprint.ts";
 import type { Applier } from "./applier-core.ts";
 import { isAutoOn, type SiteRecord } from "./sites.ts";
 import type { AutoState } from "../core/diag.ts";
-import { clampPlan, type PlanFlag } from "../core/entitlements.ts";
 import { adoptCss } from "../features/mount.ts";
 
 export const BANNER_TEXT = "This page changed. Regenerate?";
@@ -26,8 +25,6 @@ export interface AutoDeps {
   onNavigate?(cb: () => void): () => void;
   /** A2: the state word of this document, each time it changes. */
   report?(state: AutoState): void;
-  /** B4: the derived plan flag only (never a token). A stored Plus theme without Plus applies as the nearest free theme. Default plus. */
-  readPlan?(): Promise<PlanFlag>;
 }
 
 /** A page that navigates without reloading re-applies the theme at most this many times per document. */
@@ -100,9 +97,6 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
     report("blocked");
     return "blocked";
   }
-  const flag: PlanFlag = deps.readPlan ? await deps.readPlan().catch((): PlanFlag => "free") : "plus";
-  site = { ...site, plan: clampPlan(site.plan, flag) };
-
   let stopped = false;
   let unlisten: (() => void) | undefined;
   deps.applier.onRestore(() => {
@@ -183,7 +177,7 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
               unlisten = undefined;
               return;
             }
-            settle({ ...rec!, plan: clampPlan(rec!.plan, flag) }, false);
+            settle(rec!, false);
           })
           .catch(() => report("error-storage"));
       });
