@@ -115,7 +115,7 @@ describe("popup", () => {
   it("T6: all 6 built-in themes are selectable and applicable from the popup logic, with no lock state anywhere", async () => {
     flow.applyTheme.mockResolvedValue({ ok: true });
     const root = await mount();
-    expect(root.querySelectorAll('input[type="radio"]:disabled, [aria-disabled="true"]')).toHaveLength(0);
+    expect(root.querySelectorAll('fieldset.themes input:disabled, fieldset.themes [aria-disabled="true"]')).toHaveLength(0);
     for (const id of ["midnight", "ocean", "warm-paper", "high-contrast", "field", "calm-light"]) {
       await act(() => root.querySelector<HTMLInputElement>(`input[value="${id}"]`)!.click());
       expect(api.storageSet).toHaveBeenLastCalledWith("settings", expect.objectContaining({ theme: id }));
@@ -449,7 +449,7 @@ describe("popup", () => {
   });
 
   it("Restore calls the page restore", async () => {
-    api.runInPage.mockResolvedValue({ ok: true });
+    api.runInPage.mockImplementation(async (_t: number, m: string) => (m === "canRestore" ? true : { ok: true }));
     const root = await mount();
     await click(root, "Restore original");
     expect(api.runInPage).toHaveBeenCalledWith(7, "restore", undefined, true);

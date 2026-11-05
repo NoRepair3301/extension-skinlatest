@@ -131,15 +131,18 @@ describe("popup: a theme click applies at once (F1)", () => {
     expect(api.requestOrigins).toHaveBeenLastCalledWith([`${ORIGIN}/*`]);
   });
 
-  it("clicking the already-checked theme applies it again (Restore leaves it checked)", async () => {
+  it("after Restore no theme is active; picking the theme that was on applies it again", async () => {
     api.runInPage.mockResolvedValue({ ok: true });
     const root = await mount();
     await pick(root, "field");
     await act(() => find(root, "Restore original")!.click());
     await flush();
     expect(status(root)).toBe(S.popup.restored);
-    expect(radio(root, "field").checked).toBe(true);
+    // F2: the page is original, so no radio claims to be active (the global default stays stored)
+    expect(root.querySelector('input[type="radio"]:checked')).toBeNull();
+    expect(savedTheme()).toBe("field");
     await pick(root, "field");
+    expect(radio(root, "field").checked).toBe(true);
     expect(flow.applyTheme).toHaveBeenCalledTimes(2);
     expect(flow.applyTheme).toHaveBeenLastCalledWith("field");
     expect(status(root)).not.toBe(S.popup.restored);
@@ -289,7 +292,12 @@ describe("popup: a theme click applies at once (F1)", () => {
     store.set("settings", { theme: "midnight", blocklist: [] });
     store.set("sites", { [ORIGIN]: { v: 1, plan: planFor("ocean"), fingerprint: { hash: "00000000", seq: "" }, provider: "builtin", model: "builtin", promptVersion: "7", savedAt: "2026-11-01T10:00:00.000Z", mode: "auto", blur: [], blurImages: false, paused: true } });
     const root = await mount();
-    expect(radio(root, "ocean").checked).toBe(true);
+    // paused = restored (F2): the site's theme is not active, so no radio is checked
+    expect(root.querySelector('input[type="radio"]:checked')).toBeNull();
+    store.set("sites", { [ORIGIN]: { ...(store.get("sites") as Record<string, object>)[ORIGIN], paused: false } });
+    document.body.innerHTML = "";
+    const resumed = await mount();
+    expect(radio(resumed, "ocean").checked).toBe(true);
     api.queryActiveTab.mockResolvedValue({ id: 8, url: "https://other.example/" });
     document.body.innerHTML = "";
     const other = await mount();

@@ -121,6 +121,7 @@ describe("popup: scene art after Change my page", () => {
   it("the Show art switch updates art that is already showing, and Restore forgets it; there is no scene choice, density or theme code", async () => {
     flow.runTransform.mockResolvedValue({ kind: "baseline", themeId: "ocean", why: "no-key", message: "Applied." });
     api.runScene.mockResolvedValue({ gutters: "ok", scene: "shown", asset: "none" });
+    api.runInPage.mockImplementation(async (_t: number, m: string) => (m === "restore" ? { ok: true } : undefined));
     const root = await mount();
     await click(root, "Change my page");
     expect(root.textContent).not.toContain("Import");

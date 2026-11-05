@@ -61,6 +61,12 @@ export const en = {
     offline: "You are offline. Built-in themes still work; AI themes need a connection.",
     petShown: "The pet is on this page. Restore original removes it.",
     restored: "Original restored.",
+    // F2 placeholders; S5.4 owns the final copy.
+    restoring: "Restoring…",
+    restoredShort: "Restored",
+    nothingToRestore: "Nothing to restore on this page.",
+    restoreFailed: "Couldn't restore this page. Reload it to get the original back.",
+    pickToResume: "Pick a theme to turn it back on for this site.",
     backToBuiltin: "Back to the built-in theme.",
     petOffHere: "Disable pet on this site",
     showPetHere: "Show pet on this page",

@@ -3,6 +3,7 @@ import { handleCommand, isCommand, type CommandDeps } from "./commands.ts";
 import { loadSettings } from "./settings.ts";
 import { isBadgeMessage } from "./messages.ts";
 import { reconcile, scriptId } from "./siteActions.ts";
+import { restorePage } from "./restore.ts";
 import { completeIntent, originsOfPatterns, serial } from "./keeper.ts";
 import { INTENT_KEY } from "./intent.ts";
 
@@ -16,7 +17,8 @@ const deps: CommandDeps = {
   loadSettings,
   // The applier goes into every frame (it stays out of cross-origin ones by itself); the palette is top frame only.
   inject: (tabId, file) => injectFile(tabId, file, file === "applier.js"),
-  runApplier: (tabId, method, arg) => runInPage(tabId, method, arg, method === "applyTheme" || method === "restore"),
+  runApplier: (tabId, method, arg) => runInPage(tabId, method, arg, method === "applyTheme"),
+  restore: restorePage,
   openPalette: openPaletteInPage,
   runTool: (tabId, method) => runTool(tabId, method),
   toast: showToast,

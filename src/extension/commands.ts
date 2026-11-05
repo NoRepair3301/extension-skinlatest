@@ -1,6 +1,8 @@
 import { applyFailureMessage, MSG, TOAST } from "../ai/messages.ts";
 import { checkUrl } from "../analyzer/eligibility.ts";
+import { S } from "../ui/strings.ts";
 import type { ActiveTab } from "./api.ts";
+import type { RestoreOutcome } from "./restore.ts";
 import { petConfig, type Settings } from "./settings.ts";
 
 export const COMMANDS = ["transform-page", "restore-page", "open-palette", "toggle-blur-page", "toggle-pet"] as const;
@@ -11,7 +13,9 @@ export const isCommand = (v: unknown): v is CommandName => typeof v === "string"
 export interface CommandDeps {
   loadSettings(): Promise<Settings>;
   inject(tabId: number, file: string): Promise<void>;
-  runApplier(tabId: number, method: "applyTheme" | "restore" | "syncPet" | "togglePet", arg?: unknown): Promise<unknown>;
+  runApplier(tabId: number, method: "applyTheme" | "syncPet" | "togglePet", arg?: unknown): Promise<unknown>;
+  /** F2: the same Restore the popup button runs (src/extension/restore.ts): all frames, fresh-instance cleanup, pause, badge. */
+  restore(tabId: number, url: string | undefined, blocklist: readonly string[]): Promise<RestoreOutcome>;
   openPalette(tabId: number): Promise<void>;
   /** Calls a page tool of the injected applier; blurPage with no argument toggles the whole-page veil. */
   runTool(tabId: number, method: "blurPage"): Promise<unknown>;
@@ -41,11 +45,16 @@ export async function handleCommand(deps: CommandDeps, command: CommandName, tab
     const allowed = url !== undefined && checkUrl(url, settings.blocklist).allowed;
 
     if (command === "restore-page") {
-      if (allowed) await deps.inject(tab.id, "applier.js").catch(() => undefined);
-      await deps.runApplier(tab.id, "restore"); // always: take away anything we added, even if the page became blocked since
-      await deps.setBadge(tab.id, "");
+      // Same path as the popup button. It takes away anything we added even if the page became blocked since, and clears the badge.
+      const r = await deps.restore(tab.id, url, settings.blocklist);
+      if (!r.ok && r.reason === "failed") {
+        await deps.setBadge(tab.id, "!");
+        await deps.setTitle(tab.id, S.popup.restoreFailed);
+        await say(TOAST.failed);
+        return;
+      }
       await deps.setTitle(tab.id, DEFAULT_TITLE);
-      if (allowed) await say(TOAST.restored);
+      if (allowed && r.ok) await say(TOAST.restored);
       return;
     }
     if (!allowed) {

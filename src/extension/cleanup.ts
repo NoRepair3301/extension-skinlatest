@@ -33,6 +33,28 @@ export function hasLeftovers(doc: Document): boolean {
 }
 
 /**
+ * F2: true when Restore has something to take away in this document or in a same-origin iframe of it (a frame applier of ours, or the
+ * leftovers of a lost one). Cheap: root attribute and adopted sheets only, no walk of the page.
+ */
+export function hasLeftoversDeep(doc: Document): boolean {
+  if (hasLeftovers(doc)) return true;
+  for (const f of Array.from(doc.querySelectorAll("iframe"))) {
+    try {
+      const inner = f.contentDocument;
+      if (inner && hasLeftovers(inner)) return true;
+    } catch {
+      // cross-origin frame: not ours to look at
+    }
+  }
+  return false;
+}
+
+/** F2: the pet, scene art, blur veil or a table tool is on the page; Restore removes those too, so it must stay available for them. */
+export function hasToolMarks(doc: Document): boolean {
+  return doc.querySelector(["[data-skinly-ui]", "[data-skinly-scene]", ...ATTRS.map((a) => `[${a}]`)].join(",")) !== null;
+}
+
+/**
  * Only what an engine instance wrote: our sheets, its inline writes (from the element markers) and the root, engine and region marks.
  * UI hosts and tool attributes stay, because a fresh applier about to theme the page may sit next to live controllers that own them.
  */

@@ -3,6 +3,7 @@ import { act } from "preact/test-utils";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createFakeChrome, type FakeChrome, type FakeChromeOptions } from "./helpers/fakeChrome.ts";
 import { planFor } from "./plan/helpers.ts";
+import { S } from "../src/ui/strings.ts";
 
 /**
  * A1: the keep flow on a fake chrome that keeps the browser's event order. The real popup, background, api.ts, intent and site code run;
@@ -53,6 +54,7 @@ async function boot(opts: FakeChromeOptions = {}) {
   // the page script the popup and the background talk to through executeScript
   (globalThis as unknown as { skinlyApplier: unknown }).skinlyApplier = {
     isActive: () => page.themed,
+    canRestore: () => page.themed,
     shownTheme: () => (page.themed ? { themeId: page.theme ?? "calm-light", strategy: "full" } : undefined),
     apply: (plan: { themeId: string }) => {
       page.applied.push(plan.themeId);
@@ -325,8 +327,10 @@ describe("F1 (S5.2): a theme click applies at once and keeps the site through th
     expect(sites()![ORIGIN]!.paused).toBe(true);
     expect(await registration()).toBeUndefined();
     await openPopup();
-    // the radio shows the site's theme (O4); clicking it again applies and turns the site back on
-    expect(root!.querySelector<HTMLInputElement>('input[value="warm-paper"]')!.checked).toBe(true);
+    // F2: the restored page has no active theme, so no radio is checked (the global default stays stored); the pick hint is shown
+    expect(root!.querySelector('input[type="radio"]:checked')).toBeNull();
+    expect(root!.textContent).toContain(S.popup.pickToResume);
+    expect((fake.store.get("settings") as { theme: string }).theme).toBe("warm-paper");
     await pick("warm-paper");
     expect(page.theme).toBe("warm-paper");
     expect(sites()![ORIGIN]!.paused).toBeUndefined();
@@ -431,6 +435,58 @@ describe("A1e: Restore pauses, Resume and Change my page bring it back", () => {
     await click("Change my page");
     expect(sites()![ORIGIN]!.paused).toBeUndefined();
     expect(await registration()).toBeDefined();
+  });
+});
+
+describe("F2: Restore from the shortcut and from the button leave the same state", () => {
+  const pick = async (id: string) => {
+    await act(() => root!.querySelector<HTMLInputElement>(`input[type="radio"][value="${id}"]`)!.click());
+    await flush();
+  };
+  const shortcut = async () => {
+    await fake.events.onCommand.fire("restore-page", { id: TAB, url: URL_A });
+    await flush();
+  };
+
+  it("the shortcut pauses a remembered site and unregisters it, exactly like the popup button", async () => {
+    await boot({ granted: [PATTERN] });
+    await openPopup();
+    await pick("midnight");
+    expect(sites()![ORIGIN]!.paused).toBeUndefined();
+    expect(await registration()).toBeDefined();
+    expect(page.themed).toBe(true);
+    await shortcut();
+    expect(page.themed).toBe(false);
+    expect(sites()![ORIGIN]!.paused).toBe(true);
+    expect(await registration()).toBeUndefined();
+    expect(fake.granted.has(PATTERN)).toBe(true);
+    expect(fake.badges.get(TAB)).toBe("");
+    const afterShortcut = JSON.stringify([sites(), fake.granted.has(PATTERN), await registration()]);
+
+    // the same from the button on a fresh run
+    await boot({ granted: [PATTERN] });
+    await openPopup();
+    await pick("midnight");
+    await click("Restore original");
+    const afterButton = JSON.stringify([sites(), fake.granted.has(PATTERN), await registration()]);
+    // the two records differ only in the time they were saved
+    const strip = (s: string) => s.replace(/"savedAt":"[^"]*"/g, '"savedAt":"-"');
+    expect(strip(afterButton)).toBe(strip(afterShortcut));
+  });
+
+  it("a theme click after a shortcut Restore turns the site back on without a prompt", async () => {
+    await boot({ granted: [PATTERN] });
+    await openPopup();
+    await pick("field");
+    await shortcut();
+    expect(sites()![ORIGIN]!.paused).toBe(true);
+    await openPopup();
+    expect(root!.querySelector('input[type="radio"]:checked')).toBeNull();
+    await pick("field");
+    expect(page.theme).toBe("field");
+    expect(sites()![ORIGIN]!.paused).toBeUndefined();
+    expect(await registration()).toBeDefined();
+    expect(fake.granted.has(PATTERN)).toBe(true); // the permission was never taken away or asked for again
   });
 });
 

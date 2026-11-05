@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { MSG, TOAST } from "../src/ai/messages.ts";
 import { COMMANDS, handleCommand, isCommand, type CommandDeps, type CommandName } from "../src/extension/commands.ts";
 import { defaultSettings } from "../src/extension/settings.ts";
+import type { RestoreOutcome } from "../src/extension/restore.ts";
 import { shortcutLine, shortcutsPage } from "../src/extension/shortcuts.ts";
+import { S } from "../src/ui/strings.ts";
 
 interface Opts {
   applyResult?: unknown;
@@ -12,6 +14,8 @@ interface Opts {
   blocklist?: string[];
   pageUrl?: string | undefined;
   failToast?: boolean;
+  restoreResult?: RestoreOutcome;
+  restoreThrows?: boolean;
 }
 
 function make(o: Opts = {}) {
@@ -26,6 +30,11 @@ function make(o: Opts = {}) {
       calls.push(`run:${m}${typeof a === "string" ? `:${a}` : ""}`);
       if (m === "togglePet") return "petOn" in o ? o.petOn : true;
       return m === "applyTheme" ? (o.applyResult ?? { ok: true }) : undefined;
+    },
+    restore: async (_t, url, blocklist) => {
+      calls.push(`restore:${url ?? "-"}:${blocklist.join(",")}`);
+      if (o.restoreThrows) throw new Error("x");
+      return o.restoreResult ?? { ok: true, paused: false };
     },
     openPalette: async () => void calls.push("palette"),
     runTool: async (_t, m) => {
@@ -72,11 +81,33 @@ describe("commands", () => {
     }
   });
 
-  it("restore-page restores, clears the badge and toasts 'restored'", async () => {
+  it("restore-page runs the shared restore (same path as the popup button), resets the title and toasts 'restored'", async () => {
     const { d, calls } = make();
     await handleCommand(d, "restore-page", tab(OK));
-    expect(calls).toEqual(["inject:applier.js", "run:restore", "badge:", "title:Skinly AI", `toast:${TOAST.restored}`]);
+    // inject, all frames, pause and badge are the shared function's job (tests/restore-path.test.ts); the command adds the title and the toast
+    expect(calls).toEqual([`restore:${OK}:blocked.test`, "title:Skinly AI", `toast:${TOAST.restored}`]);
     expect(TOAST.restored).toBe("Skinly: restored");
+  });
+
+  it("restore-page asks the page itself for the address when the browser passes none, so the same gate runs", async () => {
+    const { d, calls } = make({ pageUrl: OK });
+    await handleCommand(d, "restore-page", tab(undefined));
+    expect(calls).toEqual(["pageUrl", `restore:${OK}:blocked.test`, "title:Skinly AI", `toast:${TOAST.restored}`]);
+  });
+
+  it("restore-page: when nothing could restore the page, the badge and title say so and no 'restored' toast shows", async () => {
+    const { d, calls } = make({ restoreResult: { ok: false, reason: "failed" } });
+    await handleCommand(d, "restore-page", tab(OK));
+    expect(calls).toEqual([`restore:${OK}:blocked.test`, "badge:!", `title:${S.popup.restoreFailed}`, `toast:${TOAST.failed}`]);
+    expect(calls).not.toContain(`toast:${TOAST.restored}`);
+  });
+
+  it("restore-page: an error in the shared restore fails safe (badge, title, toast)", async () => {
+    const { d, calls } = make({ restoreThrows: true });
+    await handleCommand(d, "restore-page", tab(OK));
+    expect(calls).toContain("badge:!");
+    expect(calls).toContain(`title:${MSG.commandFailed}`);
+    expect(calls).not.toContain(`toast:${TOAST.restored}`);
   });
 
   it("open-palette injects the palette, opens it and toasts", async () => {
@@ -113,9 +144,9 @@ describe("commands", () => {
   });
 
   it("restore on a blocked page still removes anything we added, without injecting or toasting", async () => {
-    const { d, calls } = make();
+    const { d, calls } = make({ restoreResult: { ok: false, reason: "blocked" } });
     await handleCommand(d, "restore-page", tab("https://blocked.test/"));
-    expect(calls).toEqual(["run:restore", "badge:", "title:Skinly AI"]);
+    expect(calls).toEqual(["restore:https://blocked.test/:blocked.test", "title:Skinly AI"]);
   });
 
   it("erp.iitkgp.ac.in is no longer blocked by default", async () => {

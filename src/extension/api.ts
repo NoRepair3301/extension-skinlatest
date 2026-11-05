@@ -193,11 +193,26 @@ export const runTool = async <R = unknown>(tabId: number, method: ToolMethod, ..
 /** PNG data URL of the visible area of the tab's window. Needs the activeTab grant from the user's click. */
 export const captureVisible = (): Promise<string> => chrome.tabs.captureVisibleTab({ format: "png" });
 
-export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet" | "togglePet" | "isActive" | "shownTheme" | "diag";
+export type PageMethod = "applyTheme" | "apply" | "analyze" | "restore" | "syncPet" | "updatePet" | "togglePet" | "isActive" | "shownTheme" | "canRestore" | "diag";
 
+// Runs inside the page, so it can use nothing from this file. "canRestore" must answer even when no applier is there (the extension was
+// reloaded while the tab stayed open): then the root marker the old instance left is the evidence (same-origin frames included).
 const callApplier = (m: string, a?: unknown): unknown => {
   const applier = (globalThis as unknown as { skinlyApplier?: Record<string, (x?: unknown) => unknown> }).skinlyApplier;
-  return applier?.[m]?.(a);
+  if (applier) return applier[m]?.(a);
+  if (m !== "canRestore") return undefined;
+  const marked = (doc: Document): boolean => doc.documentElement.hasAttribute("data-skinly");
+  try {
+    return marked(document) || Array.from(document.querySelectorAll("iframe")).some((f) => {
+      try {
+        return f.contentDocument !== null && marked(f.contentDocument);
+      } catch {
+        return false;
+      }
+    });
+  } catch {
+    return false;
+  }
 };
 
 /**

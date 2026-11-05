@@ -122,6 +122,8 @@ describe("popup pet button (I)", () => {
     store.set("settings", { theme: "calm-light", blocklist: [], pet: { enabled: true, kind: "pebble", size: "medium", corner: "bottom-right", disabledOrigins: [], ...over } });
   const button = (root: HTMLElement) => Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Show pet on this page")!;
   const petNote = (root: HTMLElement) => root.querySelector('details.acc [aria-live="polite"]')!.textContent;
+  /** Calls into the page other than the open-time "can Restore do anything" question, which reads and changes nothing. */
+  const pageCalls = () => api.runInPage.mock.calls.filter((c) => c[1] !== "canRestore");
   const click = async (b: HTMLElement) => {
     await act(() => b.click());
     await flush();
@@ -132,7 +134,7 @@ describe("popup pet button (I)", () => {
     const root = await mount();
     expect(button(root)).toBeDefined();
     expect(api.injectFile).not.toHaveBeenCalled();
-    expect(api.runInPage).not.toHaveBeenCalled();
+    expect(pageCalls()).toEqual([]);
   });
 
   it("shows the pet after the click: injects the page script and asks it to show the pet", async () => {
@@ -194,7 +196,7 @@ describe("popup pet button (I)", () => {
     flow.runTransform.mockResolvedValue({ kind: "blocked", reason: "internal", message: "Skinly can't change this kind of page" });
     const root = await mount();
     await click(Array.from(root.querySelectorAll("button")).find((b) => b.textContent === "Change my page")!);
-    expect(api.runInPage).not.toHaveBeenCalled();
+    expect(pageCalls()).toEqual([]);
   });
 
   it("changing a pet setting only updates a pet already on the page, and never injects", async () => {

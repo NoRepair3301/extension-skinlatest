@@ -2,7 +2,7 @@ import { analyze } from "../analyzer/analyze.ts";
 import type { SummaryDeps } from "../analyzer/summary.ts";
 import { NEUTRAL_PAGE, type Fingerprint, type RiskMarker, type StructuralSummary } from "../core/types.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
-import { engineCleanup, hasLeftovers, markerCleanup } from "./cleanup.ts";
+import { engineCleanup, hasLeftovers, hasLeftoversDeep, hasToolMarks, markerCleanup } from "./cleanup.ts";
 import { validatePlan, type Strategy, type StylePlan, type Tokens } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { DEFAULT_THEME_ID, getTheme, isBuiltinThemeId, isThemeChoice, resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
@@ -161,6 +161,8 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     },
     restore,
     isActive: (): boolean => activeEngine !== undefined && activeEngine.isActive(),
+    /** F2: Restore has something to do: a live engine, or the marks of a lost one here or in a same-origin frame. */
+    canRestore: (): boolean => activeEngine !== undefined || hasLeftoversDeep(doc) || hasToolMarks(doc),
     shownTheme: (): { themeId: string; strategy: Strategy } | undefined => (activeEngine?.isActive() ? shown : undefined),
   };
 }

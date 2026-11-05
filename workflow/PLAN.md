@@ -23,7 +23,7 @@
 | S4.5 | Docs sweep; archive premium docs | Haiku 5.5 / medium | DONE | 2026-11-05 |
 | S5.1 | F1 design only | Opus 5.5 / high | DONE (owner decisions O1-O4 pending) | 2026-11-05 |
 | S5.2 | F1 implement: theme click applies | Opus 5.5 / high | DONE | 2026-11-05 |
-| S5.3 | Restore polish | Sonnet 5.5 / high | TODO | |
+| S5.3 | Restore polish | Sonnet 5.5 / high | DONE | 2026-11-06 |
 | S5.4 | Edge states | Sonnet 5.5 / medium | TODO | |
 | S6.1 | RENAME_MAP.md and rename-check script | Sonnet 5.5 / medium | TODO | |
 | S6.2 | DOM markers data-skinly* to data-repaint* | Sonnet 5.5 / high | TODO | |

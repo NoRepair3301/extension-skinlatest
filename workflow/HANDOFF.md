@@ -1,40 +1,36 @@
-# HANDOFF — S5.2 F1 implement: theme click applies
-Status: DONE     Date: 2026-11-05     Model/effort used: Opus 5.5 / high (per prompt)
+# HANDOFF — S5.3 Restore polish (F2 UX) and exact-restore integration test
+Status: DONE     Date: 2026-11-06     Model/effort used: Sonnet 5.5 / high (per prompt)
 ## What changed
-- src/extension/popup/Popup.tsx — `applyChoice` replaces `pickTheme`; `applyLatest`; radios `onClick` + `disabled={busy}`; `selected`/`themeBusy` state, refs `clickSeq`/`pageQueue`/`permissionPending`; `tabUrl` set in `refreshSite`; Change my page/Restore disabled while a theme applies; `aria-busy` + Applying line; `rememberedChoice` (O4).
-- src/extension/cleanup.ts — new `engineCleanup` (sheets, engine marks, root/engine/region attrs) and `hasLeftovers`; `markerCleanup` = `engineCleanup` + UI-host/tool sweep.
-- src/extension/applier-core.ts — `run()`: `fresh` before `restore(false)`; `engineCleanup` before `snapshot` when fresh and leftovers (S2.3 gap closed).
-- src/extension/api.ts — `"shownTheme"` added to `PageMethod`.
-- src/extension/keeper.ts — `applyToTab(tabId, origin, plan?)` theme-aware; `keep()` passes the kept plan (resume: the record's plan).
-- src/ui/strings.ts — `applying(name)`, `choiceSaved` (placeholders, S5.4 owns copy).
-- tests: new retheme.test.ts (A, 19), keeper.test.ts (K, 6), popup-theme-click.test.ts (P, 15); persistence.test.ts +6 F tests and stub `shownTheme`/`apply`; popup.test.ts: "saves the picked theme" and T6 adapted (assertions kept, apply asserted too).
+- src/extension/restore.ts (new) — `restorePage` = the one Restore path (inject all frames, restore all frames, badge, pause a remembered site; `blocked`/`failed` outcomes) and `hasSomethingToRestore` (button state).
+- src/extension/commands.ts, background.ts — restore-page now calls the shared `restore` dep (= `restorePage`); failure shows badge "!", title and failed toast instead of "restored".
+- src/extension/popup/Popup.tsx — `restore()` uses `restorePage`; states `restorable`/`restoreState`/`restoredHere`; aria-disabled + aria-busy + `#restore-hint` live region; radios clear after Restore (paused record also clears them); pick hint on the paused site line; probe on open, after apply/AI flow/resume.
+- src/extension/applier-core.ts, cleanup.ts, api.ts — page method `canRestore` (engine, lost-instance marks here or in same-origin iframes, UI hosts/tool marks); `callApplier` answers it from the `data-skinly` root marker when no applier is in the page.
+- src/ui/strings.ts — restoring, restoredShort, nothingToRestore, restoreFailed, pickToResume (placeholders; S5.4 owns the copy).
+- tests: new restore-exact (69), popup-restore (12), restore-path (15); adapted commands, persistence (+2 shortcut parity), popup, popup-scene, popup-theme-click, popup-tools (reasons in DECISIONS).
 ## Gate results
-Before: tsc 0; eslint 0; vitest 1440 pass / 0 fail / 91 files. After: tsc 0; eslint 0; vitest 1486 pass / 0 fail / 94 files; GATE GREEN; build ok; validate-dist ok.
-Mutations (scratch copy, removed): no fresh cleanup (5 A fail); cleanup always (1); markerCleanup instead (4); no swap restore (14); keeper old skip (K+F Edge fail); keeper always apply (1); onChange radios (3); await before request (2 order tests); origin-only eligibility (.pdf); radios not disabled (1); no latest-wins seq (rapid); no pending-request reuse (rapid). Grep: no `pickTheme`, no Apply control in src.
-## Click handler call order (final)
-seq++ → resolve theme, clickKept → eligibility (full tab URL) → [eligible, not refused] writeIntent (not awaited) → requestOrigins (gesture; reused while pending) → saveSettings (not awaited) → state (selected, busy) → page work queued (latest wins) → answer: allow = optimistic site record; deny = keepDenied + Keep on this site; refused before = thisPageOnly. Ineligible: saveSettings, MSG.blocked + choiceSaved, nothing injected/asked.
-## Decisions made
-O1-O4 accepted as recommended (no OWNER_NOTES.md); dirty-tree precondition read as src/tests clean; no engine change; shownTheme-only keeper check; request always called. Details in DECISIONS.md.
+Before: tsc 0; eslint 0; vitest 1486 pass / 0 fail / 94 files. After: tsc 0; eslint 0; vitest 1587 pass / 0 fail / 97 files; GATE GREEN. `git diff --ignore-cr-at-eol --stat -- src/engine` empty.
+Deliberate breakage (scratch copy, removed; all made the named tests fail): no pause in restorePage (14), shortcut own path (5), button always enabled (12), repeat clicks not ignored (1), radios not cleared (1), unanswered restore reported ok (2), engine skips !important revert (14), engine ignores page change I4/I5 (4), lost-instance cleanup skips markers (7), observer left connected I7 (54), canRestore ignores lost marks (8), probe ignores root marker (1).
+## Decisions made (also in DECISIONS.md)
+Popup and shortcut share `restorePage`. Prompt beats design for radios: none active after Restore (global default stays stored). Restore uses aria-disabled to keep focus. jsdom cannot prove shorthand/exotic style byte-exactness (cssstyle): fixture avoids them.
 ## Out-of-scope touches
-None (all 6 src files are in F1_DESIGN §11; tests per §10).
-## Bugs found / gaps handed on
-- R3 same-origin iframe double-theming still open (S5.3 iframe test). Shortcut Restore does not pause (S5.3). Failed swap leaves the page unthemed but says "left as it was" (S5.4).
-- After a theme click, Change my page (AI, untouched) leaves the clicked radio checked though the page shows the AI theme (`selected` not reset in `start()`). S5.3/S5.4.
-## Owner manual checks (run before committing)
-1. `npm run build`, reload the extension, open Wikipedia. Popup: click a theme: page themes at once, no second click.
-2. Click each other theme in turn: each replaces the previous; nothing stacks or flashes.
-3. Click Auto, then a theme again.
-4. Before theming save `window.__a = document.documentElement.outerHTML`; after Restore run `document.documentElement.outerHTML === window.__a`: expect `true`.
-5. After Restore click the (still checked) theme: it applies and the site is no longer "Paused".
-6. Reload: the remembered theme comes back by itself.
-7. On a never-granted site click a theme: prompt appears in the same click (theme shows behind it); deny: site not kept, "Not kept" message + Keep on this site; allow: kept. Edge: popup closes at the prompt; after allow the page shows the clicked theme.
-8. chrome://extensions: click a theme: no error, blocked message + "Saved as your theme for other pages."
-9. "Change my page" once (with an AI key): behaves as before.
-10. No red errors in page or service-worker console.
+None beyond: applier-core.ts, cleanup.ts, api.ts, background.ts (page-runner/api restore path, minimal).
+## Bugs found (outside scope)
+- R3 confirmed (engine): top engine walks same-origin iframes (src/engine/dom.ts:1181-1193, collect) and the frame's own tokensOnly applier (src/extension/applier.ts:91-93) also themes it. Either alone restores exactly; both together leave the frame's inline colours themed after both restores (sheets and marks are removed). tests/restore-exact.test.ts asserts only sheets/marks/timers for the combined case. Owner decision: top engine should skip frames that have their own applier, or the other way round.
+- A failed theme swap leaves the page unthemed with copy "left as it was" (S5.4). After "Change my page" a clicked radio stays checked (S5.2 note; S5.4).
+- Reopened popup on a tab-only themed page that was restored shows the global default checked: no per-tab storage.
+## Owner manual checks (before committing)
+1. `npm run build`, reload the extension; on Wikipedia run `window.__a = document.documentElement.outerHTML`.
+2. Popup: Restore reads disabled ("Nothing to restore on this page.") before any theme. Click a theme: page themes, Restore enables.
+3. Click Restore: page returns, button shows "Restored" for 2 s then disabled; no radio checked; `document.documentElement.outerHTML === window.__a` prints `true`.
+4. Reload: stays original (site paused). Reopen popup: same restored state + hint. Click a theme: applies again, no "Paused".
+5. Theme, then press the Restore shortcut: same as step 3 (site paused too).
+6. Theme, reload the extension in chrome://extensions (not the page), open the popup: Restore is enabled; click it: page returns to normal.
+7. chrome:// page: Restore disabled with the blocked message, no error.
+8. Click Restore twice fast: one restore only. No red errors in page or service-worker console.
 ## Suggested commit message
-feat(popup): theme click applies at once, remembers the site, re-themes without stacking (S5.2)
+feat(restore): consistent Restore button and shortcut, paused-site state, exact-restore integration test (S5.3)
   git add -A
-  git commit -m "feat(popup): theme click applies at once, remembers the site, re-themes without stacking (S5.2)"
-  git tag stage-S5.2
+  git commit -m "feat(restore): consistent Restore button and shortcut, paused-site state, exact-restore integration test (S5.3)"
+  git tag stage-S5.3
   git push
-## Next substage: S5.3 (Sonnet 5.5 / high) — Restore polish. Relies on: onClick radios + un-pause via keeper `record()`; `engineCleanup`/`hasLeftovers` in cleanup.ts; theme-aware `applyToTab`; strings `pickToResume` still to add.
+## Next substage: S5.4 (Sonnet 5.5 / medium) — edge states. Relies on: strings restoring/restoredShort/nothingToRestore/restoreFailed/pickToResume to reword; `restorePage` outcomes `blocked`/`failed`; R3 decision.

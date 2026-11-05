@@ -10,7 +10,7 @@ import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { checkUrl } from "../../analyzer/eligibility.ts";
 import { themeToPlan } from "../../plan/themeToPlan.ts";
 import { browserHints, getCommands, hasOrigins, queryActiveTab, registeredScripts, requestOrigins, runInPage, setBadge, type RegisteredScript } from "../api.ts";
-import { ensureApplier } from "../inject.ts";
+import { hasSomethingToRestore, restorePage } from "../restore.ts";
 import { createPageClient, runTransform } from "../flow.ts";
 import { defaultSettings, loadSettings, petConfig, saveSettings, type Settings } from "../settings.ts";
 import { showPetHere } from "../petActions.ts";
@@ -94,6 +94,25 @@ export function Popup() {
   const pageQueue = useRef<Promise<void>>(Promise.resolve());
   /** A permission prompt for this origin is open: later clicks only rewrite the intent and share its answer (a second request may reject). */
   const permissionPending = useRef<{ origin: string; answer: Promise<boolean> } | undefined>(undefined);
+  /** F2: whether Restore has anything to take away on this tab (undefined while the first check runs). Only a newer answer may replace an older one. */
+  const [restorable, setRestorable] = useState<boolean | undefined>(undefined);
+  const restorableSeq = useRef(0);
+  /** idle, busy while the page is being restored, done for a moment after it worked (the confirmation on the button). */
+  const [restoreState, setRestoreState] = useState<"idle" | "busy" | "done">("idle");
+  const restoring = useRef(false);
+  /** Restore ran in this popup: no theme is active on this tab, whatever the global default says. */
+  const [restoredHere, setRestoredHere] = useState(false);
+  const markRestorable = (value: boolean): void => {
+    restorableSeq.current++;
+    setRestorable(value);
+    // A theme went on while "Restored" was still showing: the confirmation is over, the button is a real Restore again.
+    if (value) setRestoreState((s) => (s === "done" ? "idle" : s));
+  };
+  const probeRestorable = async (tab: { id: number; url?: string | undefined } | undefined): Promise<void> => {
+    const mine = ++restorableSeq.current;
+    const value = tab ? await hasSomethingToRestore(tab.id, tab.url).catch(() => false) : false;
+    if (mine === restorableSeq.current) setRestorable(value);
+  };
 
   const refreshSite = async (): Promise<{ origin: string; tabId: number } | undefined> => {
     try {
@@ -103,9 +122,11 @@ export function Popup() {
       const origin = tab?.url ? originOf(tab.url) : undefined;
       setSite(tab && origin ? { origin, tabId: tab.id, record: await getSite(origin) } : undefined);
       if (origin) grantedAtOpen.current = (await isGranted(origin)) ? origin : undefined;
+      await probeRestorable(tab);
       return tab && origin ? { origin, tabId: tab.id } : undefined;
     } catch {
       setSite(undefined);
+      markRestorable(false);
       return undefined;
     }
   };
@@ -130,6 +151,12 @@ export function Popup() {
   };
 
   useEffect(() => applyUiTheme(document, settings.theme), [settings.theme]);
+  // The "Restored" confirmation on the button is short; nothing is left to restore after it, so the button then reads disabled again.
+  useEffect(() => {
+    if (restoreState !== "done") return undefined;
+    const t = setTimeout(() => setRestoreState("idle"), 2000);
+    return () => clearTimeout(t);
+  }, [restoreState]);
   useEffect(() => {
     void loadSettings().then(setSettings).catch(() => recordErrors(["popup-error"]));
     void refreshSite().then(checkPendingIntent);
@@ -244,6 +271,7 @@ export function Popup() {
     if (seq !== clickSeq.current) return;
     setThemeBusy(undefined);
     if (r?.ok) {
+      markRestorable(true);
       badge(tabId, "ON");
       setApplied({ name: themeName(resolved), fixes: 0 });
       void showArt(tabId, next, sourceForTheme(choice, prefersDark()));
@@ -286,6 +314,7 @@ export function Popup() {
     void saveSettings(next).catch(() => recordErrors(["popup-error"]));
 
     setSelected(choice);
+    setRestoredHere(false);
     setNotice("");
     setKeepable(undefined);
     setApplied(undefined);
@@ -348,6 +377,10 @@ export function Popup() {
         abort.current.signal,
       );
       setView(toView(outcome, tab.id));
+      setRestoredHere(false);
+      // A built-in or AI theme went on the page: there is something to restore. Otherwise ask the page (blocked, cancelled, rolled back).
+      if (outcome.kind === "baseline" || outcome.kind === "preview") markRestorable(true);
+      else void probeRestorable(tab);
       void recordProviderResult(!isOnline() && outcome.kind !== "preview" ? "offline" : providerResultOf(outcome));
       if (outcome.kind === "baseline" || outcome.kind === "preview") setApplied({ name: themeName(outcome.kind === "baseline" ? outcome.themeId : outcome.plan.themeId), fixes: outcome.fixes ?? 0 });
       else setApplied(undefined);
@@ -396,27 +429,40 @@ export function Popup() {
     answer(false);
   };
 
+  /** F2: the same restorePage the Restore shortcut runs. Ignores a click while one is running or when there is nothing to restore. */
   const restore = async () => {
+    if (restoring.current || restorable !== true) return;
+    restoring.current = true;
+    setRestoreState("busy");
     try {
       const tab = await queryActiveTab();
-      if (!tab) return setView({ state: "blocked", reason: MSG.blocked });
-      // A fresh script instance (popup reopened, page navigated) still cleans up by markers; make sure there is one to ask.
-      await ensureApplier(tab.id, true).catch(() => undefined);
-      await runInPage(tab.id, "restore", undefined, true);
-      badge(tab.id, "");
-      // Restore also pauses automatic theming for this site until the user applies again, so a reload does not bring the theme back.
-      const origin = tab.url ? originOf(tab.url) : undefined;
-      if (origin && isAutoOn(await getSite(origin).catch(() => undefined))) await pauseSite(origin).catch(() => undefined);
+      if (!tab) {
+        setRestoreState("idle");
+        return setView({ state: "blocked", reason: MSG.blocked });
+      }
+      const r = await restorePage(tab.id, tab.url, settings.blocklist);
+      if (!r.ok) {
+        // Nothing was changed on the page (or it is a page we may not change): no "restored" and no pause.
+        setRestoreState("idle");
+        return setView(r.reason === "blocked" ? { state: "blocked", reason: MSG.blocked } : { state: "error", kind: "error", message: S.popup.restoreFailed });
+      }
       setKept(false);
       setApplied(undefined);
       setNotice("");
-      void refreshSite();
       setKeepable(undefined);
+      setSelected(undefined);
+      setRestoredHere(true);
+      markRestorable(false);
       artSource.current = undefined;
       setSceneNote("");
       setView({ state: "idle", note: S.popup.restored });
+      setRestoreState("done");
+      void refreshSite();
     } catch {
-      setView({ state: "blocked", reason: MSG.blocked });
+      setRestoreState("idle");
+      setView({ state: "error", kind: "error", message: S.popup.restoreFailed });
+    } finally {
+      restoring.current = false;
     }
   };
 
@@ -499,7 +545,11 @@ export function Popup() {
     deniedHere.current = undefined;
     const ok = await handOver({ origin: site.origin, tabId: site.tabId }, "resume", undefined, false).catch(() => false);
     setView({ state: "idle", note: ok ? S.popup.resumed : S.popup.resumeFailed });
-    if (ok) setSite((cur) => (cur && cur.record ? { ...cur, record: { ...cur.record, mode: "auto", paused: false } } : cur));
+    if (ok) {
+      setRestoredHere(false);
+      markRestorable(true);
+      setSite((cur) => (cur && cur.record ? { ...cur, record: { ...cur.record, mode: "auto", paused: false } } : cur));
+    }
   };
 
   /**
@@ -541,7 +591,12 @@ export function Popup() {
   };
 
   const busy = view.state === "working" || view.state === "consent";
-  const checkedTheme = selected ?? rememberedChoice(site?.record, settings.theme);
+  const checkedTheme = restoredHere ? undefined : (selected ?? rememberedChoice(site?.record, settings.theme));
+  const canRestoreNow = restorable === true && restoreState === "idle";
+  const ineligible = site === undefined || !tabUrl.current || !checkUrl(tabUrl.current, settings.blocklist).allowed;
+  // Said in words and announced (aria-live) so the disabled button is explained; empty while the first check runs.
+  const restoreHint = restorable === false && restoreState === "idle" ? (ineligible ? MSG.blocked : S.popup.nothingToRestore) : "";
+  const restoreLabel = restoreState === "busy" ? S.popup.restoring : restoreState === "done" ? S.popup.restoredShort : S.popup.restore;
   const hints = browserHints();
   const page = shortcutsPage(hints.userAgent, hints.brave);
 
@@ -563,10 +618,12 @@ export function Popup() {
       {view.state !== "consent" && (
         <div class="primary-actions">
           <Button kind="primary" onClick={() => void start()} disabled={busy || themeBusy !== undefined}>{S.popup.change}</Button>
-          <Button kind="quiet" onClick={() => void restore()} disabled={busy || themeBusy !== undefined}>{S.popup.restore}</Button>
+          {/* aria-disabled, not disabled, when there is nothing to restore: the button keeps keyboard focus and screen readers still reach it. */}
+          <Button kind="quiet" onClick={() => void restore()} disabled={busy || themeBusy !== undefined} aria-disabled={canRestoreNow ? undefined : "true"} aria-busy={restoreState === "busy" ? "true" : undefined} aria-describedby="restore-hint">{restoreLabel}</Button>
           {view.state === "working" && <Button kind="quiet" onClick={cancel}>{S.popup.cancel}</Button>}
         </div>
       )}
+      <p id="restore-hint" class="note" aria-live="polite">{restoreHint}</p>
       {view.state === "working" && (
         <>
           <Spinner label="Working" />
@@ -679,6 +736,7 @@ export function Popup() {
       {site?.record && view.state !== "consent" && view.state !== "working" && (
         <section aria-label={S.popup.thisSite}>
           <p>{site.record.paused ? S.popup.pausedLine : site.record.mode === "auto" ? S.popup.siteAutoWith(providerLabel(site.record.provider)) : S.popup.siteSavedWith(providerLabel(site.record.provider))}</p>
+          {site.record.paused && <p class="note">{S.popup.pickToResume}</p>}
           <div class="row">
             {site.record.paused && <Button onClick={() => void resume()}>{S.popup.resume}</Button>}
             {isAutoOn(site.record) && <Button kind="quiet" onClick={() => void siteAction(() => pauseSite(site.origin), S.popup.paused, S.popup.pauseFailed)}>{S.popup.pause}</Button>}
@@ -724,6 +782,8 @@ function keptRecord(k: KeptPlan, previous: SiteRecord | undefined): SiteRecord {
 /** O4: a site kept with a built-in theme shows that theme checked (paused or not); an AI theme is none of the seven; else the global choice. */
 function rememberedChoice(record: SiteRecord | undefined, global: ThemeChoice): ThemeChoice | undefined {
   if (!record) return global;
+  // F2: a paused site was restored; no theme is active there until one is picked (the global default stays stored).
+  if (record.paused) return undefined;
   if (record.provider !== "builtin") return undefined;
   return isBuiltinThemeId(record.plan.themeId) ? record.plan.themeId : global;
 }
