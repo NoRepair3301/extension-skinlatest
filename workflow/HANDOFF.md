@@ -1,24 +1,32 @@
-# HANDOFF — S3.3 Remove dead structural code; drop stored repair CSS (D13)
-Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / high (per prompt)
+# HANDOFF — S3.4 Engine bug A (colour equal to parent skipped) and bug C (late shadow root)
+Status: BLOCKED (bug A done; bug C acceptance test red by owner decision)     Date: 2026-11-05     Model/effort used: Opus 5.5 / high
 ## What changed
-- Deleted (evidence per file in workflow/DEAD_CODE.md §1-5): src/plan/compile.ts, src/plan/guard.ts, src/plan/readability.ts, src/extension/guard-dom.ts, src/features/repair/payload.ts, tests/repair.test.ts, workflow/S3.2_PROPOSED.patch. Also stepDown (schema.ts), createApplier option guard, repairRules(), repairStats()/RepairStats (§6).
-- D13: applier-core.ts no longer takes or injects seedCss/repairCss; auto-core.ts, siteActions.ts, intent.ts, Popup.tsx (no repairRules read), api.ts (PageMethod) stop passing it; sites.ts SiteRecord has no repairCss. Old records load because parseSite reads named fields only (repairCss ignored, never written back; no migration, keys unchanged).
-- Tests: restore-markers (D13 case), auto, popup, persistence, guard (dead groups removed). Docs: DEAD_CODE.md (new), PLAN, STAGES (S3.4-S3.6), specs.md D13, DECISIONS.
+- src/engine/dom.ts — bug A: follow-check after each batch's writes (settleFollows, parentOf, depthOf, sameColor); fill/stroke never trust an HTML parent. Bug C: adopt() for late open roots; roots is a Set.
+- tests/engine/inheritance.test.ts (new, 37) and tests/engine/shadow-late.test.ts (new, 28).
+- tests/engine/marker.test.ts — I3 test setup adapted (owner-approved, see Out-of-scope).
+- workflow/manual/S3.4-manual.html (new); PLAN, LOG, DECISIONS, TEST_CLASSIFICATION.
 ## Gate results
-tsc 0; eslint 0. Engine dir 94 pass / 5 BUG (99). Full vitest before 1364 pass / 14 fail / 1378 tests / 94 files; after 1330 pass / 11 fail / 1341 tests / 93 files. Failing now = exactly the 11 BUG tests (guard 6, rerender 5); gone vs before: restore-markers stored-repair (adapted, passes), plus-ui B5 and scene-flow diagnostics (timing flakes, passed this run). src/engine diff empty. npm run build + validate-dist ok. grep repairCss src: only a comment in sites.ts:82 (no tolerant-read code needed).
-Dist (before -> after bytes): applier.js 82681 -> 80649; applier-auto.js 18460 -> 17582; background.js 3779 -> 3779.
+tsc 0; eslint 0. Engine dir 159 pass / 5 BUG (was 94 / 5). Full vitest before 1330 pass / 11 fail / 1341 / 93 files; after 1399 pass / 7 fail / 1406 / 95 files. Fixed: the 4 guard "colour declared on both html and body" tests (no assertion edits). Still red: 6 bug B (S3.5) + rerender "BUG: a shadow root attached after the theme is on". Nothing new fails; legacy outerHTML tests pass. build + validate-dist ok (marker in applier.js only; applier.js 80649 -> 81508 bytes, applier-auto.js 17582 unchanged).
+## Bug A: root cause and fix
+Root cause: refreshBatch resets every element in the batch, then reads. inspectElement skipped `color` when it equalled the parent's computed colour, assuming the child inherits the parent's themed write. But the parent's value was read unthemed (same batch), and equality does not mean inheritance: `html, body {color:X}` repaints html while body keeps its own X, and so does every descendant with its own equal rule. fill/stroke had the same rule, and an <svg> under an HTML parent (which never gets a fill) was always skipped.
+Fix: when the parent is in the same batch, the skip becomes a "follow". After the writes, follows are re-read ancestors first. Any that did not end at tf(value) are written through put(). A parent outside the batch is trusted as before; if it is still queued, the child is re-queued after it. hover/focus and mutation refreshes run the same code.
+Writes (6 themes summed, elements/props): claude-like 42/52 -> 60/94 (per theme 7 -> 10 elements: body, buttons and cards with their own equal colour). light-article, hero-bg, large-page (1819 els), article-news, nested-nav, spa-list, legacy-portal-tables, dark-aware: unchanged.
+## Bug C: design, cost, limits
+Attaching a root fires nothing (verified in jsdom). The isolated world cannot hook the page's attachShadow, and customElements is unavailable there. A late open root is adopted (watched and collected once) when an existing signal touches its host: an attribute mutation on the host or its queued light descendants, a childList on the host, a host in an added subtree, or a hover/focus/change event whose composedPath goes through the root. Cost is O(1) per touched element. No timers.
+Limits: a root whose host never sees activity stays unthemed until a full rescan (body/html class change, stylesheet load). Closed roots are unchanged. The rerender BUG test is exactly that case. A one-shot sweep would pass it but breaks refresh.test.ts:188 and marker.test.ts:255, and you chose signals only.
 ## Decisions made
-D13 (specs §3, DECISIONS). Kept: plan/derive, plan/color (engine), plan/repair (ai/pipeline), plan/invariants, contrast. Dropped the guard-not-touched-early probe in the auto.test document_start case (the option no longer exists); other assertions unchanged.
+4 S3.4 lines in DECISIONS (follow rule; fill/stroke; bug C signals; BUG C test stays red; marker test adaptation).
 ## Out-of-scope touches
-None beyond (c): schema.ts (stepDown + comment), applier.ts, api.ts, Popup.tsx, intent.ts, siteActions.ts, auto-core.ts: all D13 plumbing or broken-import fallout. 13 source files touched or deleted in total.
-## Bugs found
-Engine bugs unchanged (S3.4 A+C, S3.5 B). ApplyResult.repairs is now always 0. schema.ts:64 comment still mentions "the compiler". TEST_CLASSIFICATION still lists the stored-repair BUG (resolved by D13); S3.6 cleans it.
-## Still-running structural pieces (DEAD_CODE.md §7)
-analyze() (applier-core, ai/pipeline), validatePlan, snapshot/compare, region tagging data-skinly-r (AI plans only). Protected zones depend on plan/schema, plan/contrast, analyzer/eligibility only.
+tests/engine/marker.test.ts:169-184 (owner-approved): #c `color: rgb(200,0,0) !important` -> `color: inherit !important`, expected values to match. The old premise was bug A itself.
+## Mutation checks (scratch copy, not in repo; all bite)
+Follow-check off: 13 fail. Svg-parent rule off: 2. adopt off: 26. adopt re-collects known roots: 24. Observer not disconnected: 1. Fresh cleanup skipping shadow roots: 1. Final restore without style text: 6. Follow never writes: 7.
+## Fragile, not touched
+dom.ts:745 quiet() ingests pending records without schedule(), so queue items from flushHover/restoreTransitions wait for the next trigger. dom.ts:853: class change on a container with >300 descendants does not re-queue them. dom.ts:575: an explicit text-decoration-color equal to the colour stays unthemed when the colour is written. dom.ts:165: parentOf uses the DOM parent, but slotted nodes inherit from the slot (follow-check still writes the right value).
 ## Owner manual checks
-npm run build, reload the unpacked extension, then: (1) apply a built-in theme on 2-3 normal sites from the popup; (2) reload one page so the auto path re-applies it; (3) press Restore original; (4) open Options and the popup and click through the tabs. No red errors in the page or service worker console. The known engine bugs are still present.
-## Suggested commit message
-refactor: remove dead structural code and stored repair CSS (S3.3, D13)
-
-Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
-## Next substage: S3.4 (Opus 5.5, high) — engine bugs A and C. Acceptance: 4 guard.test "colour declared on both html and body" + 1 rerender shadow-root BUG test. Relies on: src/engine untouched here, applier-core without the repair sheet.
+In workflow/manual/ run `python -m http.server 8000`, then open http://localhost:8000/S3.4-manual.html (or open the file after enabling "Allow access to file URLs"). Apply each of the 6 themes from the popup and confirm all text in A is clearly readable. Click "attach shadow root", then move the pointer over the new box: it gets themed (no activity = documented limit). Click "define custom element": the inserted card is themed at once. Press Restore original: the page returns to normal. Reload the extension and repeat once with one theme (fresh-instance path).
+## Suggested commit message / commands
+git add -A
+git commit -m "fix(engine): theme elements whose colour equals the parent's; watch shadow roots attached after apply (S3.4)"
+git tag stage-S3.4
+git push
+## Next substage: S3.5 (Opus 5.5, high) — bug B. Owner first: accept S3.4 as is (bug C test red) or decide its fate. Relies on: the follow-check in refreshBatch, src/engine/transform.ts untouched.

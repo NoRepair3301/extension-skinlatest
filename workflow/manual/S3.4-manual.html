@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S3.4 manual check</title>
+<style>
+  /* (A) The common pattern behind bug A: the same text colour declared on both html and body. */
+  html, body { color: #222; background: #fff; }
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 720px; padding: 16px; }
+  .same { color: #222; }
+  .panel { border: 1px solid #ccc; padding: 12px; margin: 12px 0; }
+  button { color: #222; padding: 6px 12px; }
+  #late { min-height: 40px; }
+</style>
+</head>
+<body>
+  <h1>S3.4 manual check</h1>
+
+  <section class="panel">
+    <h2>A. Colour declared on html and body</h2>
+    <p>This paragraph inherits its colour from body. It must stay readable under every theme.</p>
+    <p class="same">This paragraph declares the same colour as body (#222) itself.</p>
+    <p>A link inside text: <a href="#a">an ordinary link</a>, and a <a class="same" href="#b">link with the same colour declared</a>.</p>
+    <button type="button">A button with color #222</button>
+    <div class="same">
+      Nested div with the same colour declared.
+      <div class="same">And one more level, again the same colour. <span class="same">A span too.</span></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>C. Shadow roots attached after the theme is on</h2>
+    <p>
+      <button type="button" id="attach">attach shadow root</button>
+      <button type="button" id="define">define custom element</button>
+    </p>
+    <p>Late root (attached to an existing div):</p>
+    <div id="late"></div>
+    <p>Custom element (defined and inserted on click):</p>
+    <div id="ce-slot"></div>
+  </section>
+
+<script>
+  // Content with its own styles, as a web component would render it.
+  const CONTENT = `
+    <style>
+      .box { background: #f4f4f4; color: #333; border: 1px solid #bbb; padding: 8px; }
+      .muted { color: #777; }
+    </style>
+    <div class="box">
+      <strong>Shadow content.</strong> This text lives inside an open shadow root.
+      <div class="muted">Muted line inside the shadow root.</div>
+    </div>`;
+
+  document.getElementById("attach").addEventListener("click", () => {
+    const host = document.getElementById("late");
+    if (host.shadowRoot) return;
+    host.attachShadow({ mode: "open" }).innerHTML = CONTENT;
+  });
+
+  document.getElementById("define").addEventListener("click", () => {
+    if (!customElements.get("s34-card")) {
+      customElements.define("s34-card", class extends HTMLElement {
+        constructor() {
+          super();
+          this.attachShadow({ mode: "open" }).innerHTML = CONTENT;
+        }
+      });
+    }
+    document.getElementById("ce-slot").append(document.createElement("s34-card"));
+  });
+</script>
+</body>
+</html>

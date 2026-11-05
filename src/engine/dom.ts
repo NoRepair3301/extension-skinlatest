@@ -160,6 +160,34 @@ function isStyled(el: Element): el is HTMLElement | SVGElement {
   return isHtml(el) || isSvg(el);
 }
 
+// The element whose computed values this one inherits by default: its parent, or for the top level
+// of a shadow root, the host.
+function parentOf(el: Element): Element | null {
+  return el.parentElement || ((el.getRootNode?.() as ShadowRoot)?.host as Element) || null;
+}
+
+function depthOf(el: Element): number {
+  let d = 0;
+  for (let n = parentOf(el); n; n = parentOf(n)) d++;
+  return d;
+}
+
+// Computed colours as the DOM serialises them; alpha may round differently from toCss.
+function sameColor(a: string, b: string): boolean {
+  if (a === b) return true;
+  const x = parseRgb(a);
+  const y = parseRgb(b);
+  return x !== null && y !== null && x.r === y.r && x.g === y.g && x.b === y.b && Math.abs(x.a - y.a) < 0.01;
+}
+
+/** A property skipped because it equals the parent's value; checked once the parent's writes are in. */
+interface Follow {
+  el: HTMLElement | SVGElement;
+  prop: string;
+  val: string;
+  role: Role;
+}
+
 function declarations(st: CSSStyleDeclaration): Map<string, [string, string]> {
   const out = new Map<string, [string, string]>();
   for (let i = 0; i < st.length; i++) {
@@ -328,7 +356,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   let customStyleHandle: StyleHandle | null = null;
   let obs: MutationObserver | null = null;
 
-  const roots: Array<Document | ShadowRoot> = [];
+  const roots = new Set<Document | ShadowRoot>();
   const queue = new Set<Element>();
   const hoverSet = new Set<Element>();
   const pendingTransitions = new Set<HTMLElement>();
@@ -492,7 +520,15 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     return tf(val, role);
   }
 
-  function inspectElement(el: HTMLElement | SVGElement, cs: CSSStyleDeclaration, pcs: CSSStyleDeclaration | null): Array<[string, string]> {
+  // `follow` receives a property left unwritten because it equals the parent's value: skipping it is
+  // right only if the element really inherits the parent's themed value, which the caller checks.
+  function inspectElement(
+    el: HTMLElement | SVGElement,
+    cs: CSSStyleDeclaration,
+    par: Element | null,
+    pcs: CSSStyleDeclaration | null,
+    follow: (prop: string, val: string, role: Role) => void,
+  ): Array<[string, string]> {
     const out: Array<[string, string]> = [];
     const add = (prop: string, val: string, role: Role) => {
       const next = transformVal(val, role);
@@ -503,6 +539,8 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     const col = cs.color;
     if (!pcs || col !== pcs.color) {
       add("color", col, "text");
+    } else {
+      follow("color", col, "text");
     }
 
     // 2. Background color
@@ -538,15 +576,19 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       add("text-decoration-color", cs.textDecorationColor, "text");
     }
 
-    // 7. SVG fill / stroke
+    // 7. SVG fill / stroke. The engine writes these on SVG elements only, so an HTML parent's value
+    // (an <svg> root's parent) is never a themed one to inherit.
     if (isSvg(el)) {
       const f = cs.fill;
       const s = cs.stroke;
-      if (f && f !== "none" && (!pcs || f !== pcs.fill)) {
-        add("fill", f, svgRole(el));
+      const svgPcs = par && isSvg(par) ? pcs : null;
+      if (f && f !== "none") {
+        if (!svgPcs || f !== svgPcs.fill) add("fill", f, svgRole(el));
+        else follow("fill", f, svgRole(el));
       }
-      if (s && s !== "none" && (!pcs || s !== pcs.stroke)) {
-        add("stroke", s, "text");
+      if (s && s !== "none") {
+        if (!svgPcs || s !== svgPcs.stroke) add("stroke", s, "text");
+        else follow("stroke", s, "text");
       }
     }
 
@@ -617,14 +659,22 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       if (hold && isHtml(el)) suppressTransition(el);
     }
 
+    const inBatch = new Set<Element>(todo);
+    const follows: Follow[] = [];
     const plannedChanges: Array<{ el: HTMLElement | SVGElement; changes: Array<[string, string]> }> = [];
     for (const el of todo) {
       try {
         const view = el.ownerDocument.defaultView ?? win;
         const cs = view.getComputedStyle(el);
-        const par = el.parentElement || ((el.getRootNode?.() as ShadowRoot)?.host as Element) || null;
+        const par = parentOf(el);
         const pcs = par ? view.getComputedStyle(par) : null;
-        const changes = inspectElement(el, cs, pcs);
+        const changes = inspectElement(el, cs, par, pcs, (prop, val, role) => {
+          // A parent in this batch was just reset: the value read is its page value, not what it will
+          // show. A parent outside it shows its settled value, which the element follows as it is,
+          // unless the parent is still queued: then look again after it.
+          if (par && inBatch.has(par)) follows.push({ el, prop, val, role });
+          else if (par && queue.has(par)) queue.add(el);
+        });
         if (changes.length > 0) plannedChanges.push({ el, changes });
       } catch {
         // ignore
@@ -638,9 +688,28 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
           put(el, prop, val);
         }
       }
+      settleFollows(follows);
     } finally {
       // One marker write per element whose data changed (first record, new prop, re-based original).
       writeMarks();
+    }
+  }
+
+  // Equal to the parent's page value means "inherits the parent's themed value" only if the element
+  // inherits at all. One with its own rule of the same value (`html, body { color: X }`) keeps X while
+  // the parent is repainted. So once the batch's writes are in, re-read each skipped property,
+  // ancestors first (a parent fixed here changes what its children inherit), and write it where it did
+  // not end themed. A write here makes the next read recalc styles, and writes happen only on a miss,
+  // so where children really inherit this costs one read each.
+  function settleFollows(follows: Follow[]): void {
+    if (follows.length === 0 || !win) return;
+    const order = follows.map((f) => ({ f, d: depthOf(f.el) }));
+    order.sort((a, b) => a.d - b.d);
+    for (const { f } of order) {
+      const next = transformVal(f.val, f.role);
+      if (next === f.val) continue;
+      const view = f.el.ownerDocument.defaultView ?? win;
+      if (!sameColor(view.getComputedStyle(f.el).getPropertyValue(f.prop), next)) put(f.el, f.prop, next);
     }
   }
 
@@ -686,9 +755,21 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   }
 
   function watch(r: Document | ShadowRoot): void {
-    if (roots.includes(r)) return;
-    roots.push(r);
+    if (roots.has(r)) return;
+    roots.add(r);
     if (obs) obs.observe(r, OBSERVER_OPTS);
+  }
+
+  // Bug C: attaching a shadow root fires nothing the engine can see, and the isolated world cannot
+  // hook the page's attachShadow. So a root is picked up the first time something the engine already
+  // reacts to touches its host (a mutation on the host or in its light subtree, an event from inside
+  // the root). Constant cost per touched element; a known root is never collected twice.
+  function adopt(host: Element): boolean {
+    const sr = host.shadowRoot;
+    if (!sr || roots.has(sr) || shouldSkipElement(host)) return false;
+    watch(sr);
+    collect(sr);
+    return true;
   }
 
   function collect(root: Document | ShadowRoot): void {
@@ -737,6 +818,8 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   function ingest(records: MutationRecord[]): void {
     for (const m of records) {
       if (m.type === "childList") {
+        // Components often attach their root, then render light children into the host.
+        if (m.target.nodeType === 1) adopt(m.target as Element);
         for (let i = 0; i < m.addedNodes.length; i++) {
           const n = m.addedNodes[i]!;
           if (n.nodeType === 1) addTree(n as Element);
@@ -747,6 +830,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       if (t.nodeType !== 1) continue;
       const el = t as Element;
       if (shouldSkipElement(el)) continue;
+      adopt(el);
       if (m.attributeName === "style") {
         if (styleChanged(m.oldValue || "", el.getAttribute("style") || "")) {
           queue.add(el);
@@ -768,7 +852,10 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
         const d = el.querySelectorAll("*");
         if (d.length <= 300) {
           for (let i = 0; i < d.length; i++) {
-            if (!shouldSkipElement(d[i]!)) queue.add(d[i]!);
+            if (!shouldSkipElement(d[i]!)) {
+              queue.add(d[i]!);
+              adopt(d[i]!);
+            }
           }
         }
       }
@@ -788,15 +875,20 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     if (!active || standDownIfCleaned()) return;
     const path = (e.composedPath ? e.composedPath() : [e.target]) as EventTarget[];
     const chain: Element[] = [];
+    let adopted = false;
     for (const item of path) {
-      if (item && (item as Node).nodeType === 1) {
+      // An open root the event came through that the engine has not seen yet (bug C).
+      if (item && (item as Node).nodeType === 11 && "host" in item) {
+        if (adopt((item as ShadowRoot).host)) adopted = true;
+        continue;
+      }
+      // Past 8 elements keep walking the path (it is as long as the tree is deep) only to find roots.
+      if (item && (item as Node).nodeType === 1 && chain.length < 8) {
         const el = item as Element;
-        if (!shouldSkipElement(el)) {
-          chain.push(el);
-          if (chain.length >= 8) break;
-        }
+        if (!shouldSkipElement(el)) chain.push(el);
       }
     }
+    if (adopted) schedule();
     for (let i = 0; i < chain.length; i++) {
       const el = chain[i]!;
       hoverSet.add(el);
@@ -939,7 +1031,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
         else el.removeAttribute(ENGINE_MARK);
       }
     }
-    roots.length = 0;
+    roots.clear();
 
     teardownSheet();
     doc.documentElement.removeAttribute(ROOT_MARK);

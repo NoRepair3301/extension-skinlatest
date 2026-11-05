@@ -168,16 +168,17 @@ describe("fresh-instance restore from the engine marker (D4)", () => {
 
   it("D4: properties the engine never writes are untouched (I3)", () => {
     // #c inherits its colour from #p, so the engine writes only its background: its own
-    // `color ... !important` looks like an engine write but must stay.
-    const p = page(html(`<div id="p" style="color: rgb(200, 0, 0)"><span id="c" style="color: rgb(200, 0, 0) !important; width: 10px !important; background-color: rgb(240, 240, 240)">x</span></div>`));
+    // `color ... !important` looks like an engine write but must stay. (S3.4: `inherit`, because an
+    // own value equal to the parent's no longer counts as inherited; bug A.)
+    const p = page(html(`<div id="p" style="color: rgb(200, 0, 0)"><span id="c" style="color: inherit !important; width: 10px !important; background-color: rgb(240, 240, 240)">x</span></div>`));
     p.lost();
     const c = p.el("c");
     expect(c.style.getPropertyPriority("background-color")).toBe("important");
-    expect(c.style.getPropertyValue("color")).toBe("rgb(200, 0, 0)");
+    expect(c.style.getPropertyValue("color")).toBe("inherit");
     c.style.setProperty("margin-top", "3px", "important");
     p.fresh();
     expect(decls(c)).toEqual({
-      color: ["rgb(200, 0, 0)", "important"],
+      color: ["inherit", "important"],
       width: ["10px", "important"],
       "background-color": ["rgb(240, 240, 240)", ""],
       "margin-top": ["3px", "important"],
