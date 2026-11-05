@@ -1,9 +1,11 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
+import { ENGINE_MARK, ENGINE_SHEET_SIGNATURE, ROOT_MARK } from "../src/engine/dom.ts";
 import { analyze } from "../src/analyzer/analyze.ts";
 import { createApplier, type StyleHandle, type StyleHost } from "../src/extension/applier-core.ts";
 import { BANNER_TEXT, NAV_REAPPLY_MAX, runAuto, type AutoDeps } from "../src/extension/auto-core.ts";
+import { ENGINE_MARKER, engineBundleProblems } from "../scripts/validate-dist.ts";
 import { isBadgeMessage, BADGE_MESSAGE } from "../src/extension/messages.ts";
 import type { SiteRecord } from "../src/extension/sites.ts";
 import { getTheme } from "../src/themes/index.ts";
@@ -360,5 +362,138 @@ describe("applier-auto at document_start (A1d)", () => {
     expect(await run({ ...base.site, paused: true })).toBe("paused");
     expect(await run(base.site, true)).toBe("blocked");
     expect(states).toEqual(["no-record", "paused", "blocked"]);
+  });
+});
+
+describe("S2.4: the auto path reaches the engine (T5 / D9)", () => {
+  const savedAnalysis = analyze(dom(BODY), fakeDeps());
+  if (savedAnalysis.status !== "ok") throw new Error("fixture too large");
+  const savedFingerprint = savedAnalysis.fingerprint;
+  const engineSite = (themeId: "midnight" | "ocean" = "midnight"): SiteRecord => ({
+    v: 1,
+    plan: { v: 1, themeId, tokens: { ...getTheme(themeId).tokens }, regionRules: [], reasons: [] },
+    fingerprint: savedFingerprint,
+    provider: "gemini",
+    model: "m",
+    promptVersion: "1",
+    savedAt: "2026-10-30T10:00:00.000Z",
+    mode: "auto",
+    blur: [],
+    blurImages: false,
+  });
+  const PAGE = `<div id="t" style="color: rgb(30, 30, 30)">x</div><p id="u">y</p>`;
+  const withStyle = (doc: Document) => {
+    const s = doc.createElement("style");
+    s.textContent = "#u { background-color: rgb(240, 240, 240); }";
+    doc.head.append(s);
+  };
+
+  it("T5/D9: runAuto applies through the applier into the engine and restore returns the exact original", async () => {
+    const doc = dom(PAGE);
+    withStyle(doc);
+    const before = doc.documentElement.outerHTML;
+    const { host, sheets } = fakeStyle();
+    const applier = createApplier(doc, { style: host, summaryDeps: fakeDeps(), tokensOnly: true });
+    let ready: (() => void) | undefined;
+    const done = runAuto({ doc, origin: "https://a.example", applier, readSite: async () => engineSite(), isBlocked: async () => false, whenReady: (cb) => void (ready = cb), onApplied: () => undefined });
+    await tick();
+    ready!();
+    expect(await done).toBe("full");
+    // observable engine effects, not a spy: the engine marker, its inline properties, its sheet
+    expect(doc.querySelectorAll(`[${ENGINE_MARK}]`).length).toBeGreaterThan(0);
+    expect(doc.getElementById("u")!.style.getPropertyPriority("background-color")).toBe("important");
+    expect(doc.documentElement.getAttribute(ROOT_MARK)).toBe("on");
+    expect(sheets.some((c) => c.includes(ENGINE_SHEET_SIGNATURE))).toBe(true);
+    applier.restore();
+    expect(doc.documentElement.outerHTML).toBe(before);
+    expect(sheets).toHaveLength(0);
+  });
+
+  it("T5/D9: runAuto does not use the structural stylesheet path", async () => {
+    const doc = dom(PAGE);
+    const { host, sheets } = fakeStyle();
+    const applier = createApplier(doc, { style: host, summaryDeps: fakeDeps(), tokensOnly: true });
+    let ready: (() => void) | undefined;
+    const done = runAuto({ doc, origin: "https://a.example", applier, readSite: async () => engineSite(), isBlocked: async () => false, whenReady: (cb) => void (ready = cb), onApplied: () => undefined });
+    await tick();
+    ready!();
+    await done;
+    expect(sheets.length).toBeGreaterThan(0);
+    // the structural compiler tagged regions and wrote rules against [data-skinly-r]; neither exists on this path
+    expect(sheets.some((c) => c.includes("data-skinly-r"))).toBe(false);
+    expect(doc.querySelectorAll("[data-skinly-r]")).toHaveLength(0);
+    applier.restore();
+  });
+
+  it("T5: applier-auto with no applier does nothing, throws nothing, leaves nothing behind", async () => {
+    const slot = globalThis as unknown as { skinlyApplier?: unknown; skinlyAutoLive?: boolean };
+    const saved = { a: slot.skinlyApplier, l: slot.skinlyAutoLive };
+    delete slot.skinlyApplier;
+    delete slot.skinlyAutoLive;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const html = document.documentElement.outerHTML;
+    const sheetsBefore = document.adoptedStyleSheets?.length ?? 0;
+    try {
+      vi.resetModules();
+      await expect(import("../src/extension/applier-auto.ts")).resolves.toBeDefined();
+      await tick();
+      expect(document.documentElement.outerHTML).toBe(html);
+      expect(document.querySelectorAll(`[${ENGINE_MARK}]`)).toHaveLength(0);
+      expect(document.documentElement.hasAttribute(ROOT_MARK)).toBe(false);
+      expect(document.adoptedStyleSheets?.length ?? 0).toBe(sheetsBefore);
+      expect(slot.skinlyAutoLive).toBeUndefined();
+      expect(warn.mock.calls.length).toBeLessThanOrEqual(1);
+    } finally {
+      warn.mockRestore();
+      if (saved.a !== undefined) slot.skinlyApplier = saved.a;
+      if (saved.l !== undefined) slot.skinlyAutoLive = saved.l;
+    }
+  });
+
+  it("T5: applier throwing inside runAuto leaves the page untouched and the error contained", async () => {
+    // (a) an applier whose applyTokens throws outright
+    const doc = dom(PAGE);
+    withStyle(doc);
+    const before = doc.documentElement.outerHTML;
+    const throwing = {
+      applyTokens: () => {
+        throw new Error("boom");
+      },
+      apply: () => {
+        throw new Error("boom");
+      },
+      analyze: () => {
+        throw new Error("boom");
+      },
+      onRestore: () => undefined,
+    } as unknown as AutoDeps["applier"];
+    const states: string[] = [];
+    const run = (applier: AutoDeps["applier"], d: Document) =>
+      runAuto({ doc: d, origin: "https://a.example", applier, readSite: async () => engineSite(), isBlocked: async () => false, whenReady: (cb) => cb(), onApplied: () => undefined, report: (s) => void states.push(s) });
+    await expect(run(throwing, doc)).resolves.toBe("invalid");
+    expect(states).toContain("error-apply");
+    expect(doc.documentElement.outerHTML).toBe(before);
+
+    // (b) the real applier whose style host fails after the engine started writing: its own restore must run
+    const doc2 = dom(PAGE);
+    withStyle(doc2);
+    const before2 = doc2.documentElement.outerHTML;
+    const failing: StyleHost = {
+      add() {
+        throw new Error("no sheet");
+      },
+    };
+    const real = createApplier(doc2, { style: failing, summaryDeps: fakeDeps(), tokensOnly: true });
+    await expect(run(real, doc2)).resolves.toBe("invalid");
+    expect(doc2.documentElement.outerHTML).toBe(before2);
+  });
+});
+
+describe("S2.4: validate-dist engine bundle checks", () => {
+  it("I9: validate-dist rejects an applier-auto bundle that embeds the engine marker", () => {
+    const engine = `x.setAttribute("${ENGINE_MARKER}",1)`;
+    expect(engineBundleProblems(engine, "runAuto()")).toEqual([]);
+    expect(engineBundleProblems(engine, engine)).toEqual([expect.stringContaining("applier-auto.js must not embed the engine")]);
+    expect(engineBundleProblems("no engine here", "runAuto()")).toEqual([expect.stringContaining("applier.js must contain")]);
   });
 });

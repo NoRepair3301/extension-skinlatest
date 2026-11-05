@@ -7,6 +7,12 @@ import { KEY_PATTERNS, SERVICE_ROLE_RE } from "./rules.ts";
 const PERMISSIONS = ["activeTab", "scripting", "storage"];
 const OPTIONAL_HOSTS = ["https://*/*", "http://*/*"];
 
+/**
+ * The engine marker attribute (src/engine/dom.ts ENGINE_MARK). Defined once here; the Stage 6 rename changes it to data-repaint-engine.
+ * It also opens the engine base-sheet signature (`html[<marker>-sheet]`, a template in dom.ts, not a plain literal), so the marker alone covers both.
+ */
+export const ENGINE_MARKER = "data-skinly-engine";
+
 /** XML namespace identifiers that appear in bundled libraries but are never fetched. */
 const NAMESPACE_URL = /^https?:\/\/www\.w3\.org\//i;
 
@@ -116,6 +122,14 @@ const allFiles = (dir: string): string[] =>
 
 const jsFiles = (dir: string): string[] => allFiles(dir).filter((p) => p.endsWith(".js"));
 
+/** D9 / I9: the engine lives in applier.js only; applier-auto.js reaches it through the applier global and must not embed it. */
+export function engineBundleProblems(applierJs: string, autoJs: string): string[] {
+  const out: string[] = [];
+  if (!applierJs.includes(ENGINE_MARKER)) out.push(`applier.js must contain the engine marker ${ENGINE_MARKER}`);
+  if (autoJs.includes(ENGINE_MARKER)) out.push(`applier-auto.js must not embed the engine (found ${ENGINE_MARKER}); it applies through the applier`);
+  return out;
+}
+
 /** Validates a built extension folder. Returns problems (empty when fine). */
 export function validateDist(dist: string): string[] {
   const manifestPath = join(dist, "manifest.json");
@@ -144,6 +158,9 @@ export function validateDist(dist: string): string[] {
 
 if (process.argv[1]?.replace(/\\/g, "/").endsWith("scripts/validate-dist.ts")) {
   const problems = validateDist("dist");
+  // Run here, not inside validateDist: tests feed validateDist stub bundles that hold no engine.
+  const read = (f: string): string => (existsSync(join("dist", f)) ? readFileSync(join("dist", f), "utf8") : "");
+  if (existsSync(join("dist", "applier.js"))) problems.push(...engineBundleProblems(read("applier.js"), read("applier-auto.js")));
   if (problems.length > 0) {
     process.stdout.write(problems.map((p) => `validate-dist: ${p}\n`).join(""));
     process.exitCode = 1;

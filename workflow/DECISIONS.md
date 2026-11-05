@@ -31,3 +31,5 @@
 - 2026-11-05 S2.3 (D4): markers written once per element per batch, at the end of refreshBatch (dirty set), only when the bitmask, an original, or the no-style bit changed.
 - 2026-11-05 S2.3 (D4): a running lost instance (orphaned by extension reload) stands down when its base sheet has been detached by someone else: stops observer/listeners/timers, keeps styles and records. Without it the orphan re-themes what the cleanup restored.
 - 2026-11-05 S2.3: ROOT_MARK / ENGINE_MARK constants exported from engine/dom.ts and used by cleanup.ts; UI-host marker names untouched (Stage 6).
+- 2026-11-05 S2.4 (D9): the old requirement of the engine marker in both bundles is dropped (validate-dist never had it). New rule: marker in applier.js, absent from applier-auto.js. The check (engineBundleProblems) runs in the CLI entry, not inside validateDist(), because tests/build.test.ts feeds validateDist stub bundles with no engine (I may not edit that test).
+- 2026-11-05 S2.4: auto-core.ts catches a throwing applyTokens: reports error-apply, returns 'invalid' (before, runAuto rejected; applier-auto's .catch swallowed it).

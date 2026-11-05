@@ -111,7 +111,14 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
     unlisten = undefined;
   });
 
-  const first = deps.applier.applyTokens(site.plan, site.repairCss);
+  // An applier that throws leaves the page as it was (its own restore runs); nothing escapes into the page.
+  let first: ReturnType<Applier["applyTokens"]>;
+  try {
+    first = deps.applier.applyTokens(site.plan, site.repairCss);
+  } catch {
+    report("error-apply");
+    return "invalid";
+  }
   if (!first.ok) {
     report(rolledBack(first.reason));
     return "invalid";
