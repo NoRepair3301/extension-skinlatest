@@ -1,41 +1,40 @@
-# HANDOFF — S2.2 Refresh path: page changes survive, no ledger bypass, no feedback loops
+# HANDOFF — S2.3 Fresh-instance restore (D4): engine-aware marker cleanup
 Status: DONE     Date: 2026-11-05     Model/effort used: Opus 5.5 / high (per prompt)
 ## What changed
-- src/engine/dom.ts — record kept across refresh (reset non-final clears props only); put() re-bases (I5); transition hold is a ledger entry; realm-safe isHtml/isSvg/isStyled; carriedText and `seen` removed
-- tests/engine/refresh.test.ts — NEW, 13 tests, manual fake clock on the jsdom window (no real-time waits)
-- tests/engine/ledger.test.ts — "I5 groundwork" test: 20 ms wait replaced by captured setTimeout + one microtask
+- src/engine/dom.ts — ROOT_MARK/ENGINE_MARK/ENGINE_SHEET_SIGNATURE/ENGINE_PROPS/MARK_CAP exported; marker codec; `undoEngineMarks(doc)`; marker written once per batch (dirty set); orphan stand-down; restore() = stop() + undo (unchanged order)
+- src/extension/cleanup.ts — isOurSheet matches the signature exactly (plus the old data-skinly rule); markerCleanup calls undoEngineMarks before the attribute sweep; marker names from the engine constants
+- tests/engine/marker.test.ts — NEW, 14 tests (the 12 named in the prompt + orphan stand-down + fresh byte-exact legacy text)
 ## Gate results
-tsc 0 errors; eslint 0 errors; engine tests 48 pass / 0 fail / 5 files.
-Full vitest: 1351 pass / 18 fail / 1369 tests / 93 files; failing set == BASELINE_FAILURES.txt minus the S1.2-removed repair test. No plus-ui flake this run.
-## Final shapes
-- put(): new record takes `hadStyleAttr`/`origStyleText` from the attribute now; if the record exists but the attribute is gone, both re-base to "none" (page dropped it). Existing entry whose write is no longer in place (`ours()` false) re-bases `o,p` to the current value. reset(el) non-final reverts guarded entries and empties `props`; the next put() makes fresh entries from the page's current values, so the refresh re-base is the same rule. The existing-entry branch is a guard; no current path reaches it (dom.ts:230).
-- suppressTransition: `put(el, "transition", "none")` after the element's reset, only for HTML elements that had live engine writes. Release on next frame = guarded revert + delete entry + I6 attribute drop. restore() just cancels the frame; reset(el, true) reverts the hold with the other entries.
-- carriedText: gone. The record (with the original text) lives in recMap/modifiedElements from first write until restore(); restore() deletes every record, so nothing is held afterwards.
-## Tests added (mutation checks: new tests run against pre-S2.2 dom.ts, plus targeted mutants)
-- Fail on old dom.ts: I5 style-attr removal; I2 no-style-attr; I2 page transition during hold (extra test); I7 restore leaves nothing; I7 hover/focus exact; realm iframe.
-- Pass on old (they prove the existing reset+put re-base): I5 unrelated prop, I5 overwrite, I5 twice, I2 original transition, I7 settles, retention, D12/I11.
-- Mutants killed: text write in refresh (D12/I11 + groundwork); no attribute re-base (I5 removal); unguarded release (page transition); refresh deletes record (retention, D12/I11, I2 transition, hover); top-realm check in refreshBatch (realm).
-- Survives: top-realm check in restore()'s marker loop. modifiedElements already resets every record first, so that loop is only a fallback.
+tsc 0 errors; eslint 0 errors; engine 62 pass / 0 fail / 6 files. Full vitest 1366 pass / 17 fail / 1383 / 94 files; failing set ⊂ BASELINE_FAILURES.txt (18 → 17: the restore-markers fresh-instance test now passes unchanged). No plus-ui flake.
+Still red, not mine: restore-markers "stored repair" — applier-core.ts:122-124 adopts any seedCss unvalidated (parseRepairCss gate went with S1.2). For S3.x.
+## Marker format, cap, signature
+- Sheet: engine CSS starts with `html[data-skinly-engine-sheet] {}` (never matches). Cleanup: first rule selectorText === ENGINE_SHEET_SIGNATURE.
+- `data-skinly-engine="<bits base36>[-][*](;prop[!]=value)*[;=styleText]"`. bits = ENGINE_PROPS ever written here; `-` = no style attribute originally; `*` = originals dropped; `!` = important; `;=` = original style text, only when not canonical. Escapes `% ; = !` only.
+- Example: `<p style="color: red !important; width:10px">` themed colour + background → `3;color!=red;=color: red %21important%3B width:10px`. Unstyled themed div → `2-`.
+- Cap 1024 chars: drop text first, then originals (`*`). ENGINE_PROPS bit order is on-page format: append only.
+## What a fresh instance can / cannot restore
+1. Can: listed engine props back to original value+priority (or removed), inline custom props, transition holds, no-attr → none, byte-exact text when declarations are unchanged.
+2. Page wins only if its change dropped `!important` or removed the prop; a page write that kept `!important` on an engine prop is replaced by the recorded original (no `m` on page).
+3. Over cap (`*`): listed engine props are removed (page's own inline value for them lost); custom props stay themed.
+4. A prop the engine stopped writing keeps its last recorded original (stale if the page later set it `!important`).
+5. Pre-S2.3 markers (empty value) are just stripped. Root marker + base sheet are removed from the top doc only; element markers in open shadow roots and same-origin iframes.
+6. A still-running lost instance stands down when its sheet is gone, so it does not re-theme (orphan test).
+## Tests / mutation check (12 mutants; scratch script, files restored, hashes verified)
+Killed: no stand-down (orphan, re-apply); mask ignored (I3); originals ignored (9 tests); important guard dropped (page-changed); no-style bit ignored (5); no text stored (6); no cap (oversized); top document only (shadow/iframe); no signature rule (sheet tests incl. restore-markers fresh); cleanup without undo (12). Survived: "rewrite on re-base" (equivalent: refresh empties props, so put never reaches that branch) and "marker write per put" (cost only). "D4/I7 no extra cycle" and "D12 live restore" pass without the change too (they guard properties).
+## Cost (jsdom, 3000 elements, half inline-styled)
+Marker writes on apply: 3002 before and after (one per element; the empty write moved to batch end with data). Marker bytes ≈ 98 KB total (≈33 B/element; inline-styled ones carry text + originals). Apply time within jsdom noise (2.1–3.4 s both). Refresh: write only if bits/originals/no-style changed.
 ## Decisions made (also in DECISIONS.md)
-- Record kept across refresh instead of carriedText (one structure; byte-exact text still owed to final restore).
-- Transition hold only on elements with live engine writes (the swap that needs it). Never-themed elements no longer get `transition:none`, so the page's own transitions survive there.
-- Realm fix also in refreshBatch/inspectElement, otherwise iframe elements are never themed and item 3 cannot be tested. Namespace-URI variant dropped: tests/rules.test.ts flags the w3.org URLs.
+Bitmask stored (deviation: marker never empty) for I3; `*` flag per element not root; orphan stand-down via detached own sheet; constants in dom.ts.
 ## Out-of-scope touches
-None. Precondition note: `git status` showed only `?? prompts/S2.2.md` (this prompt); treated as clean.
-## Bugs found / fragile spots (not fixed)
-- dom.ts:412 single rAF release: if the refresh task lands just before a frame, the release can precede the next style recalc, so the swap may still animate. Double rAF would fix it.
-- dom.ts:168 modifiedElements keeps detached elements strongly until restore() (records now also outlive "no longer needs theme"; marker stays until restore).
-- dom.ts:583 full rescan only for top doc html/body; dom.ts:691 hover listeners only on top doc (no hover refresh inside iframes); dom.ts:176 base sheet only on top doc.
-- dom.ts:69 realm check uses ownerDocument.defaultView: a node adopted across documents keeps its old realm's prototype and would be skipped.
-- dom.ts:577 a page transition/other non-colour style change does not queue a refresh (by design, noted).
-## Performance
-Per refreshed element, +1 `Object.keys` (hasWrites) and +2 inline reads per put (re-base guard). The hold now writes only to elements being re-themed, which means fewer writes than before. Negligible.
-## Owner manual checks (build, load unpacked)
-1. Wikipedia article: `window.__a = document.documentElement.outerHTML`; apply theme; hover; expand/collapse menus and "show" links; Restore original; `document.documentElement.outerHTML === window.__a` → true.
-2. Any page: apply theme; `document.body.style.marginTop = "7px"`; click around; Restore; `document.body.style.marginTop` → "7px", no tinted background left.
-3. github.com or a news site: scroll, open menus while themed: no flicker or slowdown, no repeated engine errors in console; then Restore.
+None (applier-core.ts not edited). Precondition: `git status` showed only `?? prompts/S2.3.md`.
+## Bugs found / fragile (not fixed)
+- applier-core.ts:93 run() → restore(false) skips markerCleanup: a fresh instance *applying* (not restoring) after an extension reload stacks on the old sheet/markers and records the old theme as originals. One-line fix candidate for S5.x.
+- dom.ts:887 stand-down signal is "own sheet detached": a page that overwrites document.adoptedStyleSheets stops a live engine's refreshes (styles stay; restore() still exact).
+- dom.ts:78 ENGINE_PROPS must list every non-custom prop inspectElement/suppressTransition write, or the fresh path never undoes it.
+## Owner manual checks (before committing)
+`npm run build`, reload unpacked. 1) Wikipedia article: `window.__a = document.documentElement.outerHTML`; apply theme. 2) chrome://extensions → reload Repaint; back to tab WITHOUT reloading (still themed). 3) Popup → Restore original: no tint; `document.documentElement.outerHTML === window.__a` → true (else paste the differences). 4) Apply again, Restore again: still clean. 5) After step 3, hover/scroll: page must not re-theme (orphan stood down).
 ## Suggested commit message
-fix(engine): rebase page changes and route transitions through the ledger on refresh (S2.2)
+fix(engine): fresh-instance restore via engine marker and sheet signature (S2.3)
 
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-## Next substage: S2.3 — fresh-instance restore via marker (D4). Relies on: ElementRecord {hadStyleAttr, origStyleText, props} unchanged in shape; record + marker live from first write until restore() (a marker can now sit on an element with empty props); reset(el, final) = revert guarded entries, final also drops record/marker and writes text if semantically identical.
+## Next substage: S2.4 — runAuto reaches the engine via the applier; validate-dist. Relies on: ENGINE_MARK exported from engine/dom.ts (marker present in applier.js); marker value is no longer empty.

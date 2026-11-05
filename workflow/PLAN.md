@@ -8,7 +8,7 @@
 | S1.2 | T4/D6: remove aiRepair layer (eslint 0) | Sonnet 5.5 / high | DONE | 2026-11-04 |
 | S2.1 | Ledger and guarded per-prop reset | Opus 5.5 / high | DONE | 2026-11-05 |
 | S2.2 | Refresh path without whole-attribute reset | Opus 5.5 / high | DONE | 2026-11-05 |
-| S2.3 | Fresh-instance restore (D4) | Opus 5.5 / high | TODO | |
+| S2.3 | Fresh-instance restore (D4) | Opus 5.5 / high | DONE | 2026-11-05 |
 | S2.4 | T5/D9: auto path reaches engine; validate-dist | Sonnet 5.5 / medium | TODO | |
 | S3.1 | Delete pure structural tests; adapt two | Sonnet 5.5 / medium | TODO | |
 | S3.2 | Rewrite or retire plan/compile-importing tests | Sonnet 5.5 / high | TODO | |
