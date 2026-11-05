@@ -1,8 +1,4 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { compileCss } from "../src/plan/compile.ts";
-import { validatePlan } from "../src/plan/schema.ts";
-import { themeToPlan } from "../src/plan/themeToPlan.ts";
-import type { StructuralSummary } from "../src/core/types.ts";
 
 /**
  * A3 pass 3: page compatibility. Each item is a rule, a test or a documented limit (docs/REVIEW.md). These are the ones a test can hold.
@@ -37,31 +33,6 @@ describe("print is untouched", () => {
       expect(inits.every((i) => (i as { media?: string } | undefined)?.media === "screen")).toBe(true);
     } finally {
       window.CSSStyleSheet = Orig;
-    }
-  });
-});
-
-describe("compiled theme keeps the page usable", () => {
-  const summary = { v: 1, regions: [], counts: {}, page: { tone: "light" } } as unknown as StructuralSummary;
-  const css = (id: Parameters<typeof themeToPlan>[0]) => {
-    const v = validatePlan({ ...themeToPlan(id), strategy: "full" as const }, summary);
-    if (!v.ok) throw new Error("plan");
-    return compileCss(v.plan, summary);
-  };
-
-  it("focus rings, selection, placeholders, disabled controls, visited links, scrollbars, select options and colour scheme each have a rule", () => {
-    const text = css("midnight");
-    for (const part of [":focus-visible", "outline-width:2px", "::selection", "::placeholder", ":disabled", "a:visited", "scrollbar-color", "option, ", "color-scheme:dark"]) expect(text.replace(/\s/g, ""), part).toContain(part.replace(/\s/g, ""));
-  });
-
-  it("never hides focus (no outline none), never touches autofill, iframes, media or shadow hosts", () => {
-    for (const id of ["calm-light", "midnight", "ocean", "warm-paper", "field", "high-contrast"] as const) {
-      const text = css(id);
-      expect(text, id).not.toMatch(/outline(-style)?\s*:\s*(none|0)/);
-      expect(text, id).not.toMatch(/autofill/);
-      expect(text, id).not.toMatch(/(^|[\s,>])(iframe|img|video|canvas|svg|picture)([\s,{:[]|$)/m);
-      expect(text, id).not.toMatch(/::part|:host|::slotted/);
-      expect(text, id).not.toMatch(/display\s*:|visibility\s*:|opacity\s*:/);
     }
   });
 });

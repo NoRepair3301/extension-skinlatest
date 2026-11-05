@@ -3,7 +3,6 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { PROMPT_VERSION, STYLE_PLAN_SCHEMA, SYSTEM_PROMPT } from "../../src/ai/prompt.ts";
 import { createApplier, type StyleHost } from "../../src/extension/applier-core.ts";
-import { compileCss } from "../../src/plan/compile.ts";
 import { compare, snapshot } from "../../src/plan/invariants.ts";
 import { LAYOUTS, layoutAllowed, validatePlan, type Layout } from "../../src/plan/schema.ts";
 import { themeToPlan } from "../../src/plan/themeToPlan.ts";
@@ -59,25 +58,6 @@ describe("validator and compiler agree on layouts", () => {
     expect(validatePlan(plan([{ region: "r3", layout: "card-grid" }]), s).ok).toBe(false);
     expect(validatePlan(plan([{ region: "r1", layout: "table-clean" }]), s).ok).toBe(false);
     expect(validatePlan(plan([{ region: "r1", layout: "float" as Layout }]), s).ok).toBe(false);
-  });
-
-  it("compiles fixed templates for each layout", () => {
-    const s = summary();
-    const v = validatePlan(plan([{ region: "r4", layout: "card-grid" }, { region: "r1", layout: "stack" }, { region: "r3", layout: "center-column" }, { region: "r5", layout: "table-clean" }]), s);
-    if (!v.ok) throw new Error(v.errors.join());
-    const css = compileCss({ ...v.plan, strategy: "full" }, s);
-    expect(css).toContain("grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr))");
-    expect(css).toContain("flex-direction: column");
-    expect(css).toContain("max-width: 72rem");
-    expect(css).toContain("margin: 0 auto");
-    expect(css).toContain("border-collapse: collapse");
-    expect(css).not.toMatch(/order\s*:|position\s*:|float|display: none|visibility/);
-  });
-
-  it("the compiler drops a layout the page's risk markers forbid", () => {
-    const s = sampleSummary(["editable"]);
-    const css = compileCss(planFor("calm-light", [{ region: "r1", layout: "stack", surface: "none", spacing: 1 }]), s);
-    expect(css).not.toContain("flex-direction");
   });
 });
 

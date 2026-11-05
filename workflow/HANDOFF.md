@@ -1,28 +1,30 @@
-# HANDOFF — S2.4 Auto path reaches the engine; validate-dist guards (T5 / D9)
+# HANDOFF — S3.1 Delete pure structural tests; adapt two
 Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / medium (per prompt)
 ## What changed
-- src/extension/auto-core.ts — runAuto catches a throwing applyTokens: report("error-apply"), returns "invalid" (was: rejected promise).
-- scripts/validate-dist.ts — ENGINE_MARKER (one literal, Stage 6 comment) + exported engineBundleProblems(applierJs, autoJs); run from the CLI entry on dist/.
-- tests/auto.test.ts — extended (existing tests untouched): 5 new tests, names as in the prompt.
+- tests/plan/compile.test.ts — deleted (58 tests; compileCss has no src caller).
+- tests/golden/*.css (6) + dir — deleted (only reader was compile.test.ts).
+- tests/compat.test.ts — removed the 2 "compiled theme" cases and their imports; kept `print is untouched`.
+- tests/plan/layouts.test.ts — removed 2 compileCss cases and the import; rest kept.
+- tests/applier.test.ts — region-tag test adapted to a plan with regionRules; +1 case (built-in theme tags nothing).
+- tests/legacy.test.ts — 7 failing invariants rewritten for the engine (I1/I2/I6/I8/D12); 10 tests, all pass.
+- workflow/TEST_CLASSIFICATION.md — new, full table.
 ## Gate results
-tsc 0 errors; eslint 0 errors; engine 62 pass / 0 fail. Full vitest 1371 pass / 17 fail / 94 files; failing set is a subset of BASELINE_FAILURES.txt (repair.test.ts "asks only after consent" did not fail this run). No plus-ui flake. `npm run build` ok; `npm run validate-dist` ok.
-## Findings
-- Applier global: `globalThis.skinlyApplier` (set by applier.ts:82-93; read at applier-auto.ts:20). Fail-safe already existed: `if (applier && origin && ...)` skips everything, no warn, no marker. Test only; no change in applier-auto.ts.
-- Source change needed only for "applyTokens throws" (auto-core.ts guard above). The real applier never throws (run() catches and restores); test (b) uses a style host that throws mid-apply and the page is byte-identical afterwards.
-- "No structural path" is assertable: no sheet contains `data-skinly-r` and no element carries it.
-- Signature: ENGINE_SHEET_SIGNATURE is a template (`html[${ENGINE_MARK}-sheet]`), not a literal, so validate-dist asserts on the marker only (the signature contains it).
-- Mutation demo (real dist content, in memory): marker stripped from applier.js -> "applier.js must contain the engine marker"; marker appended to applier-auto.js -> "applier-auto.js must not embed the engine". Real dist -> no problems. No temp files in the repo.
-- dist/ is NOT tracked in git (`git ls-files dist` empty).
+tsc 0 errors; eslint 0 errors; engine 62 pass. Full vitest 1318 pass / 9 fail / 93 files (before: 1370 pass / 18 fail / 1388 incl. a repair.test.ts flake; after total 1327 = 1388 - 62 deleted + 1 added). Failing set = guard.test.ts (8) + restore-markers.test.ts stored-repair (1), as expected. `git diff --ignore-cr-at-eol --stat -- src` empty. `npm run build` and `validate-dist` ok.
 ## Decisions made (also in DECISIONS.md)
-- Bundle check runs in the CLI entry, not in validateDist(): tests/build.test.ts calls validateDist with stub bundles (no engine) and would fail; that test is out of scope.
+- Region tagging is live in applier-core for AI plans with regionRules, dead for built-in themes -> test adapted to a plan with rules, plus a built-in case.
+- Legacy checks now assert the engine guarantee (only ENGINE_MARK/ROOT_MARK/style change; byte-exact restore) and that td[bgcolor] is painted by the engine with no [bgcolor] selector.
 ## Out-of-scope touches
 None.
 ## Bugs found
-- applier-core.ts:93 stacking gap (known, Stage 5).
-## Owner manual checks (before committing)
-`npm run build`, reload unpacked. 1) Apply a built-in theme on a site so it is remembered. 2) Reload the page: theme returns by itself, no worse flash. 3) Restore original: page returns to normal. 4) Page console / service worker: no red errors from applier-auto.
+None. Every adapted invariant holds in the engine.
+## Mutation checks
+Verified in a scratch copy (deleted): stray `data-foo` attribute written during apply fails the attribute test (3 fixtures); stripping the engine marker from td fails the bgcolor test. Not mutated, argued: region-tag test fails if tagging is removed (toEqual on tags) and the new built-in case fails if built-in themes start tagging; "applies every theme" fails on any node move/attr change or inexact restore.
+## Zero-importer source (for S3.3)
+src/plan/compile.ts: no src importers; remaining importers are tests/guard.test.ts, tests/ai/flow-safety.test.ts, tests/rules.test.ts (string only), all S3.2.
+## Owner manual checks
+Run `npm run gate` once. `git diff --ignore-cr-at-eol --stat -- src` prints nothing.
 ## Suggested commit message
-test(auto): prove auto path reaches the engine, fail safe without applier, guard dist bundles (S2.4)
+test: remove structural-theming tests, adapt legacy invariants to the engine (S3.1)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
-## Next substage: S3.1 — delete pure structural tests. Stage 2 complete after this commit.
+## Next substage: S3.2 (Sonnet 5.5, high) — guard, rules, flow-safety tests against the engine; investigate the guard "re-render" case.

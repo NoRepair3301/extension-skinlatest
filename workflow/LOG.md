@@ -7,3 +7,4 @@ date | ID | status | files touched | gate summary
 2026-11-05 | S2.2 | DONE | 3 src/test files (dom.ts, ledger.test.ts, refresh.test.ts new) + 4 workflow docs | tsc 0 / eslint 0 / engine 48 pass / full vitest 1351 pass 18 fail (baseline minus S1.2-removed test)
 2026-11-05 | S2.3 | DONE | 3 src/test files (dom.ts, cleanup.ts, tests/engine/marker.test.ts new) + 4 workflow docs | tsc 0 / eslint 0 / engine 62 pass / full vitest 1366 pass 17 fail (baseline minus S1.2-removed test minus restore-markers fresh-instance test)
 2026-11-05 | S2.4 | DONE | 3 src/test files (auto-core.ts, validate-dist.ts, auto.test.ts) + 4 workflow docs | tsc 0 / eslint 0 / engine 62 pass / full vitest 1371 pass 17 fail (subset of baseline); build + validate-dist ok
+2026-11-05 | S3.1 | DONE | 11 test files (7 deleted, 4 edited) + workflow docs | tsc 0 / eslint 0 / engine 62 pass / full vitest 1318 pass 9 fail (guard 8, restore-markers 1) of 1327; build + validate-dist ok

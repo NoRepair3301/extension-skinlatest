@@ -141,14 +141,31 @@ describe("applier safety", () => {
     expect(doc.documentElement.outerHTML).toBe(before);
   });
 
+  // The engine paints from computed style and ignores region rules, but applier-core still tags the regions an AI plan names,
+  // so the tagging contract is checked with a plan that has rules. Built-in themes carry none (next test).
   it("tags regions with data-skinly-r only", () => {
+    const doc = load("service-cards");
+    const before = doc.documentElement.outerHTML;
+    const { host } = fakeStyle();
+    const a = createApplier(doc, { style: host, summaryDeps: fakeDeps() });
+    const analysis = a.analyze();
+    if (analysis.status !== "ok") throw new Error("too large");
+    const rules = analysis.summary.regions.slice(0, 3).map((r) => ({ region: r.id, layout: "none" as const, surface: "none" as const, spacing: 0 }));
+    expect(rules.length).toBeGreaterThan(0);
+    expect(a.apply({ ...themeToPlan("ocean", analysis.summary), regionRules: rules })).toMatchObject({ ok: true, regions: rules.length });
+    const tagged = Array.from(doc.querySelectorAll("[data-skinly-r]"));
+    expect(tagged.map((el) => el.getAttribute("data-skinly-r")).sort()).toEqual(rules.map((r) => r.region).sort());
+    for (const el of tagged) expect(el.getAttribute("data-skinly-r")).toMatch(/^r\d+$/);
+    a.restore();
+    expect(doc.documentElement.outerHTML).toBe(before);
+  });
+
+  it("a built-in theme tags no region: themed elements carry only the engine marker and style, never data-skinly-r", () => {
     const doc = load("service-cards");
     const { host } = fakeStyle();
     const a = createApplier(doc, { style: host, summaryDeps: fakeDeps() });
-    a.applyTheme("ocean");
-    const tagged = Array.from(doc.querySelectorAll("[data-skinly-r]"));
-    expect(tagged.length).toBeGreaterThan(0);
-    for (const el of tagged) expect(el.getAttribute("data-skinly-r")).toMatch(/^r\d+$/);
+    expect(a.applyTheme("ocean")).toMatchObject({ ok: true, regions: 0 });
+    expect(doc.querySelectorAll("[data-skinly-r]")).toHaveLength(0);
     a.restore();
   });
 });
