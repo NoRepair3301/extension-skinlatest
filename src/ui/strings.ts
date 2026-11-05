@@ -29,6 +29,9 @@ export const en = {
     },
     stages: ["Reading the page", "Checking readability", "Applying"],
     applied: (name: string, fixes: number) => `Applied ${name}, ${fixes === 0 ? "no readability fixes needed" : fixes === 1 ? "1 readability fix" : `${fixes} readability fixes`}`,
+    // F1 placeholders; S5.4 owns the final copy.
+    applying: (name: string) => `Applying ${name}…`,
+    choiceSaved: "Saved as your theme for other pages.",
     restore: "Restore original",
     cancel: "Cancel",
     themeLegend: "Theme",

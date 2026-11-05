@@ -2,7 +2,7 @@ import { analyze } from "../analyzer/analyze.ts";
 import type { SummaryDeps } from "../analyzer/summary.ts";
 import { NEUTRAL_PAGE, type Fingerprint, type RiskMarker, type StructuralSummary } from "../core/types.ts";
 import { compare, snapshot } from "../plan/invariants.ts";
-import { markerCleanup } from "./cleanup.ts";
+import { engineCleanup, hasLeftovers, markerCleanup } from "./cleanup.ts";
 import { validatePlan, type Strategy, type StylePlan, type Tokens } from "../plan/schema.ts";
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { DEFAULT_THEME_ID, getTheme, isBuiltinThemeId, isThemeChoice, resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
@@ -75,8 +75,12 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   }
 
   function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false): ApplyResult {
+    const fresh = activeEngine === undefined;
     restore(false);
     try {
+      // D4: no live engine here, but another instance (orphaned by an extension reload) may have left its theme. Without this the new
+      // engine would read that theme as the page's own colours and stack on it. Before the snapshot, so the invariants see only ours.
+      if (fresh && hasLeftovers(doc)) engineCleanup(doc);
       const before = snapshot(doc);
       const analysis = tokensOnly ? undefined : analyze(doc, opts.summaryDeps);
       const summary = analysis?.status === "ok" ? analysis.summary : undefined;

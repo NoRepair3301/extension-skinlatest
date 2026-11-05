@@ -4,7 +4,8 @@ import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { S } from "../../ui/strings.ts";
 import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
-import { THEMES, resolveTheme, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
+import { THEMES, isBuiltinThemeId, resolveTheme, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
+import type { ApplyResult } from "../applier-core.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { checkUrl } from "../../analyzer/eligibility.ts";
 import { themeToPlan } from "../../plan/themeToPlan.ts";
@@ -83,10 +84,22 @@ export function Popup() {
   const artTab = useRef<number | undefined>(undefined);
   const [commands, setCommands] = useState<CommandInfo[]>([]);
   const [site, setSite] = useState<{ origin: string; tabId: number; record: SiteRecord | undefined } | undefined>(undefined);
+  /** The radio the user clicked in this popup; until then the checked radio comes from the site's record or the global choice (O4). */
+  const [selected, setSelected] = useState<ThemeChoice | undefined>(undefined);
+  /** The built-in theme a theme click is putting on the page right now. */
+  const [themeBusy, setThemeBusy] = useState<BuiltinThemeId | undefined>(undefined);
+  /** Each theme click gets a number; only the latest click may touch the page or the popup state (rapid clicks end in the last theme). */
+  const clickSeq = useRef(0);
+  /** Page work of theme clicks runs one after another, so two swaps never interleave in the page. */
+  const pageQueue = useRef<Promise<void>>(Promise.resolve());
+  /** A permission prompt for this origin is open: later clicks only rewrite the intent and share its answer (a second request may reject). */
+  const permissionPending = useRef<{ origin: string; answer: Promise<boolean> } | undefined>(undefined);
 
   const refreshSite = async (): Promise<{ origin: string; tabId: number } | undefined> => {
     try {
       const tab = await queryActiveTab();
+      // In memory only (never stored): a theme click checks the full URL, so a .pdf path on an allowed origin does not prompt.
+      tabUrl.current = tab?.url;
       const origin = tab?.url ? originOf(tab.url) : undefined;
       setSite(tab && origin ? { origin, tabId: tab.id, record: await getSite(origin) } : undefined);
       if (origin) grantedAtOpen.current = (await isGranted(origin)) ? origin : undefined;
@@ -193,12 +206,6 @@ export function Popup() {
     if (tabId !== undefined && source) void updateArtHere(tabId, next, source).then((r) => setSceneNote(artStatus(r, sceneRequest(next, source) !== null)));
   };
 
-  const pickTheme = (theme: ThemeChoice) => {
-    const next = { ...settings, theme };
-    setSettings(next);
-    void saveSettings(next).catch(() => recordErrors(["popup-error"]));
-  };
-
   const askPermission = (origin: string): Promise<boolean> => {
     try {
       return Promise.resolve(requestOrigins(matchFor(origin))).catch(() => false);
@@ -223,6 +230,93 @@ export function Popup() {
     if (!intent) return false;
     void writeIntent(intent).catch(() => recordErrors(["popup-error"]));
     return askPermission(here.origin);
+  };
+
+  /** Puts the clicked theme on the page, unless a newer click came in meanwhile. Needs no gesture: activeTab covers the injection. */
+  const applyLatest = async (seq: number, tabId: number, choice: ThemeChoice, resolved: BuiltinThemeId, next: Settings): Promise<void> => {
+    if (seq !== clickSeq.current) return;
+    let r: ApplyResult | undefined;
+    try {
+      r = await createPageClient(tabId).applyTheme(resolved);
+    } catch {
+      r = undefined;
+    }
+    if (seq !== clickSeq.current) return;
+    setThemeBusy(undefined);
+    if (r?.ok) {
+      badge(tabId, "ON");
+      setApplied({ name: themeName(resolved), fixes: 0 });
+      void showArt(tabId, next, sourceForTheme(choice, prefersDark()));
+      void showPetHere();
+    } else {
+      setApplied(undefined);
+      setView({ state: "error", kind: r?.ok === false ? r.reason : "error", message: applyFailureMessage(r) });
+    }
+  };
+
+  /**
+   * D5/F1: a theme click applies the theme at once and remembers the site. Inside the gesture, with no await before it: the intent write
+   * (not awaited), then the permission request (the gesture-bound call), then the settings write; the page work is queued and runs in
+   * parallel with the prompt. A refused permission keeps the theme on this tab only (O1).
+   */
+  const applyChoice = (choice: ThemeChoice) => {
+    const seq = ++clickSeq.current;
+    const next = { ...settings, theme: choice };
+    const resolved = resolveTheme(choice, prefersDark());
+    const keptPlan = clickKept(next);
+    const url = tabUrl.current;
+    const here = site && url && checkUrl(url, settings.blocklist).allowed ? { origin: site.origin, tabId: site.tabId } : undefined;
+    let answer: Promise<boolean> | undefined;
+    if (here && deniedHere.current !== here.origin) {
+      const pending = permissionPending.current;
+      if (pending && pending.origin === here.origin) {
+        const intent = makeIntent(here.origin, here.tabId, "click", keptPlan, Date.now(), grantedAtOpen.current === here.origin);
+        if (intent) void writeIntent(intent).catch(() => recordErrors(["popup-error"]));
+        answer = pending.answer;
+      } else {
+        const asked = handOver(here, "click", keptPlan);
+        permissionPending.current = { origin: here.origin, answer: asked };
+        void asked.then(() => {
+          if (permissionPending.current?.answer === asked) permissionPending.current = undefined;
+        });
+        answer = asked;
+      }
+    }
+    setSettings(next);
+    void saveSettings(next).catch(() => recordErrors(["popup-error"]));
+
+    setSelected(choice);
+    setNotice("");
+    setKeepable(undefined);
+    setApplied(undefined);
+    if (!here) {
+      // Not a page Skinly may change: the choice is saved for other pages, nothing is injected or asked.
+      setThemeBusy(undefined);
+      setView({ state: "blocked", reason: MSG.blocked });
+      setNotice(S.popup.choiceSaved);
+      return;
+    }
+    setThemeBusy(resolved);
+    setView({ state: "idle" });
+    pageQueue.current = pageQueue.current.then(() => applyLatest(seq, here.tabId, choice, resolved, next));
+
+    if (!answer) {
+      // Refused before (this popup, or a reopened one found it refused): this page only, no second prompt. Keep on this site asks again.
+      setNotice(S.popup.thisPageOnly);
+      setKeepable({ tabId: here.tabId, origin: here.origin, kept: keptPlan });
+      return;
+    }
+    void answer.then((granted) => {
+      if (seq !== clickSeq.current) return;
+      if (granted) {
+        grantedAtOpen.current = here.origin;
+        setSite((cur) => (cur && cur.origin === here.origin ? { ...cur, record: keptRecord(keptPlan, cur.record) } : cur));
+      } else {
+        deniedHere.current = here.origin;
+        setNotice(S.popup.keepDenied);
+        setKeepable({ tabId: here.tabId, origin: here.origin, kept: keptPlan });
+      }
+    });
   };
 
   const start = async () => {
@@ -447,6 +541,7 @@ export function Popup() {
   };
 
   const busy = view.state === "working" || view.state === "consent";
+  const checkedTheme = selected ?? rememberedChoice(site?.record, settings.theme);
   const hints = browserHints();
   const page = shortcutsPage(hints.userAgent, hints.brave);
 
@@ -459,7 +554,7 @@ export function Popup() {
         <h1>
           <Logo size={28} /> {S.app.name}
         </h1>
-        <p role="status" class={headBanner}>{statusText(view) || pageLine(site, settings)}</p>
+        <p role="status" class={headBanner}>{themeBusy ? S.popup.applying(themeName(themeBusy)) : statusText(view) || pageLine(site, settings)}</p>
       </header>
 
       {!online && <p class="banner banner-info" role="status">{S.popup.offline}</p>}
@@ -467,8 +562,8 @@ export function Popup() {
 
       {view.state !== "consent" && (
         <div class="primary-actions">
-          <Button kind="primary" onClick={() => void start()} disabled={busy}>{S.popup.change}</Button>
-          <Button kind="quiet" onClick={() => void restore()} disabled={busy}>{S.popup.restore}</Button>
+          <Button kind="primary" onClick={() => void start()} disabled={busy || themeBusy !== undefined}>{S.popup.change}</Button>
+          <Button kind="quiet" onClick={() => void restore()} disabled={busy || themeBusy !== undefined}>{S.popup.restore}</Button>
           {view.state === "working" && <Button kind="quiet" onClick={cancel}>{S.popup.cancel}</Button>}
         </div>
       )}
@@ -486,12 +581,13 @@ export function Popup() {
       )}
       {applied && (view.state === "idle" || view.state === "preview") && <p class="banner banner-success" role="status">{S.popup.applied(applied.name, applied.fixes)}</p>}
 
-      <fieldset class="themes">
+      <fieldset class="themes" aria-busy={themeBusy ? "true" : undefined}>
         <legend>{S.popup.themeLegend}</legend>
         <div class="theme-grid">
           {THEMES.map((t) => (
-            <label key={t.id} class={`theme-card${settings.theme === t.id ? " on" : ""}`}>
-              <input type="radio" name="theme" value={t.id} checked={settings.theme === t.id} onChange={() => pickTheme(t.id)} />
+            <label key={t.id} class={`theme-card${checkedTheme === t.id ? " on" : ""}`}>
+              {/* onClick, not onChange: the radio that is already checked (Restore leaves it so) must apply again. */}
+              <input type="radio" name="theme" value={t.id} checked={checkedTheme === t.id} disabled={busy} onClick={() => applyChoice(t.id)} />
               <span class="mini" aria-hidden="true" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
                 <i class="m-head" style={{ background: t.tokens.text }} />
                 <i class="m-line" style={{ background: t.tokens.muted }} />
@@ -504,8 +600,8 @@ export function Popup() {
               <span class="theme-name">{t.name}</span>
             </label>
           ))}
-          <label class={`theme-card${settings.theme === "auto" ? " on" : ""}`}>
-            <input type="radio" name="theme" value="auto" checked={settings.theme === "auto"} onChange={() => pickTheme("auto")} />
+          <label class={`theme-card${checkedTheme === "auto" ? " on" : ""}`}>
+            <input type="radio" name="theme" value="auto" checked={checkedTheme === "auto"} disabled={busy} onClick={() => applyChoice("auto")} />
             <span class="mini auto" aria-hidden="true" />
             <span class="theme-name" title={S.popup.autoThemeHint}>{S.popup.autoTheme}</span>
           </label>
@@ -623,6 +719,13 @@ export function Popup() {
 /** What the popup shows for the site right after handing a keep to the background (the background writes the real record). */
 function keptRecord(k: KeptPlan, previous: SiteRecord | undefined): SiteRecord {
   return { v: 1, plan: k.plan, fingerprint: k.fingerprint, provider: k.provider, model: k.model, promptVersion: previous?.promptVersion ?? "", savedAt: new Date().toISOString(), mode: "auto", blur: previous?.blur ?? [], blurImages: previous?.blurImages ?? false };
+}
+
+/** O4: a site kept with a built-in theme shows that theme checked (paused or not); an AI theme is none of the seven; else the global choice. */
+function rememberedChoice(record: SiteRecord | undefined, global: ThemeChoice): ThemeChoice | undefined {
+  if (!record) return global;
+  if (record.provider !== "builtin") return undefined;
+  return isBuiltinThemeId(record.plan.themeId) ? record.plan.themeId : global;
 }
 
 /** Which of the three visible stages each step belongs to: Reading the page, Checking readability, Applying. */

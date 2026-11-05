@@ -20,7 +20,23 @@ const isOurSheet = (s: CSSStyleSheet): boolean => {
   }
 };
 
-export function markerCleanup(doc: Document): void {
+const ENGINE_ATTRS = [ROOT_MARK, ENGINE_MARK, "data-skinly-r"];
+
+/** True when another engine instance left its theme on this document: the root marker or one of our adopted sheets. Cheap, no DOM walk. */
+export function hasLeftovers(doc: Document): boolean {
+  if (doc.documentElement.hasAttribute(ROOT_MARK)) return true;
+  try {
+    return doc.adoptedStyleSheets?.some(isOurSheet) === true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Only what an engine instance wrote: our sheets, its inline writes (from the element markers) and the root, engine and region marks.
+ * UI hosts and tool attributes stay, because a fresh applier about to theme the page may sit next to live controllers that own them.
+ */
+export function engineCleanup(doc: Document): void {
   try {
     const sheets = doc.adoptedStyleSheets;
     if (sheets && sheets.some(isOurSheet)) doc.adoptedStyleSheets = sheets.filter((s) => !isOurSheet(s));
@@ -29,6 +45,14 @@ export function markerCleanup(doc: Document): void {
   }
   // Before the attribute sweep below: the engine marker carries the data this needs.
   undoEngineMarks(doc);
+  for (const attr of ENGINE_ATTRS) {
+    doc.documentElement.removeAttribute(attr);
+    doc.querySelectorAll(`[${attr}]`).forEach((n) => n.removeAttribute(attr));
+  }
+}
+
+export function markerCleanup(doc: Document): void {
+  engineCleanup(doc);
   doc.querySelectorAll("[data-skinly-ui],[data-skinly-scene]").forEach((n) => n.remove());
   for (const attr of ATTRS) {
     doc.documentElement.removeAttribute(attr);

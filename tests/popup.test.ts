@@ -103,19 +103,25 @@ describe("popup", () => {
     expect(api.injectFile).not.toHaveBeenCalled();
   });
 
-  it("saves the picked theme", async () => {
+  it("saves the picked theme and applies it (F1)", async () => {
+    flow.applyTheme.mockResolvedValue({ ok: true });
     const root = await mount();
     await act(() => root.querySelector<HTMLInputElement>('input[value="midnight"]')!.click());
     expect(api.storageSet).toHaveBeenCalledWith("settings", expect.objectContaining({ theme: "midnight" }));
+    await flush();
+    expect(flow.applyTheme).toHaveBeenCalledWith("midnight");
   });
 
   it("T6: all 6 built-in themes are selectable and applicable from the popup logic, with no lock state anywhere", async () => {
+    flow.applyTheme.mockResolvedValue({ ok: true });
     const root = await mount();
     expect(root.querySelectorAll('input[type="radio"]:disabled, [aria-disabled="true"]')).toHaveLength(0);
     for (const id of ["midnight", "ocean", "warm-paper", "high-contrast", "field", "calm-light"]) {
       await act(() => root.querySelector<HTMLInputElement>(`input[value="${id}"]`)!.click());
       expect(api.storageSet).toHaveBeenLastCalledWith("settings", expect.objectContaining({ theme: id }));
       expect(root.querySelector<HTMLInputElement>(`input[value="${id}"]`)!.checked).toBe(true);
+      await flush();
+      expect(flow.applyTheme).toHaveBeenLastCalledWith(id);
     }
     expect(root.querySelectorAll(".theme-card.locked, .plus-mark")).toHaveLength(0);
     expect(root.textContent).not.toMatch(/(plus|premium|upgrade|unlock)/i);

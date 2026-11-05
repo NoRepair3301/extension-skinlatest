@@ -3,6 +3,7 @@ import { clearIntent, readIntent, type PendingIntent } from "./intent.ts";
 import { siteKey } from "./origin.ts";
 import { AUTO_FILES, ensureRegistered, record, resumeSite } from "./siteActions.ts";
 import { getSite, saveSite } from "./sites.ts";
+import type { StylePlan } from "../plan/schema.ts";
 
 /**
  * The background side of the keep flow (A1a). Everything after the click happens here, because the popup may be gone: Edge closes it
@@ -12,7 +13,7 @@ import { getSite, saveSite } from "./sites.ts";
  * - `changed`: the popup wrote an intent and the permission is there (granted before, or the prompt was answered already).
  * - `start`: the service worker started with an intent left over (it was stopped in between).
  * The tab is themed here unless the intent says the popup does it (the permission was there when the popup opened, so no prompt could
- * close it); a page that already shows a theme is never themed twice.
+ * close it); a page that already shows the kept theme is never themed twice.
  */
 export type KeepTrigger = "added" | "changed" | "start";
 export type KeepResult = "none" | "denied" | "not-granted" | "kept" | "error";
@@ -26,16 +27,20 @@ export function serial<T>(job: () => Promise<T>): Promise<T> {
 }
 
 /**
- * Puts the kept theme on an open tab the way a page load would: the auto files, in order, in the top frame. Skipped when the page already
- * shows a theme (the popup is alive and themed it) or when the tab has left the site since the click (a stale tab id never gets the
- * files of another origin). The URL is compared in memory only, never stored.
+ * Puts the kept theme on an open tab the way a page load would: the auto files, in order, in the top frame. A page that already shows the
+ * kept theme is left alone (the popup is alive and themed it); a page that shows another theme gets the kept plan through its live
+ * applier, which swaps without stacking (Edge closed the popup at the prompt while the page still showed the old pick). Skipped when the
+ * tab has left the site since the click (a stale tab id never gets the files of another origin). The URL is compared in memory only.
  */
-export async function applyToTab(tabId: number, origin: string): Promise<boolean> {
+export async function applyToTab(tabId: number, origin: string, plan?: StylePlan): Promise<boolean> {
   try {
     const url = await getPageUrl(tabId).catch(() => undefined);
     if (!url || siteKey(url)?.key !== origin) return false;
-    const active = await runInPage<boolean>(tabId, "isActive").catch(() => undefined);
-    if (active === true) return true;
+    const shown = await runInPage<{ themeId?: unknown }>(tabId, "shownTheme").catch(() => undefined);
+    if (shown && typeof shown === "object") {
+      if (plan && shown.themeId !== plan.themeId) await runInPage(tabId, "apply", plan, true);
+      return true;
+    }
     await injectFiles(tabId, [...AUTO_FILES]);
     return true;
   } catch {
@@ -44,17 +49,20 @@ export async function applyToTab(tabId: number, origin: string): Promise<boolean
 }
 
 async function keep(intent: PendingIntent): Promise<KeepResult> {
+  let plan: StylePlan | undefined;
   if (intent.stage === "resume") {
     if (!(await resumeSite(intent.origin)).ok) return "error";
+    plan = (await getSite(intent.origin).catch(() => undefined))?.plan;
   } else {
     if (!intent.kept) return "error";
     const previous = await getSite(intent.origin);
     if (!(await saveSite(intent.origin, record(intent.kept, "auto", previous)))) return "error";
     if (!(await ensureRegistered(intent.origin))) return "error";
+    plan = intent.kept.plan;
   }
   // Chrome keeps the popup open over the prompt: it is running the flow and themes the tab itself, so a second apply would only flicker.
   const popupThemes = intent.popupApplies === true || (intent.stage === "click" && (await popupOpen().catch(() => false)));
-  if (!popupThemes) await applyToTab(intent.tabId, intent.origin);
+  if (!popupThemes) await applyToTab(intent.tabId, intent.origin, plan);
   await setBadge(intent.tabId, "ON").catch(() => undefined);
   return "kept";
 }

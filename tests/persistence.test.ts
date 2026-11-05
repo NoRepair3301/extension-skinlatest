@@ -23,6 +23,10 @@ const URL_A = `${ORIGIN}/wiki/Solar_System`;
 interface PageState {
   themed: boolean;
   autoRuns: number;
+  /** The built-in theme the page shows (what the applier's shownTheme reports). */
+  theme?: string;
+  /** Plans put on through the live applier's apply (the keeper's swap). */
+  applied: string[];
 }
 
 let fake: FakeChrome;
@@ -33,7 +37,7 @@ const aiOutcome = () => ({ kind: "preview" as const, source: "ai" as const, plan
 
 async function boot(opts: FakeChromeOptions = {}) {
   vi.resetModules();
-  page = { themed: false, autoRuns: 0 };
+  page = { themed: false, autoRuns: 0, applied: [] };
   fake = createFakeChrome({
     tabs: { [TAB]: URL_A },
     onFiles: (_tab, files) => {
@@ -49,8 +53,16 @@ async function boot(opts: FakeChromeOptions = {}) {
   // the page script the popup and the background talk to through executeScript
   (globalThis as unknown as { skinlyApplier: unknown }).skinlyApplier = {
     isActive: () => page.themed,
+    shownTheme: () => (page.themed ? { themeId: page.theme ?? "calm-light", strategy: "full" } : undefined),
+    apply: (plan: { themeId: string }) => {
+      page.applied.push(plan.themeId);
+      page.themed = true;
+      page.theme = plan.themeId;
+      return { ok: true };
+    },
     restore: () => {
       page.themed = false;
+      delete page.theme;
       return { ok: true };
     },
     diag: () => ({ page: { theme: page.themed ? "ocean" : "none", art: "off", auto: page.themed ? "applied" : "not-run" }, errors: [] }),
@@ -60,6 +72,13 @@ async function boot(opts: FakeChromeOptions = {}) {
   flow.runTransform.mockImplementation(async () => {
     page.themed = true;
     return aiOutcome();
+  });
+  // the popup's page client: a built-in theme goes on through the live applier
+  flow.applyTheme.mockReset();
+  flow.applyTheme.mockImplementation(async (id: string) => {
+    page.themed = true;
+    page.theme = id;
+    return { ok: true, themeId: id, regions: 0, strategy: "full", steppedDown: false, repairs: 0, samples: 1 };
   });
   await import("../src/extension/background.ts");
   await fake.settle();
@@ -226,6 +245,107 @@ describe("A1a: the popup only writes the intent and asks; the background keeps t
     expect(await completeIntent("added")).toBe("none");
     expect(sites()?.[ORIGIN]).toBeUndefined();
     expect(fake.registered.size).toBe(0);
+  });
+});
+
+describe("F1 (S5.2): a theme click applies at once and keeps the site through the same intent", () => {
+  const pick = async (id: string) => {
+    const r = root!.querySelector<HTMLInputElement>(`input[type="radio"][value="${id}"]`);
+    expect(r, `radio ${id}`).not.toBeNull();
+    await act(() => r!.click());
+    await flush();
+  };
+  const requests = () => fake.log.filter((l) => l.startsWith("permissions.request")).length;
+
+  it("theme click: the intent write then the permission request come first, inside the click; the settings write follows", async () => {
+    await boot({ prompt: "allow" });
+    await openPopup();
+    await pick("midnight");
+    expect(fake.log.slice(0, 3)).toEqual(["storage.set intent", `permissions.request ${PATTERN}`, "storage.set settings"]);
+    expect(flow.applyTheme).toHaveBeenCalledWith("midnight");
+    expect(page.theme).toBe("midnight");
+  });
+
+  it("theme click remembers the site: built-in record, auto, one registration, no auto files injected while the popup is open", async () => {
+    await boot({ prompt: "allow" });
+    await openPopup();
+    await pick("ocean");
+    expect(sites()![ORIGIN]).toMatchObject({ provider: "builtin", mode: "auto", plan: { themeId: "ocean" } });
+    expect(await registration()).toMatchObject({ matches: [PATTERN], js: ["applier.js", "applier-auto.js", "scene.js"] });
+    expect(fake.log.filter((l) => l.startsWith("register"))).toHaveLength(1);
+    expect(fake.exec.filter((c) => c.files?.includes("applier-auto.js"))).toEqual([]);
+    expect(fake.store.has("intent")).toBe(false);
+    expect((fake.store.get("settings") as { theme: string }).theme).toBe("ocean");
+    // a second theme replaces the record; nothing registers twice and no prompt shows (already granted)
+    await pick("field");
+    expect(sites()![ORIGIN]!.plan.themeId).toBe("field");
+    expect(fake.log.filter((l) => l.startsWith("register"))).toHaveLength(1);
+    expect(page.theme).toBe("field");
+  });
+
+  it("permission denied: the theme stays on this tab only, nothing kept, one message, Keep on this site; a second click does not ask again", async () => {
+    await boot({ prompt: "deny" });
+    await openPopup();
+    await pick("midnight");
+    expect(page.theme).toBe("midnight");
+    expect(sites()?.[ORIGIN]).toBeUndefined();
+    expect(await registration()).toBeUndefined();
+    expect(root!.textContent).toContain("Not kept: permission wasn't given.");
+    expect(button("Keep on this site")).toBeDefined();
+    const asked = requests();
+    await pick("ocean");
+    expect(requests()).toBe(asked);
+    expect(page.theme).toBe("ocean");
+    expect(sites()?.[ORIGIN]).toBeUndefined();
+    expect((fake.store.get("settings") as { theme: string }).theme).toBe("ocean");
+  });
+
+  it("Edge, allow: the popup dies at the prompt; the background puts the clicked theme on a tab that showed another theme, without stacking", async () => {
+    await boot({ popupDies: true, prompt: "allow" });
+    page.themed = true;
+    page.theme = "ocean";
+    // the popup is gone before its own page call is sent
+    flow.applyTheme.mockImplementation(() => new Promise(() => undefined));
+    await openPopup();
+    await pick("midnight");
+    expect(sites()![ORIGIN]).toMatchObject({ mode: "auto", plan: { themeId: "midnight" } });
+    expect(await registration()).toBeDefined();
+    expect(page.applied).toEqual(["midnight"]);
+    expect(page.theme).toBe("midnight");
+    expect(fake.exec.find((c) => c.func === "callApplier" && c.args?.[0] === "apply")).toMatchObject({ tabId: TAB, allFrames: true });
+    expect(fake.exec.filter((c) => c.files?.includes("applier-auto.js"))).toEqual([]);
+    expect(fake.badges.get(TAB)).toBe("ON");
+  });
+
+  it("a theme click un-pauses a restored site without a prompt and registers it again", async () => {
+    await boot({ granted: [PATTERN] });
+    await openPopup();
+    await pick("warm-paper");
+    await click("Restore original");
+    expect(sites()![ORIGIN]!.paused).toBe(true);
+    expect(await registration()).toBeUndefined();
+    await openPopup();
+    // the radio shows the site's theme (O4); clicking it again applies and turns the site back on
+    expect(root!.querySelector<HTMLInputElement>('input[value="warm-paper"]')!.checked).toBe(true);
+    await pick("warm-paper");
+    expect(page.theme).toBe("warm-paper");
+    expect(sites()![ORIGIN]!.paused).toBeUndefined();
+    expect(sites()![ORIGIN]!.mode).toBe("auto");
+    expect(await registration()).toBeDefined();
+    expect(fake.granted.has(PATTERN)).toBe(true);
+    expect(root!.textContent).not.toContain("Paused on this site");
+  });
+
+  it("Change my page after a theme click still runs the AI flow and keeps its plan (the two share one record, last action wins)", async () => {
+    await boot({ granted: [PATTERN] });
+    await openPopup();
+    await pick("midnight");
+    expect(sites()![ORIGIN]!.provider).toBe("builtin");
+    await click("Change my page");
+    expect(flow.runTransform).toHaveBeenCalledTimes(1);
+    expect(sites()![ORIGIN]).toMatchObject({ provider: "gemini", plan: { themeId: "ocean" } });
+    await pick("field");
+    expect(sites()![ORIGIN]).toMatchObject({ provider: "builtin", plan: { themeId: "field" } });
   });
 });
 
