@@ -1,14 +1,28 @@
 import type { Tokens } from "../plan/schema.ts";
 import type { Theme } from "../themes/index.ts";
-import { nudgeForeground } from "../plan/color.ts";
-import { contrastRatio, isDark } from "../plan/contrast.ts";
-import { clamp, hsl2rgb, lerpHue, normalizeCssColor, parseRgb, rgb2hsl, toCss, toHex } from "./color.ts";
+import { nudgeForeground, nudgeOnAll } from "../plan/color.ts";
+import { contrastRatio, isDark, luminance as hexLuminance } from "../plan/contrast.ts";
+import { clamp, greyWithLuminance, hsl2rgb, lerpHue, normalizeCssColor, parseRgb, rgb2hsl, toCss, toHex } from "./color.ts";
 
 export type Role = "bg" | "text" | "border";
 export type NativeLook = "light" | "dark";
 
+/**
+ * What shows behind a piece of text once the theme is on: its darkest and lightest colour (#rrggbb).
+ * A gradient spans its stops; a solid colour has dark === light. `image` marks pixels the engine
+ * cannot see (a url() image or media): dark..light then bounds every pixel they could have.
+ */
+export interface Backdrop {
+  dark: string;
+  light: string;
+  image: boolean;
+}
+
 export interface ColorTransformer {
-  (cssColorString: string, role: Role): string;
+  /** With a backdrop, text meets the floor against it instead of against the theme background. */
+  (cssColorString: string, role: Role, backdrop?: Backdrop): string;
+  /** A colour already painted (inherited, so already themed) lifted to the text floor on backdrop; the same string when it meets it. */
+  fit(cssColorString: string, backdrop: Backdrop): string;
 }
 
 export function makeTransform(themeInput: Theme | { id: string; tokens: Tokens }, native: NativeLook): ColorTransformer {
@@ -29,9 +43,59 @@ export function makeTransform(themeInput: Theme | { id: string; tokens: Tokens }
   const themeAccentHsl = rgb2hsl(themeAccentRgb.r, themeAccentRgb.g, themeAccentRgb.b);
 
   const cache = new Map<string, string>();
+  const floor = isHighContrast ? 7.0 : 4.5;
 
-  function transformColor(str: string, role: Role): string {
-    const key = `${role}|${str}`;
+  const meets = (hex: string, b: Backdrop): boolean => contrastRatio(hex, b.dark) >= floor && contrastRatio(hex, b.light) >= floor;
+
+  // The rule before backdrops were known; kept as the first choice so ordinary pages keep their colours.
+  const onThemeBg = (hex: string): string => (contrastRatio(hex, tokens.bg) < floor ? nudgeForeground(hex, tokens.bg, floor) : hex);
+
+  // Lightness steps in one fixed direction until every colour in `on` is at the floor.
+  function push(hex: string, dir: 1 | -1, on: string[]): string {
+    const c = parseRgb(hex)!;
+    const [h, s, l] = rgb2hsl(c.r, c.g, c.b);
+    for (let step = 1; step <= 50; step++) {
+      const [r, g, b] = hsl2rgb(h, s, clamp(l + dir * step * 0.02, 0, 1));
+      const next = toHex(r, g, b);
+      if (on.every((bg) => contrastRatio(next, bg) >= floor)) return next;
+    }
+    return dir > 0 ? "#ffffff" : "#000000";
+  }
+
+  // Pixels the engine cannot see. All it may assume is that the page's own colour met the floor on
+  // them, so they sit at least that far on the other side of the range: the grey at exactly the floor
+  // from `orig`. Layers painted over the pixels (a scrim) narrow dark..light; interpolate inside it.
+  function estimate(orig: string, b: Backdrop): { hex: string; origLight: boolean } {
+    const lo = hexLuminance(orig);
+    const origLight = contrastRatio(orig, "#000000") >= contrastRatio(orig, "#ffffff");
+    const t = origLight ? clamp((lo + 0.05) / floor - 0.05, 0, 1) : clamp(floor * (lo + 0.05) - 0.05, 0, 1);
+    const ld = hexLuminance(b.dark);
+    let hex = greyWithLuminance(ld + (hexLuminance(b.light) - ld) * t);
+    // Rounding to a whole channel may land a hair inside the floor; step it out so `orig` itself passes.
+    for (let i = 0; i < 8 && contrastRatio(orig, hex) < floor; i++) {
+      const v = parseRgb(hex)!.r + (origLight ? -1 : 1);
+      hex = toHex(v, v, v);
+    }
+    return { hex, origLight };
+  }
+
+  // `mapped` is the theme's choice for the page colour `orig`; both #rrggbb.
+  function onBackdrop(mapped: string, orig: string, b: Backdrop): string {
+    if (b.image) {
+      if (meets(mapped, b)) return mapped; // readable whatever the pixels are (a strong scrim)
+      const e = estimate(orig, b);
+      // Never take the text across to the image's side (the theme's default would do that).
+      const base = hexLuminance(mapped) > hexLuminance(e.hex) === e.origLight ? mapped : orig;
+      return contrastRatio(base, e.hex) >= floor ? base : push(base, e.origLight ? 1 : -1, [e.hex]);
+    }
+    const today = onThemeBg(mapped);
+    if (meets(today, b)) return today;
+    if (meets(mapped, b)) return mapped;
+    return nudgeOnAll(mapped, b.dark === b.light ? [b.dark] : [b.dark, b.light], floor);
+  }
+
+  function transformColor(str: string, role: Role, backdrop?: Backdrop): string {
+    const key = backdrop && role === "text" ? `${role}|${str}|${backdrop.dark}${backdrop.light}${backdrop.image ? "i" : ""}` : `${role}|${str}`;
     const hit = cache.get(key);
     if (hit !== undefined) return hit;
 
@@ -210,12 +274,11 @@ export function makeTransform(themeInput: Theme | { id: string; tokens: Tokens }
 
     let rgb = hsl2rgb(h, clamp(s, 0, 1), clamp(l, 0, 1));
 
-    // Guarantee text contrast against theme background
+    // I10: text meets the floor against what is behind it (the theme background when unknown).
     if (role === "text") {
-      const minRatio = isHighContrast ? 7.0 : 4.5;
-      let hex = toHex(rgb[0], rgb[1], rgb[2]);
-      if (contrastRatio(hex, tokens.bg) < minRatio) {
-        hex = nudgeForeground(hex, tokens.bg, minRatio);
+      const mapped = toHex(rgb[0], rgb[1], rgb[2]);
+      const hex = backdrop ? onBackdrop(mapped, toHex(parsed.r, parsed.g, parsed.b), backdrop) : onThemeBg(mapped);
+      if (hex !== mapped) {
         const fixed = parseRgb(hex);
         if (fixed) rgb = [fixed.r, fixed.g, fixed.b];
       }
@@ -226,5 +289,16 @@ export function makeTransform(themeInput: Theme | { id: string; tokens: Tokens }
     return out;
   }
 
-  return transformColor;
+  function fit(str: string, b: Backdrop): string {
+    const p = parseRgb(str);
+    if (!p || p.a <= 0.001) return str;
+    const hex = toHex(p.r, p.g, p.b);
+    if (meets(hex, b)) return str;
+    // Over unseen pixels the painted colour is its own reference (see estimate): nothing to lift.
+    if (b.image) return str;
+    const fixed = parseRgb(nudgeOnAll(hex, b.dark === b.light ? [b.dark] : [b.dark, b.light], floor));
+    return fixed ? toCss(fixed.r, fixed.g, fixed.b, p.a) : str;
+  }
+
+  return Object.assign(transformColor, { fit });
 }

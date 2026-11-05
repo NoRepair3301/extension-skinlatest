@@ -1,8 +1,8 @@
 import type { Tokens } from "../plan/schema.ts";
 import type { Theme } from "../themes/index.ts";
 import { isDark } from "../plan/contrast.ts";
-import { parseRgb, toHex } from "./color.ts";
-import { makeTransform, type NativeLook, type Role } from "./transform.ts";
+import { luminance, over, parseRgb, toHex, type RGBA } from "./color.ts";
+import { makeTransform, type Backdrop, type NativeLook, type Role } from "./transform.ts";
 
 export interface EngineInstance {
   apply(): void;
@@ -51,6 +51,73 @@ const OBSERVER_OPTS: MutationObserverInit = {
 
 const COLOR_ATTR_RE = /color|background|border|outline|fill|stroke|^--/i;
 const GRADIENT_COLOR_RE = /rgba?\([^)]+\)|hsla?\([^)]+\)|#(?:[0-9a-fA-F]{3,8})\b/gi;
+// Gradient stops as a backdrop; `transparent` matters there (a fade to the colour below).
+const STOP_RE = /rgba?\([^)]+\)|hsla?\([^)]+\)|#(?:[0-9a-fA-F]{3,8})\b|\btransparent\b/gi;
+// Media painted as a child layer can be the backdrop of the element's text (a hero video or picture).
+const MEDIA_TAGS = new Set(["img", "video", "canvas", "picture", "embed", "object"]);
+
+const BLACK: RGBA = { r: 0, g: 0, b: 0, a: 1 };
+const WHITE: RGBA = { r: 255, g: 255, b: 255, a: 1 };
+
+/** The darkest and lightest colour that can show at a point; `image` when unseen pixels are part of it. */
+interface Span {
+  lo: RGBA;
+  hi: RGBA;
+  image: boolean;
+}
+
+/** One background layer: its colours (a solid colour has one, a gradient its stops), or null for unseen pixels. */
+type Layer = RGBA[] | null;
+
+const UNSEEN: Span = { lo: BLACK, hi: WHITE, image: true };
+
+function spanOf(colors: RGBA[], image: boolean): Span {
+  let lo = colors[0]!;
+  let hi = lo;
+  let llo = luminance(lo);
+  let lhi = llo;
+  for (const c of colors) {
+    const l = luminance(c);
+    if (l < llo) [lo, llo] = [c, l];
+    if (l > lhi) [hi, lhi] = [c, l];
+  }
+  return { lo, hi, image };
+}
+
+const opaque = (layer: Layer): boolean => layer === null || layer.every((c) => c.a >= 0.999);
+
+function paintOver(layer: Layer, below: Span): Span {
+  if (layer === null) return UNSEEN;
+  const out: RGBA[] = [];
+  let seeThrough = false;
+  for (const c of layer) {
+    if (c.a >= 0.999) {
+      out.push(c);
+    } else {
+      seeThrough = true;
+      out.push(over(c, below.lo), over(c, below.hi));
+    }
+  }
+  return spanOf(out, seeThrough && below.image);
+}
+
+// Splits a computed list value at top-level commas (gradients carry commas inside parentheses).
+function splitTop(v: string): string[] {
+  const out: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < v.length; i++) {
+    const ch = v[i];
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    else if (ch === "," && depth === 0) {
+      out.push(v.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  out.push(v.slice(start).trim());
+  return out;
+}
 
 interface PropRecord {
   o: string; // original inline value ("" if the property had none)
@@ -186,6 +253,25 @@ interface Follow {
   prop: string;
   val: string;
   role: Role;
+  bd: Backdrop; // the element's own effective backdrop
+  own: boolean; // it paints a background of its own, so its backdrop may differ from its parent's
+  painted: boolean; // `val` is the settled (already themed) value of a parent outside the batch
+}
+
+/** An element's effective backdrop within one batch. */
+interface Resolved {
+  span: Span;
+  bd: Backdrop;
+  own: boolean;
+  key: string; // its own layers as they will be painted; a change means the text below needs a new look
+  pending: boolean; // a layer comes from an ancestor still queued, so it is not painted yet
+}
+
+/** Reads shared by one batch. The read phase has no writes, so cached computed styles stay true. */
+interface BatchCtx {
+  inBatch: Set<Element>;
+  styles: Map<Element, CSSStyleDeclaration>;
+  seen: Map<Element, Resolved>;
 }
 
 function declarations(st: CSSStyleDeclaration): Map<string, [string, string]> {
@@ -345,6 +431,9 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   const native = detectNative(doc);
   const tf = makeTransform(themeInput, native);
   const themeDark = isDark(themeInput.tokens.bg);
+  // Behind the root element: the theme background (the base sheet paints html with it).
+  const baseRgb = parseRgb(themeInput.tokens.bg) ?? BLACK;
+  const BASE: Span = { lo: baseRgb, hi: baseRgb, image: false };
 
   let active = false;
   let timer = 0;
@@ -366,6 +455,8 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   const modifiedElements = new Set<HTMLElement | SVGElement>();
   // Records whose marker data changed in the current batch; written once at the batch's end.
   const dirtyMarks = new Set<HTMLElement | SVGElement>();
+  // Each element's own background layers as last painted; reset by restore().
+  let layerKeys = new WeakMap<Element, string>();
 
   function styleText(): string {
     const scheme = themeDark ? "dark" : "light";
@@ -515,9 +606,115 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     return "text";
   }
 
-  function transformVal(val: string, role: Role): string {
+  function transformVal(val: string, role: Role, bd?: Backdrop): string {
     if (!val || val === "none" || val === "transparent") return val;
-    return tf(val, role);
+    return role === "text" && bd ? tf(val, role, bd) : tf(val, role);
+  }
+
+  function styleOf(ctx: BatchCtx, el: Element): CSSStyleDeclaration {
+    let cs = ctx.styles.get(el);
+    if (!cs) {
+      cs = (el.ownerDocument.defaultView ?? win!).getComputedStyle(el);
+      ctx.styles.set(el, cs);
+    }
+    return cs;
+  }
+
+  // A positioned media child covering most of the box paints over the element's background.
+  // Needs layout; where there is none (a zero box) nothing is assumed.
+  function coveredByMedia(ctx: BatchCtx, el: Element): boolean {
+    let box: DOMRect | null = null;
+    for (let c = el.firstElementChild; c; c = c.nextElementSibling) {
+      if (!MEDIA_TAGS.has(c.localName)) continue;
+      box ??= el.getBoundingClientRect();
+      const area = box.width * box.height;
+      if (!(area > 0)) return false;
+      const pos = styleOf(ctx, c).position;
+      if (pos !== "absolute" && pos !== "fixed") continue;
+      const r = c.getBoundingClientRect();
+      const w = Math.min(r.right, box.right) - Math.max(r.left, box.left);
+      const h = Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top);
+      if (w > 0 && h > 0 && w * h >= 0.8 * area) return true;
+    }
+    return false;
+  }
+
+  // The element's background layers, bottom first, as they will be painted. An element in the batch
+  // was just reset, so its page values are mapped exactly as inspectElement will write them; any
+  // other element is read as it is painted now.
+  function ownLayers(ctx: BatchCtx, el: Element): Layer[] {
+    const cs = styleOf(ctx, el);
+    const predict = ctx.inBatch.has(el);
+    const paint = (v: string): RGBA | null => parseRgb(predict ? transformVal(v, "bg") : v);
+    const layers: Layer[] = [];
+    const bg = parseRgb(cs.backgroundColor);
+    if (bg && bg.a > 0.01) {
+      const c = paint(cs.backgroundColor);
+      if (c) layers.push([c]);
+    }
+    const bi = cs.backgroundImage;
+    if (bi && bi !== "none") {
+      const images = splitTop(bi);
+      const sizes = splitTop(cs.backgroundSize || "auto");
+      const repeats = splitTop(cs.backgroundRepeat || "repeat");
+      // The first listed image is on top.
+      for (let i = images.length - 1; i >= 0; i--) {
+        const img = images[i]!;
+        const size = sizes[i % sizes.length] || "auto";
+        const tiled = !/no-repeat|repeat-x|repeat-y/.test(repeats[i % repeats.length] || "repeat");
+        const full = /^(cover|contain|100%( 100%)?)$/.test(size);
+        if (img.includes("gradient(")) {
+          // A gradient fills its box unless sized smaller (an underline strip, a corner fade).
+          if (!tiled && !full && !/^auto( auto)?$/.test(size)) continue;
+          const stops: RGBA[] = [];
+          for (const m of img.match(STOP_RE) ?? []) {
+            const c = paint(m);
+            if (c) stops.push(c);
+          }
+          layers.push(stops.length > 0 ? stops : null);
+        } else if (img.includes("url(")) {
+          // Only an image that fills the box is behind the text; an untiled one at its own size is
+          // an icon or a decoration beside it.
+          if (tiled || full) layers.push(null);
+        }
+      }
+    }
+    if (coveredByMedia(ctx, el)) layers.push(null);
+    return layers;
+  }
+
+  // Nearest first: the topmost opaque layer hides everything under it; only see-through layers
+  // send the walk to the parent. Cached per batch, so each element is read once per batch.
+  function resolve(ctx: BatchCtx, el: Element): Resolved {
+    const hit = ctx.seen.get(el);
+    if (hit) return hit;
+    const layers = ownLayers(ctx, el);
+    let top = layers.length - 1;
+    while (top >= 0 && !opaque(layers[top]!)) top--;
+    let span: Span;
+    let pending = false;
+    let parentRes: Resolved | null = null;
+    if (top >= 0) {
+      const l = layers[top]!;
+      span = l === null ? UNSEEN : spanOf(l, false);
+    } else {
+      const par = parentOf(el);
+      if (par) {
+        parentRes = resolve(ctx, par);
+        span = parentRes.span;
+        pending = parentRes.pending;
+      } else {
+        span = BASE;
+      }
+    }
+    for (let i = top + 1; i < layers.length; i++) span = paintOver(layers[i]!, span);
+    const own = layers.length > 0;
+    if (own && !ctx.inBatch.has(el) && queue.has(el)) pending = true;
+    const key = layers.map((l) => (l === null ? "img" : l.map((c) => `${c.r},${c.g},${c.b},${c.a}`).join(" "))).join("|");
+    const bd = !own && parentRes ? parentRes.bd : { dark: toHex(span.lo.r, span.lo.g, span.lo.b), light: toHex(span.hi.r, span.hi.g, span.hi.b), image: span.image };
+    const res: Resolved = { span, bd, own, key, pending };
+    ctx.seen.set(el, res);
+    return res;
   }
 
   // `follow` receives a property left unwritten because it equals the parent's value: skipping it is
@@ -527,11 +724,12 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     cs: CSSStyleDeclaration,
     par: Element | null,
     pcs: CSSStyleDeclaration | null,
+    bd: Backdrop,
     follow: (prop: string, val: string, role: Role) => void,
   ): Array<[string, string]> {
     const out: Array<[string, string]> = [];
-    const add = (prop: string, val: string, role: Role) => {
-      const next = transformVal(val, role);
+    const add = (prop: string, val: string, role: Role, onBackdrop = true) => {
+      const next = transformVal(val, role, onBackdrop ? bd : undefined);
       if (next !== val) out.push([prop, next]);
     };
 
@@ -602,7 +800,8 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
           const parsed = parseRgb(val);
           if (parsed && parsed.a > 0.01) {
             const role: Role = /bg|back|surface/i.test(prop) ? "bg" : /border|line|stroke/i.test(prop) ? "border" : "text";
-            add(prop, val, role);
+            // A variable is used wherever the page puts it, so this element's backdrop says nothing about it.
+            add(prop, val, role, false);
           }
         }
       }
@@ -660,20 +859,37 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     }
 
     const inBatch = new Set<Element>(todo);
+    const ctx: BatchCtx = { inBatch, styles: new Map(), seen: new Map() };
     const follows: Follow[] = [];
+    // Elements whose colour is a settled parent's themed value (or inherited down from one).
+    const painted = new Set<Element>();
+    const moved: Element[] = [];
     const plannedChanges: Array<{ el: HTMLElement | SVGElement; changes: Array<[string, string]> }> = [];
     for (const el of todo) {
       try {
-        const view = el.ownerDocument.defaultView ?? win;
-        const cs = view.getComputedStyle(el);
+        const cs = styleOf(ctx, el);
         const par = parentOf(el);
-        const pcs = par ? view.getComputedStyle(par) : null;
-        const changes = inspectElement(el, cs, par, pcs, (prop, val, role) => {
+        const pcs = par ? styleOf(ctx, par) : null;
+        const res = resolve(ctx, el);
+        // An ancestor's background is not painted yet: decide now, look again after it.
+        if (res.pending) queue.add(el);
+        const prev = layerKeys.get(el);
+        if (prev !== undefined && prev !== res.key) moved.push(el);
+        layerKeys.set(el, res.key);
+        const changes = inspectElement(el, cs, par, pcs, res.bd, (prop, val, role) => {
           // A parent in this batch was just reset: the value read is its page value, not what it will
           // show. A parent outside it shows its settled value, which the element follows as it is,
           // unless the parent is still queued: then look again after it.
-          if (par && inBatch.has(par)) follows.push({ el, prop, val, role });
-          else if (par && queue.has(par)) queue.add(el);
+          if (par && inBatch.has(par)) {
+            follows.push({ el, prop, val, role, bd: res.bd, own: res.own, painted: false });
+          } else if (par && queue.has(par)) {
+            queue.add(el);
+          } else if (prop === "color") {
+            // The parent chose that colour for its own backdrop; on a background of this element's own
+            // it may not be readable.
+            painted.add(el);
+            if (res.own) follows.push({ el, prop, val, role, bd: res.bd, own: true, painted: true });
+          }
         });
         if (changes.length > 0) plannedChanges.push({ el, changes });
       } catch {
@@ -688,10 +904,20 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
           put(el, prop, val);
         }
       }
-      settleFollows(follows);
+      settleFollows(follows, painted);
     } finally {
       // One marker write per element whose data changed (first record, new prop, re-based original).
       writeMarks();
+    }
+
+    // A background changed (page change, class, hover): text below it was decided on the old one.
+    // Cost is the subtree of a background that really changed, once.
+    for (const el of moved) {
+      const below = el.querySelectorAll("*");
+      for (let i = 0; i < below.length; i++) {
+        const d = below[i]!;
+        if (!inBatch.has(d) && !shouldSkipElement(d)) queue.add(d);
+      }
     }
   }
 
@@ -699,16 +925,26 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   // inherits at all. One with its own rule of the same value (`html, body { color: X }`) keeps X while
   // the parent is repainted. So once the batch's writes are in, re-read each skipped property,
   // ancestors first (a parent fixed here changes what its children inherit), and write it where it did
-  // not end themed. A write here makes the next read recalc styles, and writes happen only on a miss,
-  // so where children really inherit this costs one read each.
-  function settleFollows(follows: Follow[]): void {
+  // not end themed for its own backdrop. A write here makes the next read recalc styles, and writes
+  // happen only on a miss, so where children really inherit this costs one read each.
+  function settleFollows(follows: Follow[], painted: Set<Element>): void {
     if (follows.length === 0 || !win) return;
     const order = follows.map((f) => ({ f, d: depthOf(f.el) }));
     order.sort((a, b) => a.d - b.d);
     for (const { f } of order) {
-      const next = transformVal(f.val, f.role);
-      if (next === f.val) continue;
       const view = f.el.ownerDocument.defaultView ?? win;
+      const par = parentOf(f.el);
+      if (f.prop === "color" && (f.painted || (par && painted.has(par)))) {
+        // Already themed: only the floor on this element's own backdrop is in question. Without a
+        // background of its own it sits on its parent's, which was checked first.
+        painted.add(f.el);
+        if (!f.own) continue;
+        const shown = view.getComputedStyle(f.el).color;
+        const next = tf.fit(shown, f.bd);
+        if (next !== shown) put(f.el, "color", next);
+        continue;
+      }
+      const next = transformVal(f.val, f.role, f.bd);
       if (!sameColor(view.getComputedStyle(f.el).getPropertyValue(f.prop), next)) put(f.el, f.prop, next);
     }
   }
@@ -915,6 +1151,8 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     const list = [...hoverSet];
     hoverSet.clear();
     quiet(() => refreshBatch(list));
+    // A hover that changed a background queued the text below it.
+    if (queue.size > 0) schedule();
   }
 
   function onResourceLoad(e: Event): void {
@@ -1021,6 +1259,7 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     }
     modifiedElements.clear();
     dirtyMarks.clear();
+    layerKeys = new WeakMap();
 
     for (const r of roots) {
       const marked = r.querySelectorAll(`[${ENGINE_MARK}]`);

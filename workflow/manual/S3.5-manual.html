@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>S3.5 manual check</title>
+<style>
+  /* An ordinary light page: every block below puts text on something other than the page background. */
+  body { font: 16px/1.5 system-ui, sans-serif; margin: 0 auto; max-width: 760px; padding: 16px; background: #fff; color: #222; }
+  .panel { border: 1px solid #ccc; padding: 12px; margin: 12px 0; }
+  a { color: #0645ad; }
+
+  /* A. Dark buttons with light labels on a light page. */
+  .btn-dark { background: #1f2328; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; }
+  .btn-accent { background: #0b57d0; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; }
+  .btn-warm { background: #d97757; color: #fff; border: 0; border-radius: 6px; padding: 8px 14px; }
+
+  /* B. Dark banner with a light heading and a link. */
+  .banner { background: #111827; color: #f9fafb; padding: 16px; }
+  .banner a { color: #93c5fd; }
+
+  /* C. Heroes whose backdrop the engine does not recolour as a whole. */
+  .hero-grad { background-image: linear-gradient(135deg, #0f172a, #334155); color: #fff; padding: 32px 16px; }
+  .hero-svg {
+    /* Inline data: SVG tile, a light picture; no request leaves the page. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40'%3E%3Crect width='40' height='40' fill='%23f6ecc9'/%3E%3Ccircle cx='20' cy='20' r='12' fill='%23ead79a'/%3E%3C/svg%3E");
+    color: #1c1917; padding: 32px 16px;
+  }
+
+  /* D. Semi-transparent panel over a dark section. */
+  .dark-section { background: #0b0f19; color: #e5e7eb; padding: 16px; }
+  .glass { background: rgba(255, 255, 255, 0.12); color: #f3f4f6; padding: 12px; border-radius: 8px; }
+
+  /* E. Nested cards with different backgrounds. */
+  .outer { background: #e5e7eb; padding: 12px; }
+  .mid { background: #374151; color: #f9fafb; padding: 12px; }
+  .inner { background: #fefce8; color: #3f3f46; padding: 12px; }
+  .chip { background: #1e293b; color: #e2e8f0; padding: 2px 8px; border-radius: 99px; }
+
+  /* F. A button whose background swaps on hover. */
+  .swap { background: #f3f4f6; color: #111827; border: 1px solid #9ca3af; border-radius: 6px; padding: 8px 14px; }
+  .swap:hover { background: #111827; color: #f9fafb; }
+
+  /* G. Form controls. */
+  input[type="text"] { padding: 6px; border: 1px solid #9ca3af; }
+</style>
+</head>
+<body>
+  <h1>S3.5 manual check</h1>
+  <p>Apply each of the 6 themes. Every label, heading, link and button text must stay clearly readable: no grey mush, nothing vanishing.</p>
+
+  <section class="panel">
+    <h2>A. Dark buttons on a light page</h2>
+    <button class="btn-dark" type="button">Dark button</button>
+    <button class="btn-accent" type="button"><span>Accent button</span></button>
+    <button class="btn-warm" type="button"><span>Send</span></button>
+  </section>
+
+  <section class="banner">
+    <h2>B. Dark banner heading</h2>
+    <p>Light text on a dark banner, with <a href="#b">a link inside it</a>.</p>
+  </section>
+
+  <section class="hero-grad">
+    <h2>C1. Gradient hero (light on dark)</h2>
+    <p>White text over a dark CSS gradient.</p>
+  </section>
+  <section class="hero-svg">
+    <h2>C2. Picture hero (dark on light)</h2>
+    <p>Dark text over a light inline SVG picture. It must stay dark under the dark themes too.</p>
+  </section>
+
+  <section class="dark-section">
+    <h2>D. Dark section</h2>
+    <div class="glass">
+      <p>Text on a semi-transparent panel over the dark section.</p>
+    </div>
+  </section>
+
+  <section class="panel outer">
+    <h2>E. Nested cards</h2>
+    <p>Text on the outer grey card.</p>
+    <div class="mid">
+      <p>Text on the dark middle card. <span class="chip">chip</span></p>
+      <div class="inner">
+        <p>Text on the pale inner card, inside the dark one. <a href="#e">A link here.</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>F. Hover</h2>
+    <button class="swap" type="button">Hover me: my background turns dark</button>
+  </section>
+
+  <section class="panel">
+    <h2>G. Form</h2>
+    <label>Search <input type="text" placeholder="type here"></label>
+    <button type="button" disabled>Disabled button</button>
+  </section>
+</body>
+</html>

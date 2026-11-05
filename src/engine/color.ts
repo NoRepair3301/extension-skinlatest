@@ -62,7 +62,20 @@ export function luminance(c: { r: number; g: number; b: number }): number {
   return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b);
 }
 
-const RGB_RE = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)$/i;
+/** `top` painted over the opaque `below` (source-over); the result is opaque. */
+export function over(top: RGBA, below: RGBA): RGBA {
+  const a = top.a;
+  return { r: top.r * a + below.r * (1 - a), g: top.g * a + below.g * (1 - a), b: top.b * a + below.b * (1 - a), a: 1 };
+}
+
+/** The grey (#rrggbb) whose WCAG luminance is closest to l (0..1). */
+export function greyWithLuminance(l: number): string {
+  const L = clamp(l, 0, 1);
+  const v = L <= 0.03928 / 12.92 ? L * 12.92 : 1.055 * Math.pow(L, 1 / 2.4) - 0.055;
+  return toHex(v * 255, v * 255, v * 255);
+}
+
+const RGB_RE =/^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)$/i;
 const HEX_RE = /^#([0-9a-f]{3,8})$/i;
 
 export function parseRgb(str: string): RGBA | null {

@@ -1,32 +1,35 @@
-# HANDOFF — S3.4 Engine bug A (colour equal to parent skipped) and bug C (late shadow root)
-Status: BLOCKED (bug A done; bug C acceptance test red by owner decision)     Date: 2026-11-05     Model/effort used: Opus 5.5 / high
+# HANDOFF — S3.5 Engine bug B: contrast measured against the effective backdrop
+Status: DONE     Date: 2026-11-05     Model/effort used: Opus 5.5 / high (per prompt)
+Precondition: PLAN had S3.4 BLOCKED; owner chose "accept S3.4 (tagged), proceed" (DECISIONS). The bug C rerender test is the expected red.
 ## What changed
-- src/engine/dom.ts — bug A: follow-check after each batch's writes (settleFollows, parentOf, depthOf, sameColor); fill/stroke never trust an HTML parent. Bug C: adopt() for late open roots; roots is a Set.
-- tests/engine/inheritance.test.ts (new, 37) and tests/engine/shadow-late.test.ts (new, 28).
-- tests/engine/marker.test.ts — I3 test setup adapted (owner-approved, see Out-of-scope).
-- workflow/manual/S3.4-manual.html (new); PLAN, LOG, DECISIONS, TEST_CLASSIFICATION.
+- src/engine/transform.ts — `Backdrop` type; `tf(color, role, backdrop?)` decides text against the backdrop; `tf.fit()` floor-only for already-themed colours.
+- src/engine/dom.ts — per-batch backdrop resolution (layers, compositing, gradients, url(), covering media), follow-check against the child's own backdrop, layer-change re-queue of descendants.
+- src/engine/color.ts — `over()` (source-over) and `greyWithLuminance()`.
+- tests/engine/backdrop.test.ts (new, 76). workflow/manual/S3.5-manual.html (new). PLAN, LOG, DECISIONS, TEST_CLASSIFICATION.
+## Backdrop model (8 lines)
+1. Per element: own layers bottom-up (background-color, background-image layers last to first, covering positioned media child); the topmost opaque layer hides the rest.
+2. Only see-through layers walk to the parent (nearest first); composited at both ends; theme background is the final base. Result = darkest..lightest colour.
+3. Elements in the batch are predicted exactly as the engine will write them; others are read as painted. Cached per batch.
+4. Text: today's colour if it meets the floor there, else the theme mapping, else nudged against both ends (gradients: worst stop).
+5. url() counts only if it fills the box (tiled, or cover/contain/100%); icons/decorations ignored. Unparsable gradient = unseen.
+6. Unseen pixels: assume only that the original text met the floor on them; text stays on the original's side, may move away from the picture, never towards it (keeps the page colour rather than flipping to the theme's).
+7. Inherited child text is checked on its own backdrop; settled-parent values get a floor-only fit.
+8. Limits: a page unreadable on its own picture stays so; opacity, blend modes, z-index, pseudo-elements, positioned non-media siblings not modelled; media needs layout.
 ## Gate results
-tsc 0; eslint 0. Engine dir 159 pass / 5 BUG (was 94 / 5). Full vitest before 1330 pass / 11 fail / 1341 / 93 files; after 1399 pass / 7 fail / 1406 / 95 files. Fixed: the 4 guard "colour declared on both html and body" tests (no assertion edits). Still red: 6 bug B (S3.5) + rerender "BUG: a shadow root attached after the theme is on". Nothing new fails; legacy outerHTML tests pass. build + validate-dist ok (marker in applier.js only; applier.js 80649 -> 81508 bytes, applier-auto.js 17582 unchanged).
-## Bug A: root cause and fix
-Root cause: refreshBatch resets every element in the batch, then reads. inspectElement skipped `color` when it equalled the parent's computed colour, assuming the child inherits the parent's themed write. But the parent's value was read unthemed (same batch), and equality does not mean inheritance: `html, body {color:X}` repaints html while body keeps its own X, and so does every descendant with its own equal rule. fill/stroke had the same rule, and an <svg> under an HTML parent (which never gets a fill) was always skipped.
-Fix: when the parent is in the same batch, the skip becomes a "follow". After the writes, follows are re-read ancestors first. Any that did not end at tf(value) are written through put(). A parent outside the batch is trusted as before; if it is still queued, the child is re-queued after it. hover/focus and mutation refreshes run the same code.
-Writes (6 themes summed, elements/props): claude-like 42/52 -> 60/94 (per theme 7 -> 10 elements: body, buttons and cards with their own equal colour). light-article, hero-bg, large-page (1819 els), article-news, nested-nav, spa-list, legacy-portal-tables, dark-aware: unchanged.
-## Bug C: design, cost, limits
-Attaching a root fires nothing (verified in jsdom). The isolated world cannot hook the page's attachShadow, and customElements is unavailable there. A late open root is adopted (watched and collected once) when an existing signal touches its host: an attribute mutation on the host or its queued light descendants, a childList on the host, a host in an added subtree, or a hover/focus/change event whose composedPath goes through the root. Cost is O(1) per touched element. No timers.
-Limits: a root whose host never sees activity stays unthemed until a full rescan (body/html class change, stylesheet load). Closed roots are unchanged. The rerender BUG test is exactly that case. A one-shot sweep would pass it but breaks refresh.test.ts:188 and marker.test.ts:255, and you chose signals only.
-## Decisions made
-4 S3.4 lines in DECISIONS (follow rule; fill/stroke; bug C signals; BUG C test stays red; marker test adaptation).
-## Out-of-scope touches
-tests/engine/marker.test.ts:169-184 (owner-approved): #c `color: rgb(200,0,0) !important` -> `color: inherit !important`, expected values to match. The old premise was bug A itself.
-## Mutation checks (scratch copy, not in repo; all bite)
-Follow-check off: 13 fail. Svg-parent rule off: 2. adopt off: 26. adopt re-collects known roots: 24. Observer not disconnected: 1. Fresh cleanup skipping shadow roots: 1. Final restore without style text: 6. Follow never writes: 7.
+tsc 0; eslint 0. Engine dir 239 pass / 1 BUG (bug C). Full vitest before 1399 pass / 7 fail / 1406; after 1481 pass / 1 fail / 1482 / 96 files. All 6 bug B tests pass with no assertion edits. Bug A (inheritance, guard html/body x4) and shadow-late tests pass. One loaded run timed out applier "large-page apply then restore" and auto "same-document navigation" (20 s); both pass alone, and before/after engines time the same there (2.3–7 s swings on one engine). plus-ui flake did not occur. build + validate-dist ok; dist/applier.js 81508 -> 86218 bytes (+4710), applier-auto.js 17582 unchanged.
+## Timing and writes (jsdom, sum per theme, best of 4 runs; wall time is noisy on this machine)
+Synthetic 4444 nodes: ~2.6–3.5 s -> ~2.8–3.6 s; computed-style reads 19624 -> 14963; calm-light written els/props 3185/5068 -> 2042/3813. large-page 1819: ~1.0 s -> ~1.0 s; reads 8467 -> 5616; calm-light/midnight/warm-paper 883 -> 311 els (a double transform past the first batch is gone). Other 10 fixtures: same writes, same colours except hero-bg (picture text) and claude-like midnight (Send).
+## Tests added; mutation checks (scratch copy, all bite)
+backdrop.test.ts: the 9 required groups + url icon ignored, positioned media (I8), today's colour kept, x 6 themes; white-on-picture stays white x 4 light themes. Mutations: no backdrop 35 fail; see-through as opaque 4; first stop only 4; url ignored 10; parent's backdrop 35; no re-queue 4; settled child unchecked 4; follow on parent backdrop 4; fit bypasses ledger 4 (I2); no today-first 4; media off 5; icon as backdrop 6; flip to theme colour 2; hover without schedule 2.
 ## Fragile, not touched
-dom.ts:745 quiet() ingests pending records without schedule(), so queue items from flushHover/restoreTransitions wait for the next trigger. dom.ts:853: class change on a container with >300 descendants does not re-queue them. dom.ts:575: an explicit text-decoration-color equal to the colour stays unthemed when the colour is written. dom.ts:165: parentOf uses the DOM parent, but slotted nodes inherit from the slot (follow-check still writes the right value).
+dom.ts:916 re-queue after a background change does not enter shadow roots below the element. dom.ts:804 inline custom props with text role still use the theme-bg floor. transform.ts:94 a gradient spanning dark and light cannot be met; falls back to black/white. dom.ts:625 covering media ignores z-index. S3.4 items remain (dom.ts:979 quiet(), 1089 300 cap for class changes, 773 text-decoration, 232 slots).
+## Out-of-scope touches / Bugs found
+None.
 ## Owner manual checks
-In workflow/manual/ run `python -m http.server 8000`, then open http://localhost:8000/S3.4-manual.html (or open the file after enabling "Allow access to file URLs"). Apply each of the 6 themes from the popup and confirm all text in A is clearly readable. Click "attach shadow root", then move the pointer over the new box: it gets themed (no activity = documented limit). Click "define custom element": the inserted card is themed at once. Press Restore original: the page returns to normal. Reload the extension and repeat once with one theme (fresh-instance path).
-## Suggested commit message / commands
+In workflow/manual/ run `python -m http.server 8000`, open http://localhost:8000/S3.5-manual.html. Apply each of the 6 themes; confirm every label, heading, link and button text is clearly readable (no grey mush, nothing vanishing). Hover the "Hover me" button. Press **Restore original**: the page returns to normal. Then repeat once on two real sites with dark buttons or banners (e.g. github.com and a news site) with one light theme.
+## Suggested commit commands
 git add -A
-git commit -m "fix(engine): theme elements whose colour equals the parent's; watch shadow roots attached after apply (S3.4)"
-git tag stage-S3.4
+git commit -m "fix(engine): measure text contrast against the effective backdrop (S3.5)"
+git tag stage-S3.5
 git push
-## Next substage: S3.5 (Opus 5.5, high) — bug B. Owner first: accept S3.4 as is (bug C test red) or decide its fate. Relies on: the follow-check in refreshBatch, src/engine/transform.ts untouched.
+## Next substage: S3.6 (Sonnet 5.5, medium) — residual failures sweep. Relies on: bug B tests green (their "BUG:" names still to rename), bug C test red by owner decision, `tf` third argument optional (old callers unchanged).
