@@ -3,3 +3,4 @@ date | ID | status | files touched | gate summary
 2026-11-04 | S0.2 | DONE | 6 (2 new, 4 edited: package.json, BASELINE.md, PLAN.md, HANDOFF.md/LOG/DECISIONS) | tsc 1 / eslint 4 / vitest 1324 pass 19 fail (91 files); red as expected
 2026-11-04 | S1.1 | DONE | 1 source file (src/engine/dom.ts) + 4 workflow docs | tsc 0 / eslint 2 (pipeline.ts, S1.2) / vitest 1324 pass 19 fail (identical to baseline); engine tests 18/18 green
 2026-11-04 | S1.2 | DONE | 13 src/tests files (1 deleted) + 4 workflow docs | tsc 0 / eslint 0 / vitest 1321 pass 18 fail (baseline minus the deleted AI-repair flow test)
+2026-11-05 | S2.1 | DONE | 3 src/test/spec files (dom.ts, ledger.test.ts new, specs.md) + 4 workflow docs | tsc 0 / eslint 0 / engine 35 pass / full vitest 1337-1338 pass, 18-19 fail (18 baseline failures; plus-ui timing flake once under load)

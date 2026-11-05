@@ -13,9 +13,12 @@
 | D9 | "`data-skinly-engine` in both bundles" is dropped as a requirement. Replacement: marker present in `applier.js`, plus a test proving the auto path reaches the engine through the applier. After the rename the marker is `data-repaint-engine`. |
 | D10 | Version stays 0.3.0 until the final stage. The release zip name, store docs naming, and the GitHub remote name are owner actions after Stage 6. |
 | D11 | A zero-dependency real-browser harness (Node built-ins + raw Chrome DevTools Protocol, Chrome is installed) is allowed as a dev tool outside `npm run check`. It overrides the legacy "NO e2e" rule only for that harness. If the owner rejects it, skip S7.1 and S7.2 (mark `SKIPPED`). |
+| D12 | Final restore() may write back the original style attribute text only if the element's current inline declarations are semantically identical to it. Refines the friend's "no whole-attribute restore" rule; page-wins preserved. |
 
 ## Log
 - 2026-11-04 S0.2: gate.mjs runs tools via `process.execPath <bin>` (no shell); vitest JSON goes to os.tmpdir(), never the repo. Output capped at 40 lines unless `--full`.
 - 2026-11-04 S1.1: PropRecord fields are plain string (put() always assigns strings, m starts ""); module-private. Dropped unused normalizeCssColor/ColorTransformer imports from dom.ts only.
 - 2026-11-04 S1.2 | D6 | aiRepair removed | The engine enforces contrast per element through `makeTransform` (invariant I10), and `applier-core.ts` already stubbed `repairPayload()` and `applyRepair()` (returning nothing), so the AI repair pass could no longer change a page; keeping it would only add a second consent prompt and a provider call with zero effect.
 - 2026-11-04 S1.2: `repairConsent` settings field and `ConsentRequest.purpose` removed outright (no schema bump, no migration); `parseSettings` builds from defaults and reads only known keys, so old stored `repairConsent` is ignored and dropped on next save.
+- 2026-11-05 S2.1: ElementRecord = { hadStyleAttr, origStyleText, props }; reset() reverts a prop only if current value equals the read-back `m` and priority is important; record-lost markers are stripped without touching styles.
+- 2026-11-05 S2.1 (D12): the original text is written through the existing Attr node, not `setAttribute("style", ...)`, because `scripts/rules.ts` flags it as CSP-unsafe; the declarations are re-checked after the write and put back via CSSOM if a strict CSP dropped them; the original text is carried across the refresh's reset/put and never written there.

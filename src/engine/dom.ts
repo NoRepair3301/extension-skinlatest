@@ -55,11 +55,12 @@ const GRADIENT_COLOR_RE = /rgba?\([^)]+\)|hsla?\([^)]+\)|#(?:[0-9a-fA-F]{3,8})\b
 interface PropRecord {
   o: string; // original inline value ("" if the property had none)
   p: string; // original priority ("" or "important")
-  m: string; // value the engine wrote
+  m: string; // value the engine wrote, as read back from the element (normalised)
 }
 
 interface ElementRecord {
-  origStyle: string | null;
+  hadStyleAttr: boolean; // style attribute present before the engine's first write
+  origStyleText: string | null; // that attribute's exact text (null when there was none)
   props: Record<string, PropRecord>;
 }
 
@@ -147,6 +148,8 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   const pendingTransitions = new Map<HTMLElement, [string, string, string | null]>();
   const recMap = new WeakMap<HTMLElement | SVGElement, ElementRecord>();
   const modifiedElements = new Set<HTMLElement | SVGElement>();
+  // Original style text kept across a refresh's reset/put, so the new record still holds it.
+  const carriedText = new Map<HTMLElement | SVGElement, string>();
   let seen = new WeakSet<Element>();
 
   function styleText(): string {
@@ -190,8 +193,12 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
   function put(el: HTMLElement | SVGElement, prop: string, val: string): void {
     let r = recMap.get(el);
     if (!r) {
+      const hadStyleAttr = el.hasAttribute("style");
+      const carried = carriedText.get(el);
+      carriedText.delete(el);
       r = {
-        origStyle: el.getAttribute("style"),
+        hadStyleAttr,
+        origStyleText: hadStyleAttr ? (carried ?? el.getAttribute("style")) : null,
         props: {},
       };
       recMap.set(el, r);
@@ -208,28 +215,64 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
       };
     }
     st.setProperty(prop, val, "important");
+    // Read back: the DOM normalises values (hex -> rgb), and reset() compares against this.
     entry.m = st.getPropertyValue(prop);
   }
 
-  function reset(el: HTMLElement | SVGElement): void {
+  function declarations(st: CSSStyleDeclaration): Map<string, [string, string]> {
+    const out = new Map<string, [string, string]>();
+    for (let i = 0; i < st.length; i++) {
+      const prop = st[i]!;
+      out.set(prop, [st.getPropertyValue(prop), st.getPropertyPriority(prop)]);
+    }
+    return out;
+  }
+
+  function sameDeclarations(a: Map<string, [string, string]>, b: Map<string, [string, string]>): boolean {
+    if (a.size !== b.size) return false;
+    for (const [prop, [v, p]] of a) {
+      const o = b.get(prop);
+      if (!o || o[0] !== v || o[1] !== p) return false;
+    }
+    return true;
+  }
+
+  // Any CSSOM edit re-serialises the attribute, so per-property restore alone cannot give
+  // byte-exact markup. Write the original text back only when it means exactly what is there now.
+  function restoreStyleText(el: HTMLElement | SVGElement, text: string): void {
+    const attr = el.getAttributeNode("style");
+    if (!attr || attr.value === text) return;
+    const scratch = el.ownerDocument.createElement("div");
+    scratch.style.cssText = text;
+    const have = declarations(el.style);
+    if (!sameDeclarations(declarations(scratch.style), have)) return;
+    attr.value = text;
+    // A strict page CSP may refuse a style attribute write; then put the same declarations back via CSSOM.
+    if (sameDeclarations(declarations(el.style), have)) return;
+    el.style.cssText = "";
+    for (const [prop, [v, p]] of have) el.style.setProperty(prop, v, p);
+  }
+
+  // final: only restore() passes true; the refresh path must not rewrite the attribute text.
+  function reset(el: HTMLElement | SVGElement, final = false): void {
     const r = recMap.get(el);
     if (!r) return;
-    if (r.origStyle === null) {
-      el.removeAttribute("style");
-    } else {
-      const attr = el.getAttributeNode("style");
-      if (attr) {
-        attr.value = r.origStyle;
-      } else {
-        const owner = el.ownerDocument;
-        const newAttr = owner.createAttribute("style");
-        newAttr.value = r.origStyle;
-        el.setAttributeNode(newAttr);
-      }
+    const st = el.style;
+    for (const prop of Object.keys(r.props)) {
+      const e = r.props[prop]!;
+      // Only undo our own write if it is still in place; a page change wins (I3, I4).
+      if (st.getPropertyValue(prop) !== e.m || st.getPropertyPriority(prop) !== "important") continue;
+      if (e.o) st.setProperty(prop, e.o, e.p);
+      else st.removeProperty(prop);
     }
     recMap.delete(el);
     el.removeAttribute("data-skinly-engine");
     modifiedElements.delete(el);
+    // I6: drop only an attribute the engine itself created and that is now empty.
+    if (!r.hadStyleAttr && st.length === 0 && el.hasAttribute("style")) el.removeAttribute("style");
+    if (r.origStyleText === null) return;
+    if (final) restoreStyleText(el, r.origStyleText);
+    else carriedText.set(el, r.origStyleText);
   }
 
   function svgRole(el: SVGElement): Role {
@@ -648,15 +691,20 @@ export function createColorEngine(doc: Document, themeInput: Theme | { id: strin
     restoreTransitions();
 
     for (const el of modifiedElements) {
-      reset(el);
+      reset(el, true);
     }
     modifiedElements.clear();
+    // Refreshed elements that needed no new write since: no record, but the text may still apply.
+    for (const [el, text] of carriedText) restoreStyleText(el, text);
+    carriedText.clear();
 
     for (const r of roots) {
       const marked = r.querySelectorAll("[data-skinly-engine]");
       for (let i = 0; i < marked.length; i++) {
         const el = marked[i]!;
-        if (el instanceof win!.HTMLElement || el instanceof win!.SVGElement) reset(el);
+        // A marker without a record (record lost): nothing to compare against, so leave its styles.
+        if ((el instanceof win!.HTMLElement || el instanceof win!.SVGElement) && recMap.has(el)) reset(el, true);
+        else el.removeAttribute("data-skinly-engine");
       }
     }
     roots.length = 0;

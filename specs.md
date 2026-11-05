@@ -39,6 +39,7 @@ Finish the half-done color-engine refactor of `extension-new/` (Skinly AI 0.3.0)
 | D9 | "`data-skinly-engine` in both bundles" is dropped as a requirement. Replacement: marker present in `applier.js`, plus a test proving the auto path reaches the engine through the applier. After the rename the marker is `data-repaint-engine`. |
 | D10 | Version stays 0.3.0 until the final stage. The release zip name, store docs naming, and the GitHub remote name are owner actions after Stage 6. |
 | D11 | A zero-dependency real-browser harness (Node built-ins + raw Chrome DevTools Protocol, Chrome is installed) is allowed as a dev tool outside `npm run check`. It overrides the legacy "NO e2e" rule only for that harness. If the owner rejects it, skip S7.1 and S7.2 (mark `SKIPPED`). |
+| D12 | Final restore() may write back the original style attribute text only if the element's current inline declarations are semantically identical to it. Refines the friend's "no whole-attribute restore" rule; page-wins preserved. |
 
 ## 4. Engine invariants (hold in every substage)
 
@@ -52,6 +53,7 @@ Finish the half-done color-engine refactor of `extension-new/` (Skinly AI 0.3.0)
 - **I8** Never recolor media (`img, video, canvas, picture, audio, embed, object`), non-rendered tags, or the extension's own UI hosts.
 - **I9** `applier-auto.js` must not duplicate the engine; it delegates to the applier.
 - **I10** Contrast floors from `makeTransform` (>= 4.5, or >= 7 for high-contrast) remain covered by tests.
+- **I11** Byte-exact text restore happens only in final restore(), only when semantically identical; never in the refresh path.
 
 Known limitations (out of scope, document only): no stylesheet or `:hover` rule rewriting, no `url()` backgrounds, no pseudo-elements, no closed shadow roots, no adopted sheets inside shadow roots.
 
