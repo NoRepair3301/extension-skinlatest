@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "preact/hooks";
 import { applyUiTheme } from "../../ui/theme.ts";
 import { Button, Spinner, Toggle } from "../../ui/components.tsx";
 import { S } from "../../ui/strings.ts";
-import { MSG, applyFailureMessage, consentText } from "../../ai/messages.ts";
+import { MSG, applyFailureMessage, blockedWhy, consentText, themeFailureMessage } from "../../ai/messages.ts";
 import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, isBuiltinThemeId, resolveTheme, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import type { ApplyResult } from "../applier-core.ts";
@@ -27,12 +27,28 @@ import { PrivacyTools } from "./PrivacyTools.tsx";
 import { AssetHere } from "./AssetHere.tsx";
 import { saveAssetForSite, useAssetHere } from "../assetActions.ts";
 import { AUTO_FILES, forgetSite, matchFor, pauseSite, scriptId, type ActionResult, type KeptPlan } from "../siteActions.ts";
-import { NO_LAYOUT, makeIntent, readIntent, writeIntent, type IntentStage } from "../intent.ts";
+import { NO_LAYOUT, clearIntent, makeIntent, readIntent, writeIntent, type IntentStage } from "../intent.ts";
 import type { AutoState } from "../../core/diag.ts";
 import { shortcutLine, shortcutsPage, type CommandInfo } from "../shortcuts.ts";
-import { getSite, isAutoOn, originOf, type SiteRecord } from "../sites.ts";
+import { getSite, isAutoOn, originOf, saveSite, type SiteRecord } from "../sites.ts";
 
 export const BLOCKED_MESSAGE = MSG.blocked;
+
+/** Every wait on the page ends: after this long a busy state gives up with a message and the controls are enabled again. */
+export const APPLY_TIMEOUT_MS = 8000;
+export const RESTORE_TIMEOUT_MS = 8000;
+const PROBE_TIMEOUT_MS = 4000;
+
+const TIMED_OUT = Symbol("timed-out");
+/** Resolves with the promise's value, or TIMED_OUT when it takes longer than `ms`. The timer is always cleared. */
+async function withTimeout<T>(p: Promise<T>, ms: number): Promise<T | typeof TIMED_OUT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([p, new Promise<typeof TIMED_OUT>((resolve) => void (timer = setTimeout(() => resolve(TIMED_OUT), ms)))]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 const STEP_TEXT: Record<Step, string> = S.steps;
 
@@ -88,6 +104,10 @@ export function Popup() {
   const [selected, setSelected] = useState<ThemeChoice | undefined>(undefined);
   /** The built-in theme a theme click is putting on the page right now. */
   const [themeBusy, setThemeBusy] = useState<BuiltinThemeId | undefined>(undefined);
+  /** The radio the user clicked that is being applied (it shows aria-busy). */
+  const [busyPick, setBusyPick] = useState<ThemeChoice | undefined>(undefined);
+  /** The click whose apply failed: its late permission answer must not say "not kept" about a theme that never went on. */
+  const failedSeq = useRef(0);
   /** Each theme click gets a number; only the latest click may touch the page or the popup state (rapid clicks end in the last theme). */
   const clickSeq = useRef(0);
   /** Page work of theme clicks runs one after another, so two swaps never interleave in the page. */
@@ -110,7 +130,9 @@ export function Popup() {
   };
   const probeRestorable = async (tab: { id: number; url?: string | undefined } | undefined): Promise<void> => {
     const mine = ++restorableSeq.current;
-    const value = tab ? await hasSomethingToRestore(tab.id, tab.url).catch(() => false) : false;
+    // A page that never answers must not leave Restore waiting for ever: no answer reads as nothing to restore.
+    const answer = tab ? await withTimeout(hasSomethingToRestore(tab.id, tab.url).catch(() => false), PROBE_TIMEOUT_MS) : false;
+    const value = answer === TIMED_OUT ? false : answer;
     if (mine === restorableSeq.current) setRestorable(value);
   };
 
@@ -260,25 +282,84 @@ export function Popup() {
   };
 
   /** Puts the clicked theme on the page, unless a newer click came in meanwhile. Needs no gesture: activeTab covers the injection. */
-  const applyLatest = async (seq: number, tabId: number, choice: ThemeChoice, resolved: BuiltinThemeId, next: Settings): Promise<void> => {
+  const applyLatest = async (seq: number, here: { origin: string; tabId: number }, choice: ThemeChoice, resolved: BuiltinThemeId, next: Settings, before: ChoiceBefore, keptPlan: KeptPlan, asked: Promise<boolean> | undefined): Promise<void> => {
     if (seq !== clickSeq.current) return;
+    const tabId = here.tabId;
     let r: ApplyResult | undefined;
+    let why: "answered" | "refused" | "timeout" = "answered";
     try {
-      r = await createPageClient(tabId).applyTheme(resolved);
+      const got = await withTimeout(createPageClient(tabId).applyTheme(resolved), APPLY_TIMEOUT_MS);
+      if (got === TIMED_OUT) why = "timeout";
+      else r = got;
     } catch {
-      r = undefined;
+      why = "refused";
     }
     if (seq !== clickSeq.current) return;
     setThemeBusy(undefined);
+    setBusyPick(undefined);
     if (r?.ok) {
       markRestorable(true);
       badge(tabId, "ON");
       setApplied({ name: themeName(resolved), fixes: 0 });
       void showArt(tabId, next, sourceForTheme(choice, prefersDark()));
       void showPetHere();
+      return;
+    }
+    // One distinct line per cause; never the browser's own error text.
+    failedSeq.current = seq;
+    setApplied(undefined);
+    setNotice("");
+    setKeepable(undefined);
+    // A refused prompt must not stop the next click from asking again.
+    if (deniedHere.current === here.origin) deniedHere.current = undefined;
+    let message: string;
+    let pageUntouched = false;
+    if (r?.ok === false) message = themeFailureMessage(r);
+    else if (why === "timeout") {
+      message = S.edge.timedOut;
+      // Whatever the page got before it stopped answering is taken off (best effort; it may be stuck too).
+      void withTimeout(runInPage(tabId, "restore", undefined, true).catch(() => undefined), PROBE_TIMEOUT_MS);
     } else {
-      setApplied(undefined);
-      setView({ state: "error", kind: r?.ok === false ? r.reason : "error", message: applyFailureMessage(r) });
+      pageUntouched = true;
+      const still = await tabStillHere(tabId, here.origin);
+      if (seq !== clickSeq.current) return;
+      message = !still ? S.edge.tabChanged : why === "refused" ? ((await isGranted(here.origin)) ? S.edge.injectFailed : S.edge.notAllowed) : S.edge.noAnswer;
+    }
+    setView({ state: "error", kind: r?.ok === false ? r.reason : "error", message });
+    // The page, the radios and storage agree again: the choice is taken back. A rolled-back or stopped apply left the page original.
+    setSelected(pageUntouched ? before.selected : undefined);
+    setRestoredHere(!pageUntouched);
+    if (!pageUntouched) void probeRestorable({ id: tabId, url: tabUrl.current });
+    setSettings(before.settings);
+    void saveSettings(before.settings).catch(() => recordErrors(["popup-error"]));
+    void undoStoredChoice(here, keptPlan, before, asked);
+  };
+
+  /** True when the tab is still on the origin the click started on (compared in memory only). */
+  const tabStillHere = async (tabId: number, origin: string): Promise<boolean> => {
+    try {
+      const tab = await queryActiveTab();
+      return tab !== undefined && tab.id === tabId && tab.url !== undefined && originOf(tab.url) === origin;
+    } catch {
+      return false;
+    }
+  };
+
+  /**
+   * A failed apply leaves no remembered theme behind: the pending intent goes, and a record the keeper saved for the failed theme is
+   * put back to what it was (or forgotten when the site had none). Runs after the permission answer so the keeper has had its turn.
+   */
+  const undoStoredChoice = async (here: { origin: string; tabId: number }, keptPlan: KeptPlan, before: ChoiceBefore, asked: Promise<boolean> | undefined): Promise<void> => {
+    try {
+      if (asked) await asked;
+      await clearIntent();
+      const now = await getSite(here.origin);
+      if (!now || now.provider !== "builtin" || now.plan.themeId !== keptPlan.plan.themeId || before.record?.plan.themeId === keptPlan.plan.themeId) return;
+      if (before.record) await saveSite(here.origin, before.record);
+      else await forgetSite(here.origin, here.tabId);
+      setSite((cur) => (cur && cur.origin === here.origin ? { ...cur, record: before.record } : cur));
+    } catch {
+      // nothing stored to take back
     }
   };
 
@@ -292,6 +373,7 @@ export function Popup() {
     const next = { ...settings, theme: choice };
     const resolved = resolveTheme(choice, prefersDark());
     const keptPlan = clickKept(next);
+    const before: ChoiceBefore = { settings, selected: checkedTheme, record: site?.record };
     const url = tabUrl.current;
     const here = site && url && checkUrl(url, settings.blocklist).allowed ? { origin: site.origin, tabId: site.tabId } : undefined;
     let answer: Promise<boolean> | undefined;
@@ -311,7 +393,11 @@ export function Popup() {
       }
     }
     setSettings(next);
-    void saveSettings(next).catch(() => recordErrors(["popup-error"]));
+    void saveSettings(next).catch(() => {
+      recordErrors(["popup-error"]);
+      // The theme on the page is not affected; only the memory of it. Say so instead of staying silent.
+      if (seq === clickSeq.current) setNotice(S.edge.saveFailed);
+    });
 
     setSelected(choice);
     setRestoredHere(false);
@@ -321,13 +407,15 @@ export function Popup() {
     if (!here) {
       // Not a page Skinly may change: the choice is saved for other pages, nothing is injected or asked.
       setThemeBusy(undefined);
-      setView({ state: "blocked", reason: MSG.blocked });
+      setBusyPick(undefined);
+      setView({ state: "blocked", reason: blockedWhy(url, settings.blocklist) });
       setNotice(S.popup.choiceSaved);
       return;
     }
     setThemeBusy(resolved);
+    setBusyPick(choice);
     setView({ state: "idle" });
-    pageQueue.current = pageQueue.current.then(() => applyLatest(seq, here.tabId, choice, resolved, next));
+    pageQueue.current = pageQueue.current.then(() => applyLatest(seq, here, choice, resolved, next, before, keptPlan, answer));
 
     if (!answer) {
       // Refused before (this popup, or a reopened one found it refused): this page only, no second prompt. Keep on this site asks again.
@@ -336,7 +424,7 @@ export function Popup() {
       return;
     }
     void answer.then((granted) => {
-      if (seq !== clickSeq.current) return;
+      if (seq !== clickSeq.current || failedSeq.current === seq) return;
       if (granted) {
         grantedAtOpen.current = here.origin;
         setSite((cur) => (cur && cur.origin === here.origin ? { ...cur, record: keptRecord(keptPlan, cur.record) } : cur));
@@ -438,13 +526,18 @@ export function Popup() {
       const tab = await queryActiveTab();
       if (!tab) {
         setRestoreState("idle");
-        return setView({ state: "blocked", reason: MSG.blocked });
+        return setView({ state: "blocked", reason: blockedWhy(undefined) });
       }
-      const r = await restorePage(tab.id, tab.url, settings.blocklist);
+      const r = await withTimeout(restorePage(tab.id, tab.url, settings.blocklist), RESTORE_TIMEOUT_MS);
+      if (r === TIMED_OUT) {
+        // The button stays on (restorable is unchanged), so the user can press it again.
+        setRestoreState("idle");
+        return setView({ state: "error", kind: "error", message: S.edge.restoreTimedOut });
+      }
       if (!r.ok) {
         // Nothing was changed on the page (or it is a page we may not change): no "restored" and no pause.
         setRestoreState("idle");
-        return setView(r.reason === "blocked" ? { state: "blocked", reason: MSG.blocked } : { state: "error", kind: "error", message: S.popup.restoreFailed });
+        return setView(r.reason === "blocked" ? { state: "blocked", reason: blockedWhy(tab.url, settings.blocklist) } : { state: "error", kind: "error", message: S.popup.restoreFailed });
       }
       setKept(false);
       setApplied(undefined);
@@ -595,7 +688,7 @@ export function Popup() {
   const canRestoreNow = restorable === true && restoreState === "idle";
   const ineligible = site === undefined || !tabUrl.current || !checkUrl(tabUrl.current, settings.blocklist).allowed;
   // Said in words and announced (aria-live) so the disabled button is explained; empty while the first check runs.
-  const restoreHint = restorable === false && restoreState === "idle" ? (ineligible ? MSG.blocked : S.popup.nothingToRestore) : "";
+  const restoreHint = restorable === false && restoreState === "idle" ? (ineligible ? blockedWhy(tabUrl.current, settings.blocklist) : S.popup.nothingToRestore) : "";
   const restoreLabel = restoreState === "busy" ? S.popup.restoring : restoreState === "done" ? S.popup.restoredShort : S.popup.restore;
   const hints = browserHints();
   const page = shortcutsPage(hints.userAgent, hints.brave);
@@ -609,7 +702,7 @@ export function Popup() {
         <h1>
           <Logo size={28} /> {S.app.name}
         </h1>
-        <p role="status" class={headBanner}>{themeBusy ? S.popup.applying(themeName(themeBusy)) : statusText(view) || pageLine(site, settings)}</p>
+        <p id="popup-status" role="status" aria-live="polite" class={headBanner}>{themeBusy ? S.popup.applying(themeName(themeBusy)) : statusText(view) || pageLine(site, settings)}</p>
       </header>
 
       {!online && <p class="banner banner-info" role="status">{S.popup.offline}</p>}
@@ -638,13 +731,13 @@ export function Popup() {
       )}
       {applied && (view.state === "idle" || view.state === "preview") && <p class="banner banner-success" role="status">{S.popup.applied(applied.name, applied.fixes)}</p>}
 
-      <fieldset class="themes" aria-busy={themeBusy ? "true" : undefined}>
+      <fieldset class="themes" aria-busy={themeBusy ? "true" : undefined} aria-describedby={view.state === "error" || view.state === "blocked" ? "popup-status" : undefined}>
         <legend>{S.popup.themeLegend}</legend>
         <div class="theme-grid">
           {THEMES.map((t) => (
             <label key={t.id} class={`theme-card${checkedTheme === t.id ? " on" : ""}`}>
               {/* onClick, not onChange: the radio that is already checked (Restore leaves it so) must apply again. */}
-              <input type="radio" name="theme" value={t.id} checked={checkedTheme === t.id} disabled={busy} onClick={() => applyChoice(t.id)} />
+              <input type="radio" name="theme" value={t.id} checked={checkedTheme === t.id} disabled={busy} aria-busy={busyPick === t.id ? "true" : undefined} onClick={() => applyChoice(t.id)} />
               <span class="mini" aria-hidden="true" style={{ background: t.tokens.bg, borderColor: t.tokens.border }}>
                 <i class="m-head" style={{ background: t.tokens.text }} />
                 <i class="m-line" style={{ background: t.tokens.muted }} />
@@ -658,7 +751,7 @@ export function Popup() {
             </label>
           ))}
           <label class={`theme-card${checkedTheme === "auto" ? " on" : ""}`}>
-            <input type="radio" name="theme" value="auto" checked={checkedTheme === "auto"} disabled={busy} onClick={() => applyChoice("auto")} />
+            <input type="radio" name="theme" value="auto" checked={checkedTheme === "auto"} disabled={busy} aria-busy={busyPick === "auto" ? "true" : undefined} onClick={() => applyChoice("auto")} />
             <span class="mini auto" aria-hidden="true" />
             <span class="theme-name" title={S.popup.autoThemeHint}>{S.popup.autoTheme}</span>
           </label>
@@ -772,6 +865,13 @@ export function Popup() {
       <footer>{S.app.notAffiliated}</footer>
     </main>
   );
+}
+
+/** What a theme click replaced, so a failed apply can put it back. */
+interface ChoiceBefore {
+  settings: Settings;
+  selected: ThemeChoice | undefined;
+  record: SiteRecord | undefined;
 }
 
 /** What the popup shows for the site right after handing a keep to the background (the background writes the real record). */

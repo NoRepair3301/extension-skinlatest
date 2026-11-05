@@ -1,5 +1,6 @@
 import type { BlockReason } from "../core/types.ts";
 import { S } from "../ui/strings.ts";
+import { checkUrl } from "../analyzer/eligibility.ts";
 
 /** User-facing copy from SPEC 11. */
 export const MSG = {
@@ -52,6 +53,30 @@ export function applyFailureReason(r: ApplyFailure): string {
 
 /** Theme could not be applied and the page was left as it was. */
 export const applyFailureMessage = (r: ApplyFailure): string => `${applyFailureReason(r)}, so the page was left as it was.`;
+
+/** A built-in theme was rolled back midway: the page is back to its original look (a failed swap leaves it unthemed). */
+export const themeFailureMessage = (r: ApplyFailure): string => `${applyFailureReason(r)}${S.edge.backToOriginal}`;
+
+/** Why Skinly can't change this page, in one plain line with what to do. The address is read in memory only. MSG.blocked stays for the AI flow. */
+export function blockedWhy(url: string | undefined, blocklist: readonly string[] = []): string {
+  if (!url) return S.edge.blockedOther;
+  const e = checkUrl(url, blocklist);
+  if (e.allowed) return S.edge.blockedOther;
+  switch (e.reason) {
+    case "internal":
+      return S.edge.blockedInternal;
+    case "store":
+      return S.edge.blockedStore;
+    case "pdf":
+      return S.edge.blockedPdf;
+    case "blocklist":
+      return S.edge.blockedSite;
+    case "scheme":
+      return url.toLowerCase().startsWith("file:") ? S.edge.blockedFile : S.edge.blockedOther;
+    default:
+      return S.edge.blockedOther;
+  }
+}
 
 /** An AI style was rolled back and the built-in theme stays. */
 export const aiApplyFailureMessage = (r: ApplyFailure): string => `${applyFailureReason(r)}, so the AI style was not used. The built-in theme is kept.`;

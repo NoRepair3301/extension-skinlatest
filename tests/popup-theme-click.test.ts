@@ -33,7 +33,7 @@ vi.mock("../src/extension/flow.ts", () => ({
   createPageClient: () => ({ applyTheme: flow.applyTheme }),
 }));
 
-import { MSG, applyFailureMessage } from "../src/ai/messages.ts";
+import { blockedWhy, themeFailureMessage } from "../src/ai/messages.ts";
 import { S } from "../src/ui/strings.ts";
 import { wireBackground } from "./helpers/popupBackground.ts";
 import { planFor } from "./plan/helpers.ts";
@@ -219,7 +219,9 @@ describe("popup: a theme click applies at once (F1)", () => {
     const root = await mount();
     await pick(root, "midnight");
     expect(savedTheme()).toBe("midnight");
-    expect(status(root)).toBe(MSG.blocked);
+    // S5.4: the reason is named, with what to do (one distinct line per kind of page)
+    expect(status(root)).toBe(blockedWhy(url, []));
+    expect(status(root)).not.toBe(blockedWhy(undefined));
     expect(root.textContent).toContain(S.popup.choiceSaved);
     expect(api.requestOrigins).not.toHaveBeenCalled();
     expect(api.injectFile).not.toHaveBeenCalled();
@@ -279,12 +281,12 @@ describe("popup: a theme click applies at once (F1)", () => {
     flow.applyTheme.mockResolvedValue(failed);
     const root = await mount();
     await pick(root, "midnight");
-    expect(status(root)).toBe(applyFailureMessage(failed));
+    expect(status(root)).toBe(themeFailureMessage(failed));
     expect(root.querySelector(".popup-head [role=status]")!.className).toContain("banner-error");
     expect(success(root)).toBeUndefined();
     flow.applyTheme.mockRejectedValue(new Error("Cannot access contents of the page"));
     await pick(root, "ocean");
-    expect(status(root)).toBe(applyFailureMessage(undefined));
+    expect(status(root)).toBe(S.edge.injectFailed);
     expect(root.textContent).not.toContain("Cannot access");
   });
 

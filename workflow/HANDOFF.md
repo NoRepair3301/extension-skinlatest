@@ -1,36 +1,46 @@
-# HANDOFF — S5.3 Restore polish (F2 UX) and exact-restore integration test
-Status: DONE     Date: 2026-11-06     Model/effort used: Sonnet 5.5 / high (per prompt)
+# HANDOFF — S5.4 Edge states: ineligible pages, permission denied, progress and error strings
+Status: DONE     Date: 2026-11-06     Model/effort used: Sonnet 5.5 / medium (per prompt)
 ## What changed
-- src/extension/restore.ts (new) — `restorePage` = the one Restore path (inject all frames, restore all frames, badge, pause a remembered site; `blocked`/`failed` outcomes) and `hasSomethingToRestore` (button state).
-- src/extension/commands.ts, background.ts — restore-page now calls the shared `restore` dep (= `restorePage`); failure shows badge "!", title and failed toast instead of "restored".
-- src/extension/popup/Popup.tsx — `restore()` uses `restorePage`; states `restorable`/`restoreState`/`restoredHere`; aria-disabled + aria-busy + `#restore-hint` live region; radios clear after Restore (paused record also clears them); pick hint on the paused site line; probe on open, after apply/AI flow/resume.
-- src/extension/applier-core.ts, cleanup.ts, api.ts — page method `canRestore` (engine, lost-instance marks here or in same-origin iframes, UI hosts/tool marks); `callApplier` answers it from the `data-skinly` root marker when no applier is in the page.
-- src/ui/strings.ts — restoring, restoredShort, nothingToRestore, restoreFailed, pickToResume (placeholders; S5.4 owns the copy).
-- tests: new restore-exact (69), popup-restore (12), restore-path (15); adapted commands, persistence (+2 shortcut parity), popup, popup-scene, popup-theme-click, popup-tools (reasons in DECISIONS).
+- src/ui/strings.ts — new `S.edge` group (13 lines, each commented); S5.3/S5.1 placeholders now commented finals; `restoreFailed` reworded.
+- src/ai/messages.ts — `blockedWhy(url, blocklist)` and `themeFailureMessage(r)`; `MSG.blocked`/`applyFailureMessage` untouched (AI flow, shortcuts).
+- src/extension/popup/Popup.tsx — distinct lines per cause; 8 s apply/restore and 4 s probe timeouts; failed apply restores settings, selection, record and intent; saveFailed notice; aria-busy on the clicked radio; `#popup-status` id + fieldset aria-describedby on error.
+- tests: new edge-states (22), adapted popup-theme-click (4 ineligible + 2 failure lines), popup-restore (blocked hint).
 ## Gate results
-Before: tsc 0; eslint 0; vitest 1486 pass / 0 fail / 94 files. After: tsc 0; eslint 0; vitest 1587 pass / 0 fail / 97 files; GATE GREEN. `git diff --ignore-cr-at-eol --stat -- src/engine` empty.
-Deliberate breakage (scratch copy, removed; all made the named tests fail): no pause in restorePage (14), shortcut own path (5), button always enabled (12), repeat clicks not ignored (1), radios not cleared (1), unanswered restore reported ok (2), engine skips !important revert (14), engine ignores page change I4/I5 (4), lost-instance cleanup skips markers (7), observer left connected I7 (54), canRestore ignores lost marks (8), probe ignores root marker (1).
+Before: tsc 0; eslint 0; vitest 1587 pass / 0 fail / 97 files. After: tsc 0; eslint 0; vitest 1609 pass / 0 fail / 98 files; GATE GREEN. `git diff --ignore-cr-at-eol --stat -- src/engine` empty.
+Deliberate breakage (in place, restored; all failed the named tests): no apply/restore timeout (2), no stored-state undo (4), no settings/selection revert (1), `blockedWhy` constant (8), "null" in a string (2).
+## Copy for proofreading (condition | key | text)
+- browser/extension page | edge.blockedInternal | Skinly can't change browser pages. Open a regular website to use it.
+- store | blockedStore | Skinly can't change the browser's extension store. Open another website to use it.
+- PDF viewer | blockedPdf | Skinly can't change PDFs in the browser's viewer. Open a web page to use it.
+- file:// and other schemes | blockedFile | Skinly only changes web pages (http and https), not local files. Open a web page to use it.
+- user blocklist | blockedSite | This site is on your blocklist in Settings. Remove it there to change it.
+- unknown address | blockedOther | Skinly can't change this page. Open a regular website to use it.
+- permission missing/denied | notAllowed | Skinly wasn't allowed to run on this page, so it was left as it was. Click the theme again and choose Allow when the browser asks.
+- injection failed | injectFailed | Skinly couldn't start on this page, so it was left as it was. Reload the page and try again.
+- applier missing/silent | noAnswer | This page didn't answer, so it was left as it was. Reload the page and try again.
+- apply timeout | timedOut | This is taking too long, so Skinly stopped and took its changes off. Reload the page and try again.
+- tab closed/navigated | tabChanged | The tab changed while the theme was going on, so nothing was kept. Open the page you want and try again.
+- rolled back | `<reason>` + backToOriginal | …, so the page is back to its original look. Pick another theme to try again.
+- storage write failed | saveFailed | Couldn't save your choice, so it may not stay after you close this panel.
+- restore failed | popup.restoreFailed | Couldn't restore this page. Press Restore to try again, or reload the page to get the original back.
+- restore timeout | restoreTimedOut | Restore is taking too long. Press Restore to try again, or reload the page to get the original back.
 ## Decisions made (also in DECISIONS.md)
-Popup and shortcut share `restorePage`. Prompt beats design for radios: none active after Restore (global default stays stored). Restore uses aria-disabled to keep focus. jsdom cannot prove shorthand/exotic style byte-exactness (cssstyle): fixture avoids them.
+O1 kept (a refused prompt with a working injection still themes the tab only); the "denied keeps selection" test uses denial plus refused injection. Eligibility, not the prompt, blocks file://.
 ## Out-of-scope touches
-None beyond: applier-core.ts, cleanup.ts, api.ts, background.ts (page-runner/api restore path, minimal).
+None.
 ## Bugs found (outside scope)
-- R3 confirmed (engine): top engine walks same-origin iframes (src/engine/dom.ts:1181-1193, collect) and the frame's own tokensOnly applier (src/extension/applier.ts:91-93) also themes it. Either alone restores exactly; both together leave the frame's inline colours themed after both restores (sheets and marks are removed). tests/restore-exact.test.ts asserts only sheets/marks/timers for the combined case. Owner decision: top engine should skip frames that have their own applier, or the other way round.
-- A failed theme swap leaves the page unthemed with copy "left as it was" (S5.4). After "Change my page" a clicked radio stays checked (S5.2 note; S5.4).
-- Reopened popup on a tab-only themed page that was restored shows the global default checked: no per-tab storage.
-## Owner manual checks (before committing)
-1. `npm run build`, reload the extension; on Wikipedia run `window.__a = document.documentElement.outerHTML`.
-2. Popup: Restore reads disabled ("Nothing to restore on this page.") before any theme. Click a theme: page themes, Restore enables.
-3. Click Restore: page returns, button shows "Restored" for 2 s then disabled; no radio checked; `document.documentElement.outerHTML === window.__a` prints `true`.
-4. Reload: stays original (site paused). Reopen popup: same restored state + hint. Click a theme: applies again, no "Paused".
-5. Theme, then press the Restore shortcut: same as step 3 (site paused too).
-6. Theme, reload the extension in chrome://extensions (not the page), open the popup: Restore is enabled; click it: page returns to normal.
-7. chrome:// page: Restore disabled with the blocked message, no error.
-8. Click Restore twice fast: one restore only. No red errors in page or service-worker console.
+- R3 (S5.3) still open: top engine and a same-origin frame applier both theme the frame (src/engine/dom.ts:1181-1193, src/extension/applier.ts:91-93).
+- Undo of a stored record runs after the permission answer; if the keeper saves later than that check, a stale record could survive (not reproducible in tests).
+## Not implemented from section 9
+- "Keeper failed" shows no message (the popup cannot see it; "Why not themed here?" covers it). Site cap (200): no message by design. File-access recovery hint: file: is blocked by eligibility. Contrast of the error banner was not measured.
+## Stage 5 summary (specs.md section 5)
+F1 (click applies, remembers the site, no stacking) and F2 (consistent Restore, paused site, exact restore) are implemented and tested; edge states are covered. Open: R3 and owner decisions O1-O4 (taken as proposed).
+## Owner manual checks
+1. `npm run build`, reload. 2. chrome://extensions, Web Store, PDF: click a theme and Restore: clear line, no error text, popup usable. 3. Ungranted site: click a theme, deny: the page may still theme this tab (O1); reload and click again, allow: applies. 4. file:// page: the line says local files are not changed (see decisions). 5. Click themes rapidly: last wins, never hangs. 6. Close the tab mid-apply, reopen on another tab: normal. 7. Proofread the copy above. 8. No red errors in page or service-worker console.
 ## Suggested commit message
-feat(restore): consistent Restore button and shortcut, paused-site state, exact-restore integration test (S5.3)
+feat(popup): clear messages for ineligible pages, denied permission and failures; busy states always end (S5.4)
   git add -A
-  git commit -m "feat(restore): consistent Restore button and shortcut, paused-site state, exact-restore integration test (S5.3)"
-  git tag stage-S5.3
+  git commit -m "feat(popup): clear messages for ineligible pages, denied permission and failures; busy states always end (S5.4)"
+  git tag stage-S5.4
   git push
-## Next substage: S5.4 (Sonnet 5.5 / medium) — edge states. Relies on: strings restoring/restoredShort/nothingToRestore/restoreFailed/pickToResume to reword; `restorePage` outcomes `blocked`/`failed`; R3 decision.
+## Next substage: S6.1 (Sonnet 5.5 / medium) — rename map and leftover-scan script. Relies on: product name still "Skinly"/"Skinly AI" in all new strings (S.edge, messages.ts); data-skinly literal in api.ts callApplier.

@@ -33,7 +33,7 @@ vi.mock("../src/extension/flow.ts", () => ({
   createPageClient: () => ({ applyTheme: flow.applyTheme }),
 }));
 
-import { MSG } from "../src/ai/messages.ts";
+import { blockedWhy } from "../src/ai/messages.ts";
 import { S } from "../src/ui/strings.ts";
 import { wireBackground } from "./helpers/popupBackground.ts";
 import { planFor } from "./plan/helpers.ts";
@@ -145,7 +145,7 @@ describe("popup: the Restore button (F2)", () => {
     api.runInPage.mockRejectedValue(new Error("Cannot access a chrome:// URL"));
     const root = await mount();
     expect(restoreButton(root).getAttribute("aria-disabled")).toBe("true");
-    expect(hint(root)).toBe(MSG.blocked);
+    expect(hint(root)).toBe(blockedWhy("chrome://extensions"));
     await act(() => restoreButton(root).click());
     await flush();
     expect(restoreCalls()).toEqual([]);

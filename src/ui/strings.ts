@@ -29,8 +29,9 @@ export const en = {
     },
     stages: ["Reading the page", "Checking readability", "Applying"],
     applied: (name: string, fixes: number) => `Applied ${name}, ${fixes === 0 ? "no readability fixes needed" : fixes === 1 ? "1 readability fix" : `${fixes} readability fixes`}`,
-    // F1 placeholders; S5.4 owns the final copy.
+    /** Header line while a clicked theme goes on. */
     applying: (name: string) => `Applying ${name}…`,
+    /** Under the "can't change this page" line, after a theme click on such a page. */
     choiceSaved: "Saved as your theme for other pages.",
     restore: "Restore original",
     cancel: "Cancel",
@@ -61,11 +62,15 @@ export const en = {
     offline: "You are offline. Built-in themes still work; AI themes need a connection.",
     petShown: "The pet is on this page. Restore original removes it.",
     restored: "Original restored.",
-    // F2 placeholders; S5.4 owns the final copy.
+    /** Restore button label while it runs. */
     restoring: "Restoring…",
+    /** Restore button label for two seconds after it worked. */
     restoredShort: "Restored",
+    /** Under the disabled Restore button on a page Skinly has not changed. */
     nothingToRestore: "Nothing to restore on this page.",
-    restoreFailed: "Couldn't restore this page. Reload it to get the original back.",
+    /** Restore did not finish (page did not answer, or the shortcut failed); the button stays on. */
+    restoreFailed: "Couldn't restore this page. Press Restore to try again, or reload the page to get the original back.",
+    /** Under "Paused on this site", after Restore. */
     pickToResume: "Pick a theme to turn it back on for this site.",
     backToBuiltin: "Back to the built-in theme.",
     petOffHere: "Disable pet on this site",
@@ -172,6 +177,37 @@ export const en = {
     petOff: "Skinly: pet hidden",
     blocked: "Skinly: blocked page",
     failed: "Skinly: couldn't change this page",
+  },
+  /** S5.4: one plain line per failure or waiting state. Each says what happened and what to do. No codes, no page text. */
+  edge: {
+    /** Header line on a browser page (chrome://, edge://, about:, an extension's own page). */
+    blockedInternal: "Skinly can't change browser pages. Open a regular website to use it.",
+    /** Header line on an extension store page (the browser forbids extensions there). */
+    blockedStore: "Skinly can't change the browser's extension store. Open another website to use it.",
+    /** Header line on a PDF shown in the browser's viewer. */
+    blockedPdf: "Skinly can't change PDFs in the browser's viewer. Open a web page to use it.",
+    /** Header line on a local file or any other address that is not http or https. */
+    blockedFile: "Skinly only changes web pages (http and https), not local files. Open a web page to use it.",
+    /** Header line on a site the user put on the blocklist. */
+    blockedSite: "This site is on your blocklist in Settings. Remove it there to change it.",
+    /** Header line when the tab address is unknown or not recognised. */
+    blockedOther: "Skinly can't change this page. Open a regular website to use it.",
+    /** The browser refused to let Skinly run here (permission missing or refused). The page is untouched. */
+    notAllowed: "Skinly wasn't allowed to run on this page, so it was left as it was. Click the theme again and choose Allow when the browser asks.",
+    /** The browser let Skinly in but starting on the page failed (a page that does not allow extensions). The page is untouched. */
+    injectFailed: "Skinly couldn't start on this page, so it was left as it was. Reload the page and try again.",
+    /** The page never answered (script missing or page busy). */
+    noAnswer: "This page didn't answer, so it was left as it was. Reload the page and try again.",
+    /** The apply took too long and was given up; any half-applied change was taken off. */
+    timedOut: "This is taking too long, so Skinly stopped and took its changes off. Reload the page and try again.",
+    /** The tab was closed or went to another page while the theme was going on. */
+    tabChanged: "The tab changed while the theme was going on, so nothing was kept. Open the page you want and try again.",
+    /** Ends the line "<reason>, so the page is back to its original look." when an apply was rolled back midway. */
+    backToOriginal: ", so the page is back to its original look. Pick another theme to try again.",
+    /** Saving the choice failed (storage full or unavailable). The theme on the page is not affected. */
+    saveFailed: "Couldn't save your choice, so it may not stay after you close this panel.",
+    /** Restore took too long; the button stays on. */
+    restoreTimedOut: "Restore is taking too long. Press Restore to try again, or reload the page to get the original back.",
   },
   fail: {
     denied: "Skinly couldn't run on this page (the browser didn't allow it)",
