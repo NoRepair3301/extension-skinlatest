@@ -204,6 +204,9 @@ describe("engine original style text (D12)", () => {
       <body style="background-color: rgb(255, 255, 255); color: rgb(0, 0, 0);"><svg id="t" style="color:#336699"></svg></body></html>`);
     const doc = dom.window.document;
     const win = dom.window;
+    // Deterministic: capture the engine's scheduled refresh and run it, instead of waiting on real time.
+    const due: Array<() => void> = [];
+    (win as unknown as { setTimeout: (fn: () => void) => number }).setTimeout = (fn) => due.push(fn);
     const engine = createColorEngine(doc, midnight);
     engine.apply();
     const el = doc.getElementById("t")!;
@@ -214,7 +217,10 @@ describe("engine original style text (D12)", () => {
     });
     mo.observe(el, { attributes: true, attributeOldValue: true });
     el.setAttribute("class", "again");
-    await new Promise((r) => win.setTimeout(r, 20));
+    // jsdom delivers the record to the engine's observer in a microtask; that schedules the refresh.
+    await Promise.resolve();
+    expect(due.length).toBe(1);
+    while (due.length > 0) due.shift()!();
     for (const r of mo.takeRecords()) if (r.attributeName === "style") seen.push(r.oldValue);
     mo.disconnect();
     // The refresh ran (reset + re-put changed the attribute) and never passed through the original text.
