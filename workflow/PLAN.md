@@ -11,7 +11,7 @@
 | S2.3 | Fresh-instance restore (D4) | Opus 5.5 / high | DONE | 2026-11-05 |
 | S2.4 | T5/D9: auto path reaches engine; validate-dist | Sonnet 5.5 / medium | DONE | 2026-11-05 |
 | S3.1 | Delete pure structural tests; adapt two | Sonnet 5.5 / medium | DONE | 2026-11-05 |
-| S3.2 | Rewrite or retire plan/compile-importing tests | Sonnet 5.5 / high | TODO | |
+| S3.2 | Rewrite or retire plan/compile-importing tests | Sonnet 5.5 / high | DONE | 2026-11-05 |
 | S3.3 | Remove dead structural code; DEAD_CODE.md | Sonnet 5.5 / high | TODO | |
 | S3.4 | Residual failures: full vitest green | Sonnet 5.5 / medium | TODO | |
 | S4.1 | Neutralise gating | Sonnet 5.5 / high | TODO | |

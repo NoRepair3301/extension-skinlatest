@@ -94,7 +94,7 @@ describe("allowlists", () => {
     expect(hits("src/features/blur/page.ts", ".veil{backdrop-filter:blur(12px)}")).toEqual([]);
     expect(hits("src/features/blur/apply.ts", "filter:blur(6px)")).toEqual([]);
     expect(hits("src/features/pet/overlay.ts", ".x{backdrop-filter:blur(2px)}")).toEqual(["CSS blur outside src/features/blur/"]);
-    expect(hits("src/plan/compile.ts", "decl('filter', 'blur(4px)')")).toEqual(["CSS blur outside src/features/blur/"]);
+    expect(hits("src/plan/schema.ts", "decl('filter', 'blur(4px)')")).toEqual(["CSS blur outside src/features/blur/"]);
     expect(hits("src/extension/popup/Popup.tsx", "el.blur()")).toEqual([]);
   });
 

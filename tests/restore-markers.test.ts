@@ -99,7 +99,7 @@ describe("stored repair rules", () => {
     ["too big", good.repeat(Math.ceil(STORED_REPAIR_MAX / good.length) + 1)],
   ])("rejects %s", (_n, css) => expect(parseRepairCss(css)).toBeUndefined());
 
-  it("a stored sheet is in place before the page is analysed, and an unusable one is ignored", () => {
+  it("a stored sheet is in place before the page is analysed", () => {
     const { doc, host, sheets } = realDoc();
     const a = createApplier(doc, { style: host, summaryDeps: fakeDeps(), tokensOnly: true });
     expect(a.applyTokens(planFor("midnight"), good).ok).toBe(true);
@@ -107,7 +107,17 @@ describe("stored repair rules", () => {
     expect(a.repairRules()).toContain("color: #112233 !important");
     a.restore();
     expect(sheets()).toHaveLength(0);
+  });
+
+  // BUG (reported in S3.2, not fixed there): since the engine rewrite (ed29e6b) applier-core injects seedCss
+  // verbatim; the parseRepairCss check that made an unusable sheet harmless was dropped with the repair pass.
+  // Today every caller passes a record that sites.ts already validated, so nothing reaches this in practice,
+  // but the applier itself accepts any string. See workflow/S3.2_PROPOSED.patch.
+  it("BUG: an unusable stored sheet is ignored", () => {
+    const { doc, host, sheets } = realDoc();
+    const a = createApplier(doc, { style: host, summaryDeps: fakeDeps(), tokensOnly: true });
     expect(a.applyTokens(planFor("midnight"), "body { display: none }").ok).toBe(true);
     expect(sheets()).toHaveLength(1);
+    expect(a.repairRules()).toBe("");
   });
 });

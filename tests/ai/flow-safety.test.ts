@@ -4,12 +4,11 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { buildUserMessage } from "../../src/ai/prompt.ts";
 import { analyze } from "../../src/analyzer/analyze.ts";
-import { compileCss } from "../../src/plan/compile.ts";
+import { createApplier, type StyleHost } from "../../src/extension/applier-core.ts";
 import { validatePlan, type StylePlan } from "../../src/plan/schema.ts";
-import { themeToPlan } from "../../src/plan/themeToPlan.ts";
 import { fakeDeps } from "../analyzer/helpers.ts";
-import { sampleSummary } from "../plan/helpers.ts";
-import { goodPlan } from "./harness.ts";
+import { planFor, sampleSummary } from "../plan/helpers.ts";
+import { badPlan, goodPlan } from "./harness.ts";
 
 const files = (dir: string): string[] =>
   readdirSync(dir).flatMap((n) => {
@@ -17,22 +16,39 @@ const files = (dir: string): string[] =>
     return statSync(p).isDirectory() ? files(p) : /\.tsx?$/.test(n) ? [p.split("\\").join("/")] : [];
   });
 
-describe("AI output reaches the compiler only through the validator", () => {
-  it("is a type error to compile a plan that has not been validated", () => {
-    const raw: StylePlan = themeToPlan("ocean");
-    // @ts-expect-error StylePlan is not ValidPlan: only validatePlan produces one
-    compileCss(raw, sampleSummary());
-    const v = validatePlan(goodPlan(), sampleSummary());
-    expect(v.ok).toBe(true);
-    if (v.ok) expect(compileCss(v.plan, sampleSummary())).toContain("data-skinly");
+describe("AI output reaches the engine only through the validator", () => {
+  const bare = () => {
+    const doc = new JSDOM('<!DOCTYPE html><html><body style="background-color: rgb(255, 255, 255)"><p style="color: rgb(0, 0, 0)">x</p></body></html>').window.document;
+    const sheets: string[] = [];
+    const style: StyleHost = {
+      add(css) {
+        sheets.push(css);
+        return { remove: () => void sheets.splice(sheets.indexOf(css), 1), isAttached: () => sheets.includes(css) };
+      },
+    };
+    return { doc, sheets, applier: createApplier(doc, { style, summaryDeps: fakeDeps() }) };
+  };
+
+  it("a plan the validator refuses never reaches the page", () => {
+    const { doc, sheets, applier } = bare();
+    const before = doc.documentElement.outerHTML;
+    expect(validatePlan(badPlan(), sampleSummary()).ok).toBe(false);
+    expect(applier.apply(badPlan() as unknown as StylePlan)).toMatchObject({ ok: false, reason: "invalid-plan" });
+    expect(sheets).toHaveLength(0);
+    expect(applier.isActive()).toBe(false);
+    expect(doc.documentElement.outerHTML).toBe(before);
+    // The counterpart: a plan the validator accepts is applied.
+    expect(validatePlan(goodPlan(), sampleSummary()).ok).toBe(true);
+    expect(applier.apply(planFor("ocean")).ok).toBe(true);
+    expect(applier.isActive()).toBe(true);
   });
 
-  it("compileCss is called only by the applier, after validatePlan", () => {
-    const users = files("src").filter((f) => /\bcompileCss\(/.test(readFileSync(f, "utf8")) && f !== "src/plan/compile.ts");
+  it("the engine is created only by the applier, after validatePlan", () => {
+    const users = files("src").filter((f) => !f.startsWith("src/engine/") && /\bcreateColorEngine\(/.test(readFileSync(f, "utf8")));
     expect(users).toEqual(["src/extension/applier-core.ts"]);
     const text = readFileSync("src/extension/applier-core.ts", "utf8");
     expect(text.indexOf("validatePlan(")).toBeGreaterThan(-1);
-    expect(text.indexOf("validatePlan(")).toBeLessThan(text.indexOf("compileCss("));
+    expect(text.indexOf("validatePlan(")).toBeLessThan(text.indexOf("createColorEngine("));
   });
 
   it("provider modules are imported only by the registry layer, keys, the flow wiring and the bake-off", () => {
