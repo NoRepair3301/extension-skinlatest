@@ -12,8 +12,6 @@ import { getAsset } from "./assetStore.ts";
 import { siteRequest, type SceneRequest } from "./sceneConfig.ts";
 import { defaultSettings, loadSettings, type Settings } from "./settings.ts";
 import { getSite, isAutoOn, originOf, type SiteRecord } from "./sites.ts";
-import { clampPlan } from "../core/entitlements.ts";
-import { loadPlan } from "./planFlag.ts";
 
 /** What the popup learns: whether there was room, and what is showing. Fixed words only. */
 export interface SceneStatusReport {
@@ -273,8 +271,7 @@ function install(): void {
   const fromSite = async (site: SiteRecord) => {
     try {
       const settings = await loadSettings().catch(() => defaultSettings());
-      // A stored Plus theme on a lapsed account shows the nearest free theme's art (the auto script applies the same clamp).
-      const base = requestFromSite({ ...site, plan: clampPlan(site.plan, await loadPlan()) }, settings);
+      const base = requestFromSite(site, settings);
       if (base) await slot.skinlyScene?.sync(base);
     } catch {
       recordError("auto-art");

@@ -1,4 +1,3 @@
-import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { scanSource, scanTree } from "../scripts/rules.ts";
 
@@ -83,11 +82,10 @@ describe("allowlists", () => {
     expect(hits("src/extension/api.ts", "chrome.cookies.getAll()")).toContain(COOKIE_RULE);
   });
 
-  it("fetch( is allowed only in src/providers/ and src/backend/", () => {
+  it("fetch( is allowed only in src/providers/", () => {
     expect(hits("src/providers/gemini.ts", "await fetch(u)")).toEqual([]);
-    expect(hits("src/backend/http.ts", "await fetch(u)")).toEqual([]);
-    expect(hits("src/ai/pipeline.ts", "await fetch(u)")).toEqual(["fetch( outside src/providers/ and src/backend/"]);
-    expect(hits("src/extension/applier-auto.ts", "await fetch(u)")).toEqual(["fetch( outside src/providers/ and src/backend/"]);
+    expect(hits("src/ai/pipeline.ts", "await fetch(u)")).toEqual(["fetch( outside src/providers/"]);
+    expect(hits("src/extension/applier-auto.ts", "await fetch(u)")).toEqual(["fetch( outside src/providers/"]);
   });
 
   it("CSS blur (backdrop-filter or blur(<n>)) is allowed only under src/features/blur/", () => {
@@ -128,15 +126,15 @@ describe("key-like strings", () => {
     ["JWT", ["eyJhbGciOiJIUzI1NiJ9", "eyJyb2xlIjoiYW5vbiJ9", "c2lnbmF0dXJlLXBhcnQ"].join(".")],
     ["private key", ["-----BEGIN", "PRIVATE", "KEY-----"].join(" ")],
   ];
-  it.each(secrets)("flags %s in src, scripts, tests, docs and backend (B1)", (_name, secret) => {
-    for (const path of ["src/a.ts", "scripts/a.ts", "tests/a.test.ts", "docs/a.md", "backend/supabase/functions/_shared/a.ts"]) {
+  it.each(secrets)("flags %s in src, scripts, tests and docs (B1)", (_name, secret) => {
+    for (const path of ["src/a.ts", "scripts/a.ts", "tests/a.test.ts", "docs/a.md"]) {
       expect(hits(path, `const k = "${secret}"`).length, path).toBeGreaterThan(0);
     }
   });
-  it("flags service_role in extension code only (functions read it from their environment)", () => {
+  it("flags service_role in extension code only (scripts and docs may name it)", () => {
     const word = ["service", "role"].join("_");
-    expect(hits("src/backend/auth.ts", `const r = "${word}"`)).toContain("service_role in extension code");
-    expect(hits("backend/supabase/functions/_shared/db.ts", `const r = "${word}"`)).toEqual([]);
+    expect(hits("src/extension/api.ts", `const r = "${word}"`)).toContain("service_role in extension code");
+    expect(hits("scripts/a.ts", `const r = "${word}"`)).toEqual([]);
   });
   it("ignores short look-alikes", () => {
     expect(hits("docs/a.md", "sk-short and AIza123")).toEqual([]);
@@ -144,8 +142,8 @@ describe("key-like strings", () => {
 });
 
 describe("real tree", () => {
-  it("has no violations in src/ and no key-like strings in src, scripts, tests, docs (and backend once it exists)", () => {
-    expect(scanTree(".", ["src", "scripts", "tests", "docs", ...(existsSync("backend") ? ["backend"] : [])])).toEqual([]);
+  it("has no violations in src/ and no key-like strings in src, scripts, tests, docs", () => {
+    expect(scanTree(".", ["src", "scripts", "tests", "docs"])).toEqual([]);
   });
 });
 
@@ -160,7 +158,7 @@ describe("sentence-ending words", () => {
 describe("storage keys (the scanner list)", () => {
   it("lists exactly the keys the extension uses, diag included", async () => {
     const { STORAGE_KEYS } = await import("../scripts/rules.ts");
-    expect([...STORAGE_KEYS].sort()).toEqual(["assets", "auth", "diag", "entitlement", "intent", "keys", "plan", "schema", "settings", "sites"]);
+    expect([...STORAGE_KEYS].sort()).toEqual(["assets", "diag", "intent", "keys", "schema", "settings", "sites"]);
   });
   it("flags a key constant or a literal storage key that is not on the list, and allows the listed ones", () => {
     expect(hits(SRC, 'const KEY = "tracking";')).toContain("storage key not on the list: tracking");

@@ -3,7 +3,7 @@ import { ASSET_ID } from "../features/assets/types.ts";
 import type { AssetPlacement } from "../features/assets/types.ts";
 import { isDensity, isLaneChoice, isSceneId, type Density, type LaneChoice } from "../features/scenes/types.ts";
 import type { SceneId, StylePlan } from "../plan/schema.ts";
-import { storageGet, storageSet } from "./api.ts";
+import { storageGet, storageRemove, storageSet } from "./api.ts";
 import { originOf, toOrigin } from "./origin.ts";
 import { parsePlacement, parseSettings, type PetSettings } from "./settings.ts";
 
@@ -11,9 +11,11 @@ export { originOf, toOrigin };
 
 export const SITES_KEY = "sites";
 export const SITE_VERSION = 1;
-/** Storage layout version (A1b). 2 added `paused` and the pending intent; records written before it read as not paused. */
+/** Storage layout version (A1b). 2 added `paused` and the pending intent; records written before it read as not paused. 3 drops the keys of the removed paid tiers. */
 export const SCHEMA_KEY = "schema";
-export const STORAGE_VERSION = 2;
+export const STORAGE_VERSION = 3;
+/** Keys the removed account, entitlement and plan code wrote (S4.3). Nothing writes them any more; layout version 3 deletes them once. */
+const RETIRED_KEYS = ["auth", "entitlement", "plan"] as const;
 export const MAX_SITES = 200;
 const MAX_BLUR = 50;
 
@@ -195,12 +197,13 @@ export async function clearSites(): Promise<void> {
 
 /**
  * Brings stored data to STORAGE_VERSION: every record is read through parseSite (corrupt ones dropped, missing fields given their safe
- * default) and written back once, then the version is stored. Running it again changes nothing.
+ * default) and written back once, the retired plan keys are removed, then the version is stored. Running it again changes nothing.
  */
 export async function migrateStorage(): Promise<boolean> {
   const raw = await storageGet<{ v?: unknown }>(SCHEMA_KEY);
   if (raw && raw.v === STORAGE_VERSION) return false;
   await updateSites((sites) => ({ sites, result: undefined }));
+  for (const key of RETIRED_KEYS) await storageRemove(key);
   await storageSet(SCHEMA_KEY, { v: STORAGE_VERSION });
   return true;
 }

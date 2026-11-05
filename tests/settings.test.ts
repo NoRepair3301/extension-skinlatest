@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { clampPlan, entitledThemes } from "../src/core/entitlements.ts";
+import { entitledThemes } from "../src/core/entitlements.ts";
 import { BUILTIN_THEME_IDS } from "../src/themes/index.ts";
-import { themeToPlan } from "../src/plan/themeToPlan.ts";
 import { callsOn, defaultSettings, parseSettings } from "../src/extension/settings.ts";
 
 describe("parseSettings", () => {
@@ -34,12 +33,6 @@ describe("entitlements (F3: everything is free)", () => {
   it("all six themes are listed in the app's order", () => {
     expect(entitledThemes()).toEqual(["calm-light", "midnight", "ocean", "warm-paper", "high-contrast", "field"]);
     expect(entitledThemes()).toEqual(BUILTIN_THEME_IDS);
-  });
-  it("nothing is clamped: a plan comes back unchanged, layouts and custom tokens included", () => {
-    const ocean = { ...themeToPlan("ocean"), strategy: "full" as const, regionRules: [{ region: "r1", layout: "stack" as const, surface: "card" as const, spacing: 2 }] };
-    expect(clampPlan(ocean, "free")).toBe(ocean);
-    const custom = { ...themeToPlan("ocean"), themeId: "custom" as const };
-    expect(clampPlan(custom, "free")).toBe(custom);
   });
 });
 

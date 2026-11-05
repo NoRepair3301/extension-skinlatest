@@ -44,3 +44,11 @@ Method: case-insensitive grep for `canUse|entitle*|planFlag|PlanFlag|loadPlan|re
 - [x] `canUse`, `Feature`, `clampThemeId` deleted. tests/plus-ui.test.ts deleted (could not compile).
 - [ ] Left for S4.3: `clampPlan` call in scene.ts:277 (protected, no-op) + `loadPlan` import there, `clampPlan`/`PlanFlag` in entitlements.ts, `planFlag.ts`, `dailyCheck` in background.ts, src/backend, backend/, config, scripts, storage keys.
 - [ ] Left for S4.4: tests/backend/*, tests/backend-client/*, "Plus" comments in tests/scene-flow.test.ts and tests/scene-page.test.ts (plan store.set lines), build/rules/release tests.
+
+## S4.3 status (2026-11-05)
+- [x] src/backend/ (4), backend/ (19 tracked files), scripts/gen-entitlement-keys.mjs, types/{env,deno-min}.d.ts, .env.example, extension/planFlag.ts deleted; dailyCheck/buildConfig out of background.ts; clampPlan/PlanFlag out of entitlements.ts and scene.ts.
+- [x] tsconfig include, validate-dist Supabase host and anon-JWT allowances, rules.ts backend dir and storage keys cleaned.
+- [x] Migration: `migrateStorage` (schema v3) removes `auth`, `entitlement`, `plan`; tests/migration.test.ts.
+- [x] tests/backend/* (6 files) and tests/backend-client/client.test.ts deleted (sole subject deleted code).
+- [ ] Left for S4.4: Plus wording in tests/release.test.ts (docs asserts, S4.5 docs), comments in scene-flow / scene-page tests.
+- [ ] Left for S4.5: README, CHANGELOG, docs/*, STAGES/specs mentions, CLAUDE.legacy.md, prompt-launch.txt.

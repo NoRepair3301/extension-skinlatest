@@ -257,7 +257,7 @@ describe("A1b: reconcile on service-worker start, install and update", () => {
     expect(fake.registered.has(scriptId(D))).toBe(false);
     expect(fake.registered.has("skinly-deadbeef")).toBe(false);
     expect(fake.registered.has("other-extension-script")).toBe(true);
-    expect(fake.store.get("schema")).toEqual({ v: 2 });
+    expect(fake.store.get("schema")).toEqual({ v: 3 });
     const stored = fake.store.get("sites") as Record<string, Record<string, unknown>>;
     expect(Object.keys(stored).sort()).toEqual([A, B, C, D]);
     expect(stored[A]).toMatchObject({ blur: [], blurImages: false });
