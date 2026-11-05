@@ -8,8 +8,8 @@ import { contrastRatio, parseRgb, toHex } from "../../src/engine/color.ts";
 // Bug C (S3.4): a shadow root attached to a host already in the page fires nothing the engine sees, and
 // the isolated world cannot hook the page's attachShadow. The engine adopts such a root the first time
 // one of the signals it already reacts to touches the host: a mutation on the host or in its light
-// subtree, or an event from inside the root. A root with no such activity at all stays unthemed (the
-// BUG test in rerender.test.ts; owner decision S3.4). Closed roots are a documented limitation.
+// subtree, or an event from inside the root. A root with no such activity at all stays unthemed (owner
+// decision S3.4; rerender.test.ts covers the host-changes case). Closed roots are a documented limitation.
 
 type Task = () => void;
 

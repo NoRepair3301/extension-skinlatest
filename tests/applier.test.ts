@@ -49,7 +49,8 @@ describe("applier on every fixture", () => {
       expect(doc.documentElement.outerHTML).toBe(before);
       expect(sheets).toHaveLength(0);
       expect(a.isActive()).toBe(false);
-    });
+      // large-page applies all six themes to ~1800 nodes: ~2.4 s alone, over the global 20 s in one fully loaded run (S3.5). Load, not a hang.
+    }, name === "large-page" ? 60_000 : undefined);
 
     it("applying twice is idempotent and restoring twice is harmless", () => {
       const doc = load(name);

@@ -30,9 +30,20 @@ const actors = (): string[] => hosts().flatMap((h) => Array.from(h.shadowRoot!.q
 const lanes = (): string[] => hosts().flatMap((h) => Array.from(h.shadowRoot!.querySelectorAll(".lane")).map((l) => l.getAttribute("data-lane") ?? ""));
 const tick = () => new Promise<void>((r) => setTimeout(r, 20));
 
+// applier-auto stores a page snapshot with a real 4 s timer (DIAG_SNAPSHOT_MS). One left over from an earlier test fires
+// into a later one (about 4 s into this file, so it depends on machine speed) and overwrites the stored snapshot with its own,
+// stale one. Every such timer is cleared after its test, so only the timer a test starts itself can fire.
+const snapshotTimers: Array<ReturnType<typeof setTimeout>> = [];
+const realSetTimeout = window.setTimeout;
+
 beforeEach(() => {
   vi.resetModules();
   store.clear();
+  window.setTimeout = ((fn: () => void, ms?: number, ...rest: unknown[]) => {
+    const id = realSetTimeout.call(window, fn, ms, ...rest);
+    if (ms === 4000) snapshotTimers.push(id);
+    return id;
+  }) as typeof window.setTimeout;
   // these flows predate Skinly Plus: they run as a Plus user (Plus themes and their scenes); the Free clamp is tested in tests/auto.test.ts
   store.set("plan", { v: 1, plan: "plus", until: Number.MAX_SAFE_INTEGER });
   api.storageGet.mockImplementation(async (k: string) => store.get(k));
@@ -57,6 +68,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  snapshotTimers.splice(0).forEach((id) => clearTimeout(id));
   slot.skinlyApplier?.restore();
   slot.skinlyScene?.destroy();
   hosts().forEach((n) => n.remove());
@@ -65,6 +77,7 @@ afterEach(() => {
   slot.skinlyScene = undefined;
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  window.setTimeout = realSetTimeout;
 });
 
 async function manual(themeId: "midnight" | "field" | "ocean", page: PageName) {

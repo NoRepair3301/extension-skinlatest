@@ -9,42 +9,19 @@
 - node v24.19.0; npm 11.17.0.
 - Not run (S0.2 does this): tsc, eslint, vitest, build.
 
-## Gate baseline — filled by S0.2 (measured 2026-11-04, HEAD 64343cf)
+## Gate baseline — Stage 4 onwards (S3.6, measured 2026-11-05, on top of HEAD 1ef09aa plus the S3.6 test edits)
 | Step | Result | Duration |
 |---|---|---|
-| tsc | 1 error (`src/engine/dom.ts(57,25)` TS2304 `PropRecord`) | 6.5s |
-| eslint | 4 errors (`pipeline.ts:19,187`; `engine/dom.ts:4,5`, all no-unused-vars) | 4.2s |
-| vitest | 1324 pass / 19 fail / 1343 tests in 91 files | 71.7s |
-| build | exit 0 | 2.5s |
-| validate-dist | `ok`, exit 0 | 0.8s |
-| contrast | `ok (6 themes)`, exit 0 | 0.8s |
+| tsc | 0 errors | 8-22s |
+| eslint | 0 errors | 6-21s |
+| vitest | 1482 pass / 0 fail / 1482 tests in 96 files (3 consecutive full runs) | 98-173s (load dependent) |
+| build | exit 0 | - |
+| validate-dist | `ok`, exit 0 | - |
+| contrast | `ok (6 themes)`, exit 0 | - |
 
-Full `npm run gate` (tsc+eslint+vitest) ≈ 83s.
+Failing list: empty (`workflow/BASELINE_FAILURES.txt`), apart from the named known flake `tests/plus-ui.test.ts` B5 sign-in (failed in 3 of the first 6 loaded runs, passed alone and in the last 3; deleted in S4.4).
+The three side-effecting tests (build, budgets, release) pass: 25 tests; they only rewrite their own scratch folders (`node_modules/.skinly-test-dist*`, `node_modules/.skinly-release-test`, `private/test-budget-dist`).
+Bundle sizes (S3.5): dist/applier.js 86218 bytes, applier-auto.js 17582 bytes, all inside the budgets of tests/budgets.test.ts.
 
-### vitest failing files (19 in 5 files)
-- tests/guard.test.ts — 8
-- tests/legacy.test.ts — 7
-- tests/restore-markers.test.ts — 2
-- tests/applier.test.ts — 1
-- tests/repair.test.ts — 1
-Exact list: `workflow/BASELINE_FAILURES.txt`.
-
-### Previously unrun test files
-`tests/build.test.ts`, `tests/budgets.test.ts`, `tests/release.test.ts` ran inside the full run and none appears in the failing list (all pass). `git status --porcelain` after everything shows no tracked file modified by tests or build (only the S0.2 edits to package.json plus new files).
-
-### Marker counts (`data-skinly-engine`, dist after build)
-applier.js 1; applier-auto.js 0; scene.js 0; palette.js 0; background.js 0.
-
-### Difference from recon
-- vitest: 1324 pass / 1343 tests / 91 files vs recon 1299 / 1318 / 88. The extra 25 tests / 3 files are build, budgets, release (recon skipped them), all passing.
-- Failing count 19 in 5 files, tsc 1, eslint 4, applier.js 1 hit, applier-auto.js 0: all match recon.
-
-### Expected red until fixed
-- tsc (1) → S1.1. eslint (4): `engine/dom.ts` ones → S1.1; `pipeline.ts` ones → S1.2.
-- tests/repair.test.ts (1) → S1.2 (adapt "AI repair in flow").
-- tests/restore-markers.test.ts (2) → S2.3 (fresh-instance restore; the "stored repair rules" case may instead be retired with the repair layer in S1.2/S3.x).
-- tests/applier.test.ts (1), tests/legacy.test.ts (7) → S3.1 (adapt to engine).
-- tests/guard.test.ts (8) → S3.2 (rewrite/retire plan/compile-importing tests; investigate "re-render" case).
-- Residuals → S3.4.
-### Unmapped failures
-None. (restore-markers "stored repair rules" mapping is a judgement call, noted above.)
+### History
+S0.2 (HEAD 64343cf): tsc 1, eslint 4, vitest 1324 pass / 19 fail of 1343 in 91 files. All 19 were mapped to later substages and are closed.

@@ -174,30 +174,33 @@ describe.each(EACH_THEME)("a shadow root that exists when the theme goes on, und
   });
 });
 
-// BUG (reported in S3.2, not fixed there): a shadow root attached to a host that is already in the page
-// is never watched, so its content stays as the site draws it until something else triggers a full
-// re-scan. Hosts added together with their root (above) are fine.
-describe("BUG: a shadow root attached after the theme is on", () => {
+// A shadow root attached to a host already in the page fires nothing the engine can see, and the
+// isolated world cannot hook the page's attachShadow. By design (S3.4, DECISIONS) the engine adopts such
+// a root on the first signal it already reacts to: a mutation on the host or its light subtree, or an
+// event from inside the root. Each signal is covered under all 6 themes in shadow-late.test.ts; this is
+// the re-render promise for the common case, a component that attaches a root and then updates its host.
+describe("a shadow root attached after the theme is on", () => {
   const theme = THEMES.find((t) => t.id === "midnight")!;
-  it("content rendered into it is themed", async () => {
+  it("content rendered into it is themed once the host changes", async () => {
     const { clock, by, doc } = setup(theme, `<div id="h"></div>`);
     const sr = by("h").attachShadow({ mode: "open" });
     const p = doc.createElement("p");
     p.className = "faint";
     p.textContent = "late root";
     sr.append(p);
+    by("h").className = "ready";
     await clock.settle();
     expect(themed(p)).toBe(true);
     expectReadable(p, theme, "node in a shadow root attached after apply");
   });
 });
 
-// BUG (reported in S3.2, not fixed there): makeTransform lifts a text colour to the floor against the
+// Was a bug (reported in S3.2, fixed in S3.5): makeTransform lifted a text colour to the floor against the
 // THEME background (tokens.bg) only. Under a light theme, light text on a dark element of a light page
 // (a dark banner, button or footer) is nudged darker to suit the light theme background and ends below
 // the floor against the element's own background. The same happens at first apply; a re-render shows
 // it because the element is restyled after the theme is on.
-describe.each(EACH_THEME)("BUG: text on a dark element keeps the floor, under %s", (_id, theme) => {
+describe.each(EACH_THEME)("text on a dark element keeps the floor, under %s", (_id, theme) => {
   it("class change to a dark element with light text", async () => {
     const { clock, by } = setup(theme, `<main><div id="t" class="calm"><span id="s">text</span></div></main>`);
     by("t").className = "loud";

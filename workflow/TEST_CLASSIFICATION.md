@@ -82,3 +82,19 @@ FIXED 2026-11-05: guard.test "BUG: a colour declared on both html and body is re
 
 ## S3.5
 FIXED 2026-11-05 (bug B), no assertion edits: guard.test "BUG: text keeps the floor against the element's own colour" claude-like under midnight (1); guard.test "BUG: text over a picture keeps its colour" hero-bg under calm-light (1); rerender.test "BUG: text on a dark element keeps the floor" under calm-light, ocean, warm-paper, field (4). Their "BUG:" names are left for S3.6 to remove. Still BUG: rerender "BUG: a shadow root attached after the theme is on" (bug C, owner decision). New: tests/engine/backdrop.test.ts (76: 12 groups x 6 themes + 4 light-theme cases).
+
+---
+
+# TEST_CLASSIFICATION — S3.6 close of Stage 3 (2026-11-05)
+
+No BUG rows remain open. Resolved this session or earlier:
+- Findings 4 (stored repair CSS has no validity check): closed by D13 (S3.3). Stored `repairCss` is dropped, nothing injects it, and the restore-markers/auto/popup cases assert that. No test carries the BUG name any more (`grep -rn BUG tests` is empty).
+- Findings 5 / rerender "BUG: a shadow root attached after the theme is on": ADAPTED in S3.6 (case a). The test gave the engine no signal at all, which S3.4's design (owner decision: signals only, no timer) explicitly does not cover. It now changes a class on the host after attaching the root, the documented signal; the no-signal limit stays a documented limitation, and `tests/engine/shadow-late.test.ts` (28) covers every signal under all 6 themes. See DECISIONS S3.6.
+- The "BUG:" prefix was removed from the already-fixed bug A and B test names (guard.test.ts x3 describes, rerender.test.ts x1); assertions untouched.
+
+## Closing summary, Stage 3
+- Deleted: 7 files (compile.test.ts, 6 golden CSS) and about 62 + 3 + the guard/repair/restore groups of S3.3 (tests/repair.test.ts and parts of guard.test.ts and restore-markers.test.ts) because the code they exercised is gone.
+- Adapted: applier.test.ts (1 rewritten, 1 added), legacy.test.ts (7), guard.test.ts (restore 3, floor 12), flow-safety.test.ts (2), rules.test.ts (path), marker.test.ts D4 (S3.4, owner-approved), rerender.test.ts shadow-late case (S3.6), restore-markers/auto/popup stored-repair cases (D13).
+- Fixed in the engine with the original assertions kept: bug A (4 guard tests, S3.4), bug B (6 tests, S3.5). Bug C: engine adopts late roots on a signal (28 new tests); the one no-signal test adapted as above.
+- New tests: rerender (37), inheritance (37), shadow-late (28), backdrop (76).
+- Test determinism fixes (S3.6): scene-flow diagnostics test (stale 4 s snapshot timers cleared per test), client.test.ts signature tamper (was a no-op 1 time in 16).

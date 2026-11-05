@@ -88,7 +88,7 @@ describe("applier-auto on a single-page app", () => {
     await tick();
     expect(reads.mock.calls.length).toBeLessThanOrEqual(2 + NAV_REAPPLY_MAX);
     expect(unlisten).toHaveBeenCalled();
-  });
+  }, 60_000); // ~2.5 s alone; one fully loaded run passed the global 20 s (S3.5). Load, not a hang.
 
   it("Restore removes the navigation listeners: a later route change never brings the theme back (A1f)", async () => {
     const t = setup();

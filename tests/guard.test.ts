@@ -86,11 +86,11 @@ describe("the theme goes on through the engine and text stays readable", () => {
   });
 });
 
-// BUG (reported in S3.2, not fixed there): the engine skips a colour that equals its parent's computed
+// Was a bug (reported in S3.2, fixed in S3.4): the engine skipped a colour that equals its parent's computed
 // colour, assuming it is inherited. `html, body { color: X }` declares it twice, so html is repainted and
 // body keeps X: on a natively dark page under a light theme the text stays light on a light background
 // (1.0:1 in this fixture). Only the light themes are listed; the dark ones see the page's own look.
-describe("BUG: a colour declared on both html and body is repainted", () => {
+describe("a colour declared on both html and body is repainted", () => {
   it.each(THEMES.filter((t) => !isDark(t.tokens.bg)).map((t) => [t.id, t] as const))("claude-like under %s: every text pair reaches the floor", (_id, theme) => {
     const doc = load("claude-like");
     const { host } = fixtureHost();
@@ -101,10 +101,10 @@ describe("BUG: a colour declared on both html and body is repainted", () => {
   });
 });
 
-// BUG (reported in S3.2, not fixed there): old promise "text over a picture or gradient gets its recorded
+// Was a bug (reported in S3.2, fixed in S3.5): old promise "text over a picture or gradient gets its recorded
 // original colour back". makeTransform decides a text colour from the theme background only, so white
 // text over a hero picture becomes mid-grey under a light theme.
-describe("BUG: text keeps the floor against the element's own colour", () => {
+describe("text keeps the floor against the element's own colour", () => {
   it("claude-like under midnight: the Send button's white text on its accent background", () => {
     const doc = load("claude-like");
     const theme = getTheme("midnight");
@@ -116,8 +116,8 @@ describe("BUG: text keeps the floor against the element's own colour", () => {
   });
 });
 
-// BUG (same cause): text over a picture.
-describe("BUG: text over a picture keeps its colour", () => {
+// Was a bug (same cause, fixed in S3.5): text over a picture.
+describe("text over a picture keeps its colour", () => {
   it("hero-bg under calm-light: white text over the hero and tile pictures stays white", () => {
     const doc = load("hero-bg");
     const { host } = fixtureHost();

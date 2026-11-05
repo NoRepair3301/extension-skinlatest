@@ -1,35 +1,39 @@
-# HANDOFF — S3.5 Engine bug B: contrast measured against the effective backdrop
-Status: DONE     Date: 2026-11-05     Model/effort used: Opus 5.5 / high (per prompt)
-Precondition: PLAN had S3.4 BLOCKED; owner chose "accept S3.4 (tagged), proceed" (DECISIONS). The bug C rerender test is the expected red.
-## What changed
-- src/engine/transform.ts — `Backdrop` type; `tf(color, role, backdrop?)` decides text against the backdrop; `tf.fit()` floor-only for already-themed colours.
-- src/engine/dom.ts — per-batch backdrop resolution (layers, compositing, gradients, url(), covering media), follow-check against the child's own backdrop, layer-change re-queue of descendants.
-- src/engine/color.ts — `over()` (source-over) and `greyWithLuminance()`.
-- tests/engine/backdrop.test.ts (new, 76). workflow/manual/S3.5-manual.html (new). PLAN, LOG, DECISIONS, TEST_CLASSIFICATION.
-## Backdrop model (8 lines)
-1. Per element: own layers bottom-up (background-color, background-image layers last to first, covering positioned media child); the topmost opaque layer hides the rest.
-2. Only see-through layers walk to the parent (nearest first); composited at both ends; theme background is the final base. Result = darkest..lightest colour.
-3. Elements in the batch are predicted exactly as the engine will write them; others are read as painted. Cached per batch.
-4. Text: today's colour if it meets the floor there, else the theme mapping, else nudged against both ends (gradients: worst stop).
-5. url() counts only if it fills the box (tiled, or cover/contain/100%); icons/decorations ignored. Unparsable gradient = unseen.
-6. Unseen pixels: assume only that the original text met the floor on them; text stays on the original's side, may move away from the picture, never towards it (keeps the page colour rather than flipping to the theme's).
-7. Inherited child text is checked on its own backdrop; settled-parent values get a floor-only fit.
-8. Limits: a page unreadable on its own picture stays so; opacity, blend modes, z-index, pseudo-elements, positioned non-media siblings not modelled; media needs layout.
+# HANDOFF — S3.6 Close Stage 3: residual failures, side-effecting tests, new baseline
+Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / high (per prompt)
+## What changed (tests only; `git diff --stat -- src` is empty)
+- tests/engine/rerender.test.ts — bug C test adapted (host class change = the documented signal), "BUG:" prefixes removed.
+- tests/engine/shadow-late.test.ts (comment), tests/guard.test.ts (names/comments: "BUG:" removed) — no assertion edits.
+- tests/scene-flow.test.ts — 4 s snapshot timers tracked and cleared after each test. tests/applier.test.ts, tests/auto.test.ts — 60 s per-test timeout on two tests. tests/backend-client/client.test.ts — deterministic signature tamper.
+- workflow: PLAN, LOG, DECISIONS, TEST_CLASSIFICATION, BASELINE, BASELINE_FAILURES.
 ## Gate results
-tsc 0; eslint 0. Engine dir 239 pass / 1 BUG (bug C). Full vitest before 1399 pass / 7 fail / 1406; after 1481 pass / 1 fail / 1482 / 96 files. All 6 bug B tests pass with no assertion edits. Bug A (inheritance, guard html/body x4) and shadow-late tests pass. One loaded run timed out applier "large-page apply then restore" and auto "same-document navigation" (20 s); both pass alone, and before/after engines time the same there (2.3–7 s swings on one engine). plus-ui flake did not occur. build + validate-dist ok; dist/applier.js 81508 -> 86218 bytes (+4710), applier-auto.js 17582 unchanged.
-## Timing and writes (jsdom, sum per theme, best of 4 runs; wall time is noisy on this machine)
-Synthetic 4444 nodes: ~2.6–3.5 s -> ~2.8–3.6 s; computed-style reads 19624 -> 14963; calm-light written els/props 3185/5068 -> 2042/3813. large-page 1819: ~1.0 s -> ~1.0 s; reads 8467 -> 5616; calm-light/midnight/warm-paper 883 -> 311 els (a double transform past the first batch is gone). Other 10 fixtures: same writes, same colours except hero-bg (picture text) and claude-like midnight (Send).
-## Tests added; mutation checks (scratch copy, all bite)
-backdrop.test.ts: the 9 required groups + url icon ignored, positioned media (I8), today's colour kept, x 6 themes; white-on-picture stays white x 4 light themes. Mutations: no backdrop 35 fail; see-through as opaque 4; first stop only 4; url ignored 10; parent's backdrop 35; no re-queue 4; settled child unchecked 4; follow on parent backdrop 4; fit bypasses ledger 4 (I2); no today-first 4; media off 5; icon as backdrop 6; flip to theme colour 2; hover without schedule 2.
-## Fragile, not touched
-dom.ts:916 re-queue after a background change does not enter shadow roots below the element. dom.ts:804 inline custom props with text role still use the theme-bg floor. transform.ts:94 a gradient spanning dark and light cannot be met; falls back to black/white. dom.ts:625 covering media ignores z-index. S3.4 items remain (dom.ts:979 quiet(), 1089 300 cap for class changes, 773 text-decoration, 232 slots).
-## Out-of-scope touches / Bugs found
-None.
+tsc 0; eslint 0; build ok; validate-dist ok; contrast ok. Final 3 consecutive full runs: 1482 pass / 0 fail / 96 files each. Engine dir green. (Earlier 6 runs, before fixes, below.)
+## Task 1 — bug C re-render test: case (a)
+Root cause: the test attached a root and rendered into it with no mutation, event or timer. S3.4's design (owner: signals only) adopts a late root on a signal and deliberately has no sweep timer. Adapted, not weakened silently: now also changes a class on the host (the signal a real component gives); still asserts themed + readable. Without the signal it fails. No-signal case remains a documented limitation (shadow-late.test.ts covers every signal x 6 themes). DECISIONS has the entry.
+## Task 2 — flake table (9 full runs; alone = passes unless noted)
+| test | failed in | cause | action |
+|---|---|---|---|
+| plus-ui B5 sign-in | 3 of first 6 (0 of last 3) | timing (login flow) | known flake, deleted in S4.4, not fixed |
+| scene-flow "diagnostics of a real page" | 3 of first 3, and alone once (then 0 of 40+) | real 4 s snapshot timers of earlier tests fire into it (~4 s into the file), storing a stale `theme: none`; reproduced by delaying; original fails, fixed passes | test now clears them per test |
+| client.test "tampered ... tokens count as Free" | 1 full run, 3 of ~80 alone | tamper was a no-op 1 in 16 (sig already ended "AA") | tamper first char; 0 of 60 after |
+| applier large-page restore, auto same-document nav | 0 of 9 now (timed out once in S3.5) | load, ~2.5 s alone | 60 s per-test timeout, global unchanged |
+## Task 3 — side-effecting tests (25 tests, all pass)
+build.test: writes `node_modules/.skinly-test-dist{,-big,-extra,-short}`. release.test: `node_modules/.skinly-release-test/{dist,out}` (zip 1199 B). budgets.test: `private/test-budget-dist/{popup.js,assets/shared.js,scene.js}`. None touches an existing file in `private/` outside `test-budget-dist`. Note: the first 3 full runs had already executed them before my before/after listing (taken 18:16, after those runs); I listed names/sizes/times only, never contents. Before vs after the explicit run: same names and sizes, only the 3 scratch files in `private/test-budget-dist` and the scratch dirs in node_modules got new mtimes; the 11 other `private/` entries unchanged (mtimes 2026-10-30). No budget numbers touched.
+## Task 4 — T3 (specs §5) line by line
+- Vitest fully green incl. the three side-effecting tests: YES (3 consecutive runs, 1482/1482). Exception: `plus-ui` B5 may flake under load (3 of first 6, 0 of last 3); deleted in S4.4.
+- Structural-theming tests deleted or adapted: YES (S3.1/S3.2, TEST_CLASSIFICATION).
+- Zero-importer structural code removed, evidenced: YES (S3.3, DEAD_CODE.md).
+New baseline: BASELINE.md and BASELINE_FAILURES.txt rewritten (empty failures list except the named flake).
+## Decisions made
+All in DECISIONS (S3.6 entries). Out-of-scope touches: none beyond the allowed test files (scene-flow, applier, auto, client tests were "tests needed for the tasks").
+## Bugs found
+None in src. Fragile (not touched): applier-auto's 4 s snapshot timer is not cancelled by Restore (src/extension/applier-auto.ts:78), harmless per document; S3.4/S3.5 fragile items still listed in the earlier handoffs.
 ## Owner manual checks
-In workflow/manual/ run `python -m http.server 8000`, open http://localhost:8000/S3.5-manual.html. Apply each of the 6 themes; confirm every label, heading, link and button text is clearly readable (no grey mush, nothing vanishing). Hover the "Hover me" button. Press **Restore original**: the page returns to normal. Then repeat once on two real sites with dark buttons or banners (e.g. github.com and a news site) with one light theme.
-## Suggested commit commands
+Optional repeat of S3.5 manual page (workflow/manual/S3.5-manual.html) and two real sites; this session changed no src.
+## Owner decision
+PLAN still says S3.4 BLOCKED (accepted and tagged by the owner in S3.5). Change that row to DONE if you want PLAN to match.
+## Suggested commit
 git add -A
-git commit -m "fix(engine): measure text contrast against the effective backdrop (S3.5)"
-git tag stage-S3.5
+git commit -m "test: close Stage 3, full suite green, new gate baseline (S3.6)"
+git tag stage-S3.6
 git push
-## Next substage: S3.6 (Sonnet 5.5, medium) — residual failures sweep. Relies on: bug B tests green (their "BUG:" names still to rename), bug C test red by owner decision, `tf` third argument optional (old callers unchanged).
+## Next substage: S4.1 — neutralise gating (Sonnet 5.5, high). Relies on: green gate baseline above; plus-ui and client.test.ts still present (deleted in S4.4).

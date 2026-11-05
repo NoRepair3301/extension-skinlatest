@@ -134,7 +134,9 @@ describe("entitlement token in the extension", () => {
     const [h, p, sig] = t.split(".") as [string, string, string];
     const free = async (token: string, userId: string | null = USER_A, now = NOW_MS) =>
       (await deriveRecord(cfg, { v: 1, token, fetchedAt: NOW_MS, status: "active", renewsAt: null }, userId ? { userId } : undefined, now)).plan;
-    expect(await free(`${h}.${p}.${sig.slice(0, -2)}AA`)).toBe("free");
+    // Change a leading character, which is all signature data. The old "replace the last two with AA" was a no-op about 1 time in 16:
+    // an Ed25519 signature ends in A/B/C/D then A/Q/g/w (its last byte is small), so it already ended in "AA", the token stayed valid and counted as Plus.
+    expect(await free(`${h}.${p}.${sig[0] === "A" ? "B" : "A"}${sig.slice(1)}`)).toBe("free");
     expect(await free(await tokenFor("plus", USER_A, NOW_S, await keypair()))).toBe("free");
     expect(await free(t, USER_B)).toBe("free");
     expect(await free(t, null)).toBe("free");
