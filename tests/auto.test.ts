@@ -9,7 +9,6 @@ import { ENGINE_MARKER, engineBundleProblems } from "../scripts/validate-dist.ts
 import { isBadgeMessage, BADGE_MESSAGE } from "../src/extension/messages.ts";
 import type { SiteRecord } from "../src/extension/sites.ts";
 import { getTheme } from "../src/themes/index.ts";
-import type { GuardProvider } from "../src/plan/guard.ts";
 import { dom, fakeDeps, items } from "./analyzer/helpers.ts";
 
 const BODY =
@@ -133,17 +132,16 @@ describe("applier-auto on a single-page app", () => {
   });
 });
 
-describe("applier-auto with stored repair rules", () => {
-  it("puts the stored repair rules in place at document_start, with no provider call", async () => {
+describe("applier-auto with a record that still carries stored repair rules (D13)", () => {
+  it("loads the record and puts only the engine sheet in place; the stored CSS is never injected", async () => {
     const css = 'html[data-skinly="on"]:not(#skinly-force) > body > header:nth-child(1) { color: #000000 !important; }\n';
-    const t = setup({ site: { repairCss: css } });
+    const t = setup({ site: { repairCss: css } as Partial<SiteRecord> });
     const done = runAuto(t.deps);
     await tick();
-    expect(t.sheets).toHaveLength(2);
-    expect(t.sheets[1]).toBe(css);
+    expect(t.sheets).toHaveLength(1);
     t.fire();
     await done;
-    expect(t.sheets.some((s) => s === css)).toBe(true);
+    expect(t.sheets.every((s) => s !== css && !s.includes("#000000 !important"))).toBe(true);
   });
 });
 
@@ -306,28 +304,14 @@ describe("badge message", () => {
 });
 
 describe("applier-auto at document_start (A1d)", () => {
-  it("with no head and no body yet: colours go on at once through the adopted sheet; guards, repair and art wait for DOMContentLoaded; nothing rolls back", async () => {
+  it("with no head and no body yet: colours go on at once through the adopted sheet; art waits for DOMContentLoaded; nothing rolls back", async () => {
     const doc = dom(BODY);
     const body = doc.body;
     doc.documentElement.replaceChildren();
     expect(doc.head).toBeNull();
     expect(doc.body).toBeNull();
     const { host, sheets } = fakeStyle();
-    // The guard reads computed styles of the body; before DOMContentLoaded it must not be touched at all.
-    let parsed = false;
-    const early = vi.fn();
-    const seen = <T>(v: T): T => {
-      if (!parsed) early();
-      return v;
-    };
-    const guard: GuardProvider = {
-      style: () => seen({ color: "#ffffff", backgroundColor: "#000000", backgroundImage: "none", display: "block", visibility: "visible", opacity: "1", filter: "none" } as never),
-      parentOf: (el) => seen(el.parentElement),
-      textParents: () => seen([]),
-      editables: () => seen([]),
-      media: () => seen([]),
-    };
-    const applier = createApplier(doc, { style: host, summaryDeps: fakeDeps(), guard });
+    const applier = createApplier(doc, { style: host, summaryDeps: fakeDeps() });
     const saved = analyze(dom(BODY), fakeDeps());
     if (saved.status !== "ok") throw new Error("fixture too large");
     const site: SiteRecord = { v: 1, plan: { v: 1, themeId: "midnight", tokens: { ...getTheme("midnight").tokens }, regionRules: [], reasons: [] }, fingerprint: { hash: "00000000", seq: "" }, provider: "builtin", model: "builtin", promptVersion: "6", savedAt: "2026-10-31T10:00:00.000Z", mode: "auto", blur: [], blurImages: false };
@@ -340,10 +324,8 @@ describe("applier-auto at document_start (A1d)", () => {
     expect(doc.documentElement.getAttribute("data-skinly")).toBe("on");
     expect(applier.isActive()).toBe(true);
     expect(applied).not.toHaveBeenCalled();
-    expect(early).not.toHaveBeenCalled();
     // the parser reaches the body, then DOMContentLoaded
     doc.documentElement.append(doc.createElement("head"), body);
-    parsed = true;
     ready!();
     expect(await done).toBe("full");
     expect(applier.isActive()).toBe(true);

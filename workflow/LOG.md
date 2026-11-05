@@ -9,3 +9,4 @@ date | ID | status | files touched | gate summary
 2026-11-05 | S2.4 | DONE | 3 src/test files (auto-core.ts, validate-dist.ts, auto.test.ts) + 4 workflow docs | tsc 0 / eslint 0 / engine 62 pass / full vitest 1371 pass 17 fail (subset of baseline); build + validate-dist ok
 2026-11-05 | S3.1 | DONE | 11 test files (7 deleted, 4 edited) + workflow docs | tsc 0 / eslint 0 / engine 62 pass / full vitest 1318 pass 9 fail (guard 8, restore-markers 1) of 1327; build + validate-dist ok
 2026-11-05 | S3.2 | DONE | 5 test files (1 new, 4 edited) + patch + 5 workflow docs | tsc 0 / eslint 0 / engine 94 pass 5 BUG / full vitest 1365 pass 13 fail of 1378 (12 BUG, 1 plus-ui timing flake); build + validate-dist ok
+2026-11-05 | S3.3 | DONE | 13 src/test source files (6 deleted) + 6 workflow/spec docs | tsc 0 / eslint 0 / engine 94 pass 5 BUG / full vitest 1330 pass 11 fail of 1341 (exactly the 11 BUG tests); build + validate-dist ok

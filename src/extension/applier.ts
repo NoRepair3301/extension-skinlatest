@@ -3,7 +3,6 @@ import { browserToasterEnv, createToaster } from "../features/toast/toast.ts";
 import { createPageTools } from "./pageTools.ts";
 import { createApplier, type Applier, type StyleHost } from "./applier-core.ts";
 import { frameRole } from "./frames.ts";
-import { domGuardProvider } from "./guard-dom.ts";
 import { originOf } from "./origin.ts";
 import { diagFlags, takeErrors, type DiagKind } from "../core/diag.ts";
 import { joinPageDiag, type PageDiag, type SceneDiagPart } from "../core/diagReport.ts";
@@ -82,7 +81,7 @@ function withPet(applier: Applier): PageApplier {
 if (!slot.skinlyApplier) {
   const role = frameRole(window);
   if (role === "top") {
-    const applier = withPet(createApplier(document, { style: adoptedSheetHost(document), guard: domGuardProvider(document) }));
+    const applier = withPet(createApplier(document, { style: adoptedSheetHost(document) }));
     // Blur and table tools live beside the applier and are undone by the same Restore.
     const tools = createPageTools(document, adoptedSheetHost(document));
     applier.onRestore(() => tools.restore());

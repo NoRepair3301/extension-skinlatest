@@ -49,7 +49,6 @@ async function boot(opts: FakeChromeOptions = {}) {
   // the page script the popup and the background talk to through executeScript
   (globalThis as unknown as { skinlyApplier: unknown }).skinlyApplier = {
     isActive: () => page.themed,
-    repairRules: () => "",
     restore: () => {
       page.themed = false;
       return { ok: true };

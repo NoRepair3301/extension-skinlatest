@@ -37,7 +37,9 @@ Order is by dependency: tooling, green baseline, engine restore, tests and dead 
 | S3.1 | Delete pure structural tests (compile, layouts, compat, golden css + runner/fixtures); adapt `applier.test` region-tag case and `legacy.test` invariants to the engine. | Sonnet 5.5 / medium | Mostly mechanical, clear list |
 | S3.2 | Rewrite or retire tests that import `plan/compile` (guard, rules, ai/flow-safety) against the engine; investigate the guard "re-render" case and report real bugs. | Sonnet 5.5 / high | Judgment: adapt vs delete vs bug |
 | S3.3 | Remove dead structural code with grep evidence (`plan/compile.ts` first); write `workflow/DEAD_CODE.md` with a verdict per remaining candidate (`derive`, `guard`, `readability`, `repair`, `payload`). | Sonnet 5.5 / high | Deletions must be evidence-backed |
-| S3.4 | Residual failures: full `vitest run` incl. build/budgets/release tests green. | Sonnet 5.5 / medium | Sweeper |
+| S3.4 | Engine bug A (a computed colour equal to its parent's is skipped, so pages with `html, body { color }` end at 1.0:1 contrast under light themes) and bug C (a shadow root attached after apply is never watched). Acceptance tests: the 4 `tests/guard.test.ts` "BUG: a colour declared on both html and body" cases and the `tests/engine/rerender.test.ts` shadow-root BUG case. | Opus 5.5 / high | Engine logic (`src/engine/*`), invariants I1-I10 must hold |
+| S3.5 | Engine bug B (text contrast is measured against the theme background only, not the effective backdrop: light text on dark buttons, banners and hero images ends around 3:1 or grey). Acceptance tests: `tests/guard.test.ts` "BUG: text keeps the floor against the element's own colour" and "BUG: text over a picture keeps its colour", and the 4 `tests/engine/rerender.test.ts` "BUG: text on a dark element" cases. | Opus 5.5 / high | Engine logic, backdrop resolution |
+| S3.6 | Residual failures: full `vitest run` including build, budgets and release tests green; remove the interim BUG markers in `workflow/TEST_CLASSIFICATION.md`. | Sonnet 5.5 / medium | Sweeper |
 
 ## Stage 4 — Remove premium (T6, F3)
 

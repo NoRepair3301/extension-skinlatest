@@ -7,7 +7,6 @@ import type { ConsentRequest, Outcome, Step } from "../../ai/pipeline.ts";
 import { THEMES, resolveTheme, type BuiltinThemeId, type ThemeChoice } from "../../themes/index.ts";
 import { PROVIDER_NAMES, type ProviderId } from "../../config.ts";
 import { checkUrl } from "../../analyzer/eligibility.ts";
-import { storableRepairCss } from "../../plan/readability.ts";
 import { themeToPlan } from "../../plan/themeToPlan.ts";
 import { browserHints, getCommands, hasOrigins, queryActiveTab, registeredScripts, requestOrigins, runInPage, setBadge, type RegisteredScript } from "../api.ts";
 import { ensureApplier } from "../inject.ts";
@@ -378,18 +377,12 @@ export function Popup() {
   };
 
   /**
-   * Hands what is on the page now (the plan and the repair rules found for it) to the background as the final intent; the background
-   * saves it with the site. The permission is already there (asked inside the click). True when the intent was written.
+   * Hands what is on the page now (the plan) to the background as the final intent; the background saves it with the site. The
+   * permission is already there (asked inside the click). True when the intent was written.
    */
   const commitKeep = async (k: { tabId: number; origin: string | undefined; kept: KeptPlan }): Promise<boolean> => {
     if (!k.origin) return false;
-    let css = "";
-    try {
-      css = storableRepairCss((await runInPage<string>(k.tabId, "repairRules")) ?? "");
-    } catch {
-      css = "";
-    }
-    const intent = makeIntent(k.origin, k.tabId, "final", css ? { ...k.kept, repairCss: css } : k.kept, Date.now(), true);
+    const intent = makeIntent(k.origin, k.tabId, "final", k.kept, Date.now(), true);
     if (!intent) return false;
     try {
       await writeIntent(intent);

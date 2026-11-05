@@ -3,7 +3,7 @@ import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { createApplier, type StyleHost } from "../src/extension/applier-core.ts";
 import { markerCleanup } from "../src/extension/cleanup.ts";
-import { parseRepairCss, REPAIR_ROOT, STORED_REPAIR_MAX } from "../src/plan/readability.ts";
+import { parseSite, parseSites } from "../src/extension/sites.ts";
 import { fakeDeps } from "./analyzer/helpers.ts";
 import { planFor } from "./plan/helpers.ts";
 
@@ -79,45 +79,41 @@ describe("Restore without a ledger (fresh script instance, navigated page)", () 
   });
 });
 
-describe("stored repair rules", () => {
-  const good = `${REPAIR_ROOT} > body > p:nth-child(2), ${REPAIR_ROOT} > body > div:nth-child(1) > a:nth-child(3) { color: #112233 !important; background-color: #ffffff !important; }\n`;
+// D13: stored repair CSS is no longer applied by anything. An older version may have written it into a site record, so the record
+// must still load, the CSS must go nowhere, and Restore must leave no sheet.
+describe("a stored record that still carries repair rules (D13)", () => {
+  const stored = 'html[data-skinly="on"]:not(#skinly-force) > body > p:nth-child(2) { color: #112233 !important; background-color: #ffffff !important; }\n';
+  const old = {
+    v: 1,
+    plan: { ...planFor("midnight"), regionRules: [] },
+    fingerprint: { hash: "00000000", seq: "" },
+    provider: "builtin",
+    model: "builtin",
+    promptVersion: "6",
+    savedAt: "2026-10-30T10:00:00.000Z",
+    mode: "auto",
+    blur: [],
+    blurImages: false,
+    repairCss: stored,
+  };
 
-  it("accepts exactly what repairCss writes", () => {
-    const book = parseRepairCss(good);
-    expect(book?.size).toBe(2);
-    expect([...book!.values()][0]).toEqual({ color: "#112233", bg: "#ffffff" });
+  it("loads, and the field is not carried into the parsed record (so it is never written back)", () => {
+    const rec = parseSite(old);
+    expect(rec).toBeDefined();
+    expect(rec!.plan.themeId).toBe("midnight");
+    expect("repairCss" in rec!).toBe(false);
+    expect(JSON.stringify(parseSites({ "https://a.example": old }))).not.toContain("112233");
   });
 
-  it.each([
-    ["a foreign selector", "body { color: #000000 !important; }\n"],
-    ["an id selector", `${REPAIR_ROOT} > body > div#x:nth-child(1) { color: #000000 !important; }\n`],
-    ["an attribute value", `${REPAIR_ROOT} > body > a[href="x"] { color: #000000 !important; }\n`],
-    ["another property", `${REPAIR_ROOT} > body > p:nth-child(1) { background-image: none !important; }\n`],
-    ["a url", `${REPAIR_ROOT} > body > p:nth-child(1) { color: url(x) !important; }\n`],
-    ["a non-hex colour", `${REPAIR_ROOT} > body > p:nth-child(1) { color: red !important; }\n`],
-    ["an @import", '@import "x";\n'],
-    ["too big", good.repeat(Math.ceil(STORED_REPAIR_MAX / good.length) + 1)],
-  ])("rejects %s", (_n, css) => expect(parseRepairCss(css)).toBeUndefined());
-
-  it("a stored sheet is in place before the page is analysed", () => {
+  it("applies the theme only: the stored CSS is injected nowhere, and Restore leaves no sheet", () => {
     const { doc, host, sheets } = realDoc();
+    const before = doc.documentElement.outerHTML;
     const a = createApplier(doc, { style: host, summaryDeps: fakeDeps(), tokensOnly: true });
-    expect(a.applyTokens(planFor("midnight"), good).ok).toBe(true);
-    expect(sheets()).toHaveLength(2);
-    expect(a.repairRules()).toContain("color: #112233 !important");
+    expect(a.applyTokens(parseSite(old)!.plan).ok).toBe(true);
+    expect(sheets()).toHaveLength(1);
+    expect(doc.documentElement.outerHTML).not.toContain("112233");
     a.restore();
     expect(sheets()).toHaveLength(0);
-  });
-
-  // BUG (reported in S3.2, not fixed there): since the engine rewrite (ed29e6b) applier-core injects seedCss
-  // verbatim; the parseRepairCss check that made an unusable sheet harmless was dropped with the repair pass.
-  // Today every caller passes a record that sites.ts already validated, so nothing reaches this in practice,
-  // but the applier itself accepts any string. See workflow/S3.2_PROPOSED.patch.
-  it("BUG: an unusable stored sheet is ignored", () => {
-    const { doc, host, sheets } = realDoc();
-    const a = createApplier(doc, { style: host, summaryDeps: fakeDeps(), tokensOnly: true });
-    expect(a.applyTokens(planFor("midnight"), "body { display: none }").ok).toBe(true);
-    expect(sheets()).toHaveLength(1);
-    expect(a.repairRules()).toBe("");
+    expect(doc.documentElement.outerHTML).toBe(before);
   });
 });

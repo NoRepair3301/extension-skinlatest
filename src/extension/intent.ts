@@ -21,8 +21,6 @@ export interface KeptPlan {
   model: string;
   /** What art was showing when the user kept the plan (Phase 10). */
   look?: SiteLook | undefined;
-  /** Repair rules in force when the theme was kept. */
-  repairCss?: string | undefined;
 }
 
 /**
@@ -64,9 +62,9 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object
 /** The kept part is checked the same way a stored site is (sites.ts), so a broken intent can never become a broken record. */
 function parseKept(raw: unknown): KeptPlan | undefined {
   if (!isObj(raw)) return undefined;
-  const rec = parseSite({ v: 1, plan: raw["plan"], fingerprint: raw["fingerprint"], provider: raw["provider"], model: raw["model"], promptVersion: "0", savedAt: new Date(0).toISOString(), mode: "auto", blur: [], blurImages: false, look: raw["look"], repairCss: raw["repairCss"] });
+  const rec = parseSite({ v: 1, plan: raw["plan"], fingerprint: raw["fingerprint"], provider: raw["provider"], model: raw["model"], promptVersion: "0", savedAt: new Date(0).toISOString(), mode: "auto", blur: [], blurImages: false, look: raw["look"] });
   if (!rec) return undefined;
-  return { plan: rec.plan, fingerprint: rec.fingerprint, provider: rec.provider, model: rec.model, ...(rec.look ? { look: rec.look } : {}), ...(rec.repairCss ? { repairCss: rec.repairCss } : {}) };
+  return { plan: rec.plan, fingerprint: rec.fingerprint, provider: rec.provider, model: rec.model, ...(rec.look ? { look: rec.look } : {}) };
 }
 
 /** Strict read: wrong shape, an origin that is not an origin, an expired or a future-dated intent all count as none. */

@@ -1,32 +1,24 @@
-# HANDOFF — S3.2 Guard, rules and flow-safety tests against the engine
+# HANDOFF — S3.3 Remove dead structural code; drop stored repair CSS (D13)
 Status: DONE     Date: 2026-11-05     Model/effort used: Sonnet 5.5 / high (per prompt)
 ## What changed
-- tests/guard.test.ts — 3 repair-structure tests deleted, 3 floor + 1 restore group adapted to the engine (28 tests); no compile import.
-- tests/engine/rerender.test.ts — new, 37 tests: re-render promise under all 6 themes.
-- tests/restore-markers.test.ts — stored-repair test split; the "unusable sheet ignored" half renamed BUG and left failing.
-- tests/ai/flow-safety.test.ts — two compileCss tests replaced by engine/validator ones. tests/rules.test.ts — fixture path only.
-- workflow/S3.2_PROPOSED.patch — recommended src fix, NOT applied. workflow/TEST_CLASSIFICATION.md — S3.2 section.
+- Deleted (evidence per file in workflow/DEAD_CODE.md §1-5): src/plan/compile.ts, src/plan/guard.ts, src/plan/readability.ts, src/extension/guard-dom.ts, src/features/repair/payload.ts, tests/repair.test.ts, workflow/S3.2_PROPOSED.patch. Also stepDown (schema.ts), createApplier option guard, repairRules(), repairStats()/RepairStats (§6).
+- D13: applier-core.ts no longer takes or injects seedCss/repairCss; auto-core.ts, siteActions.ts, intent.ts, Popup.tsx (no repairRules read), api.ts (PageMethod) stop passing it; sites.ts SiteRecord has no repairCss. Old records load because parseSite reads named fields only (repairCss ignored, never written back; no migration, keys unchanged).
+- Tests: restore-markers (D13 case), auto, popup, persistence, guard (dead groups removed). Docs: DEAD_CODE.md (new), PLAN, STAGES (S3.4-S3.6), specs.md D13, DECISIONS.
 ## Gate results
-tsc 0; eslint 0. Engine dir 94 pass / 5 BUG. Full vitest 1365 pass / 13 fail / 94 files (1378 tests; before 1327): the 13 = 12 BUG + plus-ui B5 (timing flake, fails 1 in 3 alone, untouched). `git diff --ignore-cr-at-eol --stat -- src` empty. `grep -rl "plan/compile" tests src` empty. build + validate-dist ok.
-## Importers of plan/compile
-Before: tests/guard.test.ts, tests/ai/flow-safety.test.ts, tests/rules.test.ts (string). After: none, in src or tests.
-## Re-render finding
-Promise: re-rendered content is themed again and text stays at/above the I10 floor. Engine: the observer (dom.ts ingest/addTree/watch) handles replaced, re-inserted, class-changed nodes and nodes in a watched open shadow root, all 6 themes: PASS (32 tests; with the observer stubbed 31 of 37 fail, so the tests do bite).
-## Stored-repair finding (owner decision needed)
-(a) Nothing in src produces repairCss now; it lives only in records saved by older versions, and the popup re-saves it unchanged. (b) The applier check was dropped by the engine rewrite ed29e6b (not S1.2): applier-core injects `seedCss` verbatim. Every caller passes a record that sites.ts already validated with parseRepairCss, so there is no live injection path, only lost defence in depth; the stale `!important` structural rules can still fight the engine. (c) Smallest fix: S3.2_PROPOSED.patch (3 lines: `seedCss && parseRepairCss(seedCss)`; verified in a scratch copy: restore-markers 14/14 pass). Decide: also drop stored repairCss entirely (stop applying, strip on parse)? If yes, delete "a stored sheet is in place" and do it in S3.3/S4.
-## Bugs found (tests kept red on purpose, 12)
-1. dom.ts inspectElement: a colour equal to the parent's computed colour is skipped as inherited. `html, body {color}` pages go to 1.0:1 under light themes (guard.test claude-like x4). Repro: load fixtures/web/claude-like.html, apply calm-light.
-2. transform.ts makeTransform: text is nudged against tokens.bg only. Light text on a dark element/button/picture ends ~3:1 or grey (guard claude-like midnight x1, hero-bg calm-light x1, rerender dark-element x4). Same at first apply.
-3. dom.ts: a shadow root attached after apply to a connected host is never watched (rerender x1).
-4. applier-core.ts:122: stored repair CSS unvalidated (restore-markers x1).
-## Other notes
-Flake: tests/scene-flow.test.ts "diagnostics of a real page" failed once under load, passes alone 3/3. Mutation checks (scratch copies, deleted): observer stub breaks rerender; painting a paragraph bg-coloured breaks the floor test; stray body attribute breaks the restore test.
-## Zero-importer source (for S3.3)
-src/plan/compile.ts (no importer anywhere). Dead chain: src/extension/guard-dom.ts (only feeds the unused `guard` option), `guard` option in applier-core, plan/guard.ts functions captureMedia/mediaIntact/effectiveBackground/textColor, plan/readability.ts audit/pickColor/addFailures/repairCss/compileRepair/validateRepair/snapshotText/pathOf, features/repair/payload.ts (only tests/repair.test.ts), schema.ts stepDown. Seven passing guard.test tests and tests/repair.test.ts still touch them.
+tsc 0; eslint 0. Engine dir 94 pass / 5 BUG (99). Full vitest before 1364 pass / 14 fail / 1378 tests / 94 files; after 1330 pass / 11 fail / 1341 tests / 93 files. Failing now = exactly the 11 BUG tests (guard 6, rerender 5); gone vs before: restore-markers stored-repair (adapted, passes), plus-ui B5 and scene-flow diagnostics (timing flakes, passed this run). src/engine diff empty. npm run build + validate-dist ok. grep repairCss src: only a comment in sites.ts:82 (no tolerant-read code needed).
+Dist (before -> after bytes): applier.js 82681 -> 80649; applier-auto.js 18460 -> 17582; background.js 3779 -> 3779.
+## Decisions made
+D13 (specs §3, DECISIONS). Kept: plan/derive, plan/color (engine), plan/repair (ai/pipeline), plan/invariants, contrast. Dropped the guard-not-touched-early probe in the auto.test document_start case (the option no longer exists); other assertions unchanged.
+## Out-of-scope touches
+None beyond (c): schema.ts (stepDown + comment), applier.ts, api.ts, Popup.tsx, intent.ts, siteActions.ts, auto-core.ts: all D13 plumbing or broken-import fallout. 13 source files touched or deleted in total.
+## Bugs found
+Engine bugs unchanged (S3.4 A+C, S3.5 B). ApplyResult.repairs is now always 0. schema.ts:64 comment still mentions "the compiler". TEST_CLASSIFICATION still lists the stored-repair BUG (resolved by D13); S3.6 cleans it.
+## Still-running structural pieces (DEAD_CODE.md §7)
+analyze() (applier-core, ai/pipeline), validatePlan, snapshot/compare, region tagging data-skinly-r (AI plans only). Protected zones depend on plan/schema, plan/contrast, analyzer/eligibility only.
 ## Owner manual checks
-Optional, 2 min: `npm run build`, reload, apply a theme on github.com or a news site, open menus, navigate; text readable, nothing unthemed; Restore. Try a dark site (e.g. claude.ai) under a light theme: expect the light-text bug above.
+npm run build, reload the unpacked extension, then: (1) apply a built-in theme on 2-3 normal sites from the popup; (2) reload one page so the auto path re-applies it; (3) press Restore original; (4) open Options and the popup and click through the tabs. No red errors in the page or service worker console. The known engine bugs are still present.
 ## Suggested commit message
-test: retire structural guard tests, cover re-render and contrast through the engine (S3.2)
+refactor: remove dead structural code and stored repair CSS (S3.3, D13)
 
 Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
-## Next substage: S3.3 (Sonnet 5.5, high) — remove dead structural code with grep evidence; compile.ts has zero importers. The 12 BUG tests need engine fixes (Stage 5 or a bugfix substage); S3.4 expects the failing set to be only these.
+## Next substage: S3.4 (Opus 5.5, high) — engine bugs A and C. Acceptance: 4 guard.test "colour declared on both html and body" + 1 rerender shadow-root BUG test. Relies on: src/engine untouched here, applier-core without the repair sheet.

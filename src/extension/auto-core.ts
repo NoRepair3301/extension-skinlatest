@@ -114,7 +114,7 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
   // An applier that throws leaves the page as it was (its own restore runs); nothing escapes into the page.
   let first: ReturnType<Applier["applyTokens"]>;
   try {
-    first = deps.applier.applyTokens(site.plan, site.repairCss);
+    first = deps.applier.applyTokens(site.plan);
   } catch {
     report("error-apply");
     return "invalid";
@@ -129,18 +129,18 @@ export async function runAuto(deps: AutoDeps): Promise<AutoResult> {
     try {
       // A plan made before the page was read has no regions: nothing to compare, colours only, never a banner.
       if (rec.plan.regionRules.length === 0) {
-        const r = deps.applier.apply(rec.plan, rec.repairCss);
+        const r = deps.applier.apply(rec.plan);
         if (r.ok) return "full";
         report(rolledBack(r.reason));
-        return deps.applier.applyTokens(rec.plan, rec.repairCss).ok ? "tokens" : "invalid";
+        return deps.applier.applyTokens(rec.plan).ok ? "tokens" : "invalid";
       }
       const page = deps.applier.analyze();
       if (page.status === "ok" && similar(rec.fingerprint, page.fingerprint)) {
-        if (deps.applier.apply(rec.plan, rec.repairCss).ok) return "full";
-        deps.applier.applyTokens(rec.plan, rec.repairCss);
+        if (deps.applier.apply(rec.plan).ok) return "full";
+        deps.applier.applyTokens(rec.plan);
         return "tokens";
       }
-      deps.applier.applyTokens(rec.plan, rec.repairCss);
+      deps.applier.applyTokens(rec.plan);
       if (page.status === "ok") {
         if (banner && !deps.doc.querySelector('[data-skinly-ui="banner"]')) showBanner(deps.doc, deps.applier);
         return "changed";

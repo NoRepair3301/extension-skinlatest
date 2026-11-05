@@ -40,6 +40,7 @@ Finish the half-done color-engine refactor of `extension-new/` (Skinly AI 0.3.0)
 | D10 | Version stays 0.3.0 until the final stage. The release zip name, store docs naming, and the GitHub remote name are owner actions after Stage 6. |
 | D11 | A zero-dependency real-browser harness (Node built-ins + raw Chrome DevTools Protocol, Chrome is installed) is allowed as a dev tool outside `npm run check`. It overrides the legacy "NO e2e" rule only for that harness. If the owner rejects it, skip S7.1 and S7.2 (mark `SKIPPED`). |
 | D12 | Final restore() may write back the original style attribute text only if the element's current inline declarations are semantically identical to it. Refines the friend's "no whole-attribute restore" rule; page-wins preserved. |
+| D13 | Stored repair CSS (`repairCss` in a site record) is no longer applied, produced, or written back (owner decision, S3.3). Reasons: aiRepair is gone (D6), nothing creates `repairCss` any more, and stale `!important` rules can fight the engine. Records written by older versions still load: the field is ignored on read. Storage keys are unchanged (D3). |
 
 ## 4. Engine invariants (hold in every substage)
 

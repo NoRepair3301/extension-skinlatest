@@ -262,13 +262,14 @@ describe("popup", () => {
       expect((store.get("sites") as Record<string, { provider: string; mode: string }>)["https://example.org"]).toMatchObject({ provider: "builtin", mode: "auto" });
     });
 
-    it("stores the repair rules found for the theme with the site", async () => {
+    it("stores no repair rules with the site: the page is not asked for any (D13)", async () => {
       flow.runTransform.mockResolvedValue(previewOutcome());
-      const css = 'html[data-skinly="on"]:not(#skinly-force) > body > p:nth-child(1) { color: #000000 !important; }\n';
-      api.runInPage.mockImplementation(async (_t: number, m: string) => (m === "repairRules" ? css : undefined));
       const root = await mount();
       await click(root, "Change my page");
-      expect((store.get("sites") as Record<string, { repairCss?: string }>)["https://example.org"]!.repairCss).toBe(css);
+      const saved = (store.get("sites") as Record<string, Record<string, unknown>>)["https://example.org"]!;
+      expect(saved).toBeDefined();
+      expect("repairCss" in saved).toBe(false);
+      expect(api.runInPage.mock.calls.some((c) => c[1] === "repairRules")).toBe(false);
     });
 
     it("a refused permission applies for this document only, says so in one line, and keeps a button to ask again", async () => {

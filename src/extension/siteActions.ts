@@ -45,7 +45,6 @@ export const record = (kept: KeptPlan, mode: SiteRecord["mode"], previous?: Site
   blur: previous?.blur ?? [],
   blurImages: previous?.blurImages ?? false,
   ...(kept.look ? { look: kept.look } : previous?.look ? { look: previous.look } : {}),
-  ...(kept.repairCss ? { repairCss: kept.repairCss } : {}),
 });
 
 export type ActionResult = { ok: true } | { ok: false; reason: "bad-origin" | "permission" | "no-record" | "error" };

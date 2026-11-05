@@ -7,7 +7,6 @@ import { validatePlan, type Strategy, type StylePlan, type Tokens } from "../pla
 import { themeToPlan } from "../plan/themeToPlan.ts";
 import { DEFAULT_THEME_ID, getTheme, isBuiltinThemeId, isThemeChoice, resolveTheme, type BuiltinThemeId } from "../themes/index.ts";
 import { createColorEngine, type EngineInstance, type EngineOptions } from "../engine/index.ts";
-import type { GuardProvider } from "../plan/guard.ts";
 
 export interface StyleHandle {
   remove(): void;
@@ -25,7 +24,6 @@ export interface ApplierOptions {
   observer?: unknown;
   engineOptions?: EngineOptions;
   tokensOnly?: boolean;
-  guard?: GuardProvider;
   beforeInvariants?: () => void;
 }
 
@@ -35,12 +33,6 @@ export type ApplyResult =
 
 /** What the page tells the extension about itself: the summary and risk, nothing else. */
 export type PageAnalysis = { status: "ok"; risk: RiskMarker[]; summary: StructuralSummary; fingerprint: Fingerprint } | { status: "too-large"; risk: RiskMarker[] };
-
-export interface RepairStats {
-  samples: number;
-  repairs: number;
-  failing: number;
-}
 
 const EMPTY_SUMMARY: StructuralSummary = {
   v: 1,
@@ -58,8 +50,6 @@ type PlanSource = StylePlan | ((summary: StructuralSummary | undefined) => Style
 export function createApplier(doc: Document, opts: ApplierOptions) {
   let activeEngine: EngineInstance | undefined;
   let shown: { themeId: string; strategy: Strategy } | undefined;
-  let repairSheetHandle: StyleHandle | undefined;
-  let lastRepairCss = "";
   let currentTags: Array<{ el: Element; id: string; previous: string | null }> = [];
   const restoreHooks: Array<() => void> = [];
 
@@ -69,11 +59,6 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
       activeEngine.restore();
       activeEngine = undefined;
     }
-    if (repairSheetHandle) {
-      repairSheetHandle.remove();
-      repairSheetHandle = undefined;
-    }
-    lastRepairCss = "";
     for (const { el, previous } of currentTags) {
       if (previous === null) el.removeAttribute("data-skinly-r");
       else el.setAttribute("data-skinly-r", previous);
@@ -89,7 +74,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     return { ok: true };
   }
 
-  function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false, seedCss?: string): ApplyResult {
+  function run(source: PlanSource, tokensOnly = opts.tokensOnly ?? false): ApplyResult {
     restore(false);
     try {
       const before = snapshot(doc);
@@ -105,7 +90,6 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
 
       const checked = validatePlan(plan, summary ?? EMPTY_SUMMARY);
       if (!checked.ok) return { ok: false, reason: "invalid-plan", detail: checked.errors };
-      // Historical structural pipeline: compileCss(checked.plan, summary ?? EMPTY_SUMMARY);
 
       const themeId: BuiltinThemeId = checked.plan.themeId && isBuiltinThemeId(checked.plan.themeId) ? checked.plan.themeId : DEFAULT_THEME_ID;
       const theme = getTheme(themeId);
@@ -118,11 +102,6 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
 
       engine.apply();
       activeEngine = engine;
-
-      if (seedCss) {
-        lastRepairCss = seedCss;
-        repairSheetHandle = opts.style.add(seedCss);
-      }
 
       if (analysis?.status === "ok") {
         const byId = new Map(analysis.regions.map((r) => [r.id, r.el]));
@@ -151,7 +130,7 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
         regions: currentTags.length,
         strategy: plan.strategy ?? "full",
         steppedDown: false,
-        repairs: seedCss ? 1 : 0,
+        repairs: 0,
         samples: engine.modifiedCount(),
       };
     } catch {
@@ -161,9 +140,8 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
   }
 
   return {
-    apply: (plan: StylePlan, seedCss?: string): ApplyResult => run(plan, opts.tokensOnly ?? false, seedCss),
-    applyTokens: (plan: StylePlan, seedCss?: string): ApplyResult => run(plan, true, seedCss),
-    repairRules: (): string => lastRepairCss,
+    apply: (plan: StylePlan): ApplyResult => run(plan, opts.tokensOnly ?? false),
+    applyTokens: (plan: StylePlan): ApplyResult => run(plan, true),
     onRestore(fn: () => void): void {
       restoreHooks.push(fn);
     },
@@ -180,7 +158,6 @@ export function createApplier(doc: Document, opts: ApplierOptions) {
     restore,
     isActive: (): boolean => activeEngine !== undefined && activeEngine.isActive(),
     shownTheme: (): { themeId: string; strategy: Strategy } | undefined => (activeEngine?.isActive() ? shown : undefined),
-    repairStats: (): RepairStats => ({ samples: activeEngine?.modifiedCount() ?? 0, repairs: repairSheetHandle ? 1 : 0, failing: 0 }),
   };
 }
 

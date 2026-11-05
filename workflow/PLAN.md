@@ -12,8 +12,10 @@
 | S2.4 | T5/D9: auto path reaches engine; validate-dist | Sonnet 5.5 / medium | DONE | 2026-11-05 |
 | S3.1 | Delete pure structural tests; adapt two | Sonnet 5.5 / medium | DONE | 2026-11-05 |
 | S3.2 | Rewrite or retire plan/compile-importing tests | Sonnet 5.5 / high | DONE | 2026-11-05 |
-| S3.3 | Remove dead structural code; DEAD_CODE.md | Sonnet 5.5 / high | TODO | |
-| S3.4 | Residual failures: full vitest green | Sonnet 5.5 / medium | TODO | |
+| S3.3 | Remove dead structural code; DEAD_CODE.md; drop stored repairCss (D13) | Sonnet 5.5 / high | DONE | 2026-11-05 |
+| S3.4 | Engine bugs A (colour equal to parent skipped) and C (late shadow root unwatched); acceptance: BUG tests named in STAGES | Opus 5.5 / high | TODO | |
+| S3.5 | Engine bug B (contrast vs effective backdrop, not theme bg); acceptance: BUG tests named in STAGES | Opus 5.5 / high | TODO | |
+| S3.6 | Residual failures: full vitest incl. build/budgets/release green; remove BUG markers in TEST_CLASSIFICATION | Sonnet 5.5 / medium | TODO | |
 | S4.1 | Neutralise gating | Sonnet 5.5 / high | TODO | |
 | S4.2 | UI: remove Plus, un-gate My assets | Sonnet 5.5 / high | TODO | |
 | S4.3 | Backend deletion and config | Sonnet 5.5 / medium | TODO | |

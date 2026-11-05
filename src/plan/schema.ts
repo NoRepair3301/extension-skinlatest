@@ -16,12 +16,10 @@ export type Reason = (typeof REASONS)[number];
 
 /**
  * How much of the page a theme may paint (the strategy ladder). full: element surfaces too. safe: page background, text, link
- * and heading colours, accent on focus and borders only. text-only: text colours only. The visual guard steps down this list.
+ * and heading colours, accent on focus and borders only. text-only: text colours only.
  */
 export const STRATEGIES = ["full", "safe", "text-only"] as const;
 export type Strategy = (typeof STRATEGIES)[number];
-/** The next, more careful strategy; undefined after the last (the guard then rolls back). */
-export const stepDown = (s: Strategy): Strategy | undefined => STRATEGIES[STRATEGIES.indexOf(s) + 1];
 
 export const COLOR_KEYS = ["bg", "surface", "text", "muted", "link", "accent", "border", "focus"] as const;
 export type ColorKey = (typeof COLOR_KEYS)[number];
