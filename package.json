@@ -15,7 +15,8 @@
     "release": "npm run build --silent && node scripts/release.ts",
     "bakeoff": "node scripts/bakeoff.ts",
     "preview": "node scripts/preview.ts",
-    "gate": "node scripts/gate.mjs"
+    "gate": "node scripts/gate.mjs",
+    "rename-check": "node scripts/rename-check.mjs"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.7",

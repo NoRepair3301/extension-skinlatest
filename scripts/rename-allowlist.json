@@ -1,0 +1,22 @@
+[
+  { "path": "docs/archive/", "reason": "Class K: archived docs keep the old product name (F4)." },
+  { "path": "workflow/", "reason": "Class K: staged-build history, decisions and the rename map itself describe the old name." },
+  { "path": "prompts/", "reason": "Class K: substage prompts describe the rename and must keep the old names." },
+  { "path": "CLAUDE.legacy.md", "reason": "Class K: legacy project rules kept as history." },
+  { "path": "_recon/", "reason": "Class K: recon notes are history." },
+  { "path": "STAGES.md", "reason": "Class K: stage plan for this build names the old identifiers." },
+  { "path": "specs.md", "reason": "Class K: spec states the rename footprint, so it quotes the old names." },
+  { "path": "CHANGELOG.md", "reason": "Class K: released entries keep the old name; S6.6 reviews the Unreleased entry by hand." },
+  { "path": "docs/PROGRESS.md", "reason": "Class K: history log, not edited (S4.5)." },
+  { "path": "docs/PHASE_", "reason": "Class K: phase history logs, not edited (S4.5)." },
+  { "path": "docs/FINAL_REPORT.md", "reason": "Class K: history log, not edited (S4.5)." },
+  { "path": "docs/HUMAN_CHECKS.md", "reason": "Class K: history log, not edited (S4.5)." },
+  { "path": "PROMPTS.md", "reason": "Class K: old agent notes are data, not instructions, and stay as history." },
+  { "path": "prompt-launch.txt", "reason": "Class K: old launch notes, history." },
+  { "path": "autopilot-all.ps1", "reason": "Class K: old autopilot script, never run, history." },
+  { "path": "src/", "pattern": "skinly1:.*(legacy|compat)|(legacy|compat).*skinly1:", "reason": "Class F: the legacy theme-code prefix is still accepted on import (D3); only lines marked legacy/compat are hidden." },
+  { "path": "tests/", "pattern": "skinly1:.*(legacy|compat)|(legacy|compat).*skinly1:", "reason": "Class F: the test that proves legacy skinly1: codes still import (D3); only lines marked legacy/compat are hidden." },
+  { "path": "scripts/rename-check.mjs", "reason": "Tooling: the scanner names the old pattern it searches for." },
+  { "path": "scripts/rename-allowlist.json", "reason": "Tooling: the allowlist quotes the old names it hides." },
+  { "path": "tests/rename-check.test.ts", "reason": "Tooling: the scanner's test uses old names as fake input." }
+]

@@ -1,46 +1,31 @@
-# HANDOFF — S5.4 Edge states: ineligible pages, permission denied, progress and error strings
+# HANDOFF — S6.1 Rename map and leftover scanner
 Status: DONE     Date: 2026-11-06     Model/effort used: Sonnet 5.5 / medium (per prompt)
 ## What changed
-- src/ui/strings.ts — new `S.edge` group (13 lines, each commented); S5.3/S5.1 placeholders now commented finals; `restoreFailed` reworded.
-- src/ai/messages.ts — `blockedWhy(url, blocklist)` and `themeFailureMessage(r)`; `MSG.blocked`/`applyFailureMessage` untouched (AI flow, shortcuts).
-- src/extension/popup/Popup.tsx — distinct lines per cause; 8 s apply/restore and 4 s probe timeouts; failed apply restores settings, selection, record and intent; saveFailed notice; aria-busy on the clicked radio; `#popup-status` id + fieldset aria-describedby on error.
-- tests: new edge-states (22), adapted popup-theme-click (4 ineligible + 2 failure lines), popup-restore (blocked hint).
+- workflow/RENAME_MAP.md — classes A-K with counts, owners, compat rules, must-change-together groups, new naming table.
+- scripts/rename-check.mjs — zero-dependency scanner (`--summary`, `--class X`, `--json`, `--list-allowed`, `--root`); exports `scan`, `classify`, `exitCode`, `collectFiles`.
+- scripts/rename-allowlist.json — 20 entries, each with a reason (class K history, tooling self-references, legacy `skinly1:` compat lines).
+- tests/rename-check.test.ts — 13 tests on temp dirs and fake input (hit, path entry, pattern entry, missing reason, skips, classes A/F, exit codes incl. CLI 0/1/2).
+- package.json — only the `rename-check` script entry. No src/ change (`git diff --stat -- src` empty).
 ## Gate results
-Before: tsc 0; eslint 0; vitest 1587 pass / 0 fail / 97 files. After: tsc 0; eslint 0; vitest 1609 pass / 0 fail / 98 files; GATE GREEN. `git diff --ignore-cr-at-eol --stat -- src/engine` empty.
-Deliberate breakage (in place, restored; all failed the named tests): no apply/restore timeout (2), no stored-state undo (4), no settings/selection revert (1), `blockedWhy` constant (8), "null" in a string (2).
-## Copy for proofreading (condition | key | text)
-- browser/extension page | edge.blockedInternal | Skinly can't change browser pages. Open a regular website to use it.
-- store | blockedStore | Skinly can't change the browser's extension store. Open another website to use it.
-- PDF viewer | blockedPdf | Skinly can't change PDFs in the browser's viewer. Open a web page to use it.
-- file:// and other schemes | blockedFile | Skinly only changes web pages (http and https), not local files. Open a web page to use it.
-- user blocklist | blockedSite | This site is on your blocklist in Settings. Remove it there to change it.
-- unknown address | blockedOther | Skinly can't change this page. Open a regular website to use it.
-- permission missing/denied | notAllowed | Skinly wasn't allowed to run on this page, so it was left as it was. Click the theme again and choose Allow when the browser asks.
-- injection failed | injectFailed | Skinly couldn't start on this page, so it was left as it was. Reload the page and try again.
-- applier missing/silent | noAnswer | This page didn't answer, so it was left as it was. Reload the page and try again.
-- apply timeout | timedOut | This is taking too long, so Skinly stopped and took its changes off. Reload the page and try again.
-- tab closed/navigated | tabChanged | The tab changed while the theme was going on, so nothing was kept. Open the page you want and try again.
-- rolled back | `<reason>` + backToOriginal | …, so the page is back to its original look. Pick another theme to try again.
-- storage write failed | saveFailed | Couldn't save your choice, so it may not stay after you close this panel.
-- restore failed | popup.restoreFailed | Couldn't restore this page. Press Restore to try again, or reload the page to get the original back.
-- restore timeout | restoreTimedOut | Restore is taking too long. Press Restore to try again, or reload the page to get the original back.
+tsc 0 errors; eslint 0 errors; vitest 1622 pass / 0 fail / 99 files (was 1609 / 98); GATE GREEN (build + validate-dist inside the gate).
+## Starting leftovers (`node scripts/rename-check.mjs --summary`, exits 1 as expected)
+Total 492 hits in 111 files (164 allowlisted, all class K). A 202/50 (S6.2) · B 109/14, C 5/3, D 2/1 (S6.3) · E 8/5, F 1/1 (S6.4) · G 0 · H 18/14 (S6.5) · I 94/29, J 53/22 (S6.6, tests move with their contract).
 ## Decisions made (also in DECISIONS.md)
-O1 kept (a refused prompt with a working injection still themes the tab only); the "denied keeps selection" test uses denial plus refused injection. Eligibility, not the prompt, blocks file://.
+Scanner script/allowlist/test are classed K so they do not count; allowlist hides CHANGELOG.md wholesale (S6.6 must review the new Unreleased lines by eye); file names containing the old name count as hits on line 0 (binary files are matched by name only); the test loads the .mjs through a dynamic import because the repo has no `@types/node` and no `.d.ts` for it.
 ## Out-of-scope touches
 None.
-## Bugs found (outside scope)
-- R3 (S5.3) still open: top engine and a same-origin frame applier both theme the frame (src/engine/dom.ts:1181-1193, src/extension/applier.ts:91-93).
-- Undo of a stored record runs after the permission answer; if the keeper saves later than that check, a stale record could survive (not reproducible in tests).
-## Not implemented from section 9
-- "Keeper failed" shows no message (the popup cannot see it; "Why not themed here?" covers it). Site cap (200): no message by design. File-access recovery hint: file: is blocked by eligibility. Contrast of the error banner was not measured.
-## Stage 5 summary (specs.md section 5)
-F1 (click applies, remembers the site, no stacking) and F2 (consistent Restore, paused site, exact restore) are implemented and tested; edge states are covered. Open: R3 and owner decisions O1-O4 (taken as proposed).
-## Owner manual checks
-1. `npm run build`, reload. 2. chrome://extensions, Web Store, PDF: click a theme and Restore: clear line, no error text, popup usable. 3. Ungranted site: click a theme, deny: the page may still theme this tab (O1); reload and click again, allow: applies. 4. file:// page: the line says local files are not changed (see decisions). 5. Click themes rapidly: last wins, never hangs. 6. Close the tab mid-apply, reopen on another tab: normal. 7. Proofread the copy above. 8. No red errors in page or service-worker console.
+## Bugs found / gaps (outside scope)
+- No theme-code encode/decode exists in `src/`: `skinly1:` appears only in the help string `src/ui/strings.ts:42`. S6.4's "import accepts both" has no code to adapt; see RENAME_MAP class F for the recommended default (rename the string, do not invent a feature).
+- Auto-script ids `skinly-<hash>` (`src/extension/siteActions.ts:27`) stay registered across an update; S6.3 must unregister old ids once (RENAME_MAP class C).
+## Owner choices and art
+- Names to choose (D10): store title/tagline, GitHub repo name (default `Repaint`). Redraw if they contain the old wordmark: `assets/skinly-logo-512.png`, `assets/icons/icon-{16,32,48,128}.png` (listed only, not touched). Delete ignored leftovers `release/skinly-ai-0.1.0.zip`, `-0.2.0.zip`.
+- Unclear compat: old DOM markers on already-open tabs after an update (default: tab reload clears them, no legacy list).
+## Owner manual checks (no browser)
+1. `node scripts/rename-check.mjs --summary` prints counts per class and exits 1. 2. `node scripts/rename-check.mjs --list-allowed` shows only archive/history, tooling and legacy-compat entries, each with a reason. 3. Read `workflow/RENAME_MAP.md` ("Must change together", "New naming table") and tell me any name you want different.
 ## Suggested commit message
-feat(popup): clear messages for ineligible pages, denied permission and failures; busy states always end (S5.4)
+chore(rename): add rename map and leftover scanner (S6.1)
   git add -A
-  git commit -m "feat(popup): clear messages for ineligible pages, denied permission and failures; busy states always end (S5.4)"
-  git tag stage-S5.4
+  git commit -m "chore(rename): add rename map and leftover scanner (S6.1)"
+  git tag stage-S6.1
   git push
-## Next substage: S6.1 (Sonnet 5.5 / medium) — rename map and leftover-scan script. Relies on: product name still "Skinly"/"Skinly AI" in all new strings (S.edge, messages.ts); data-skinly literal in api.ts callApplier.
+## Next substage: S6.2 (Sonnet 5.5 / high) — DOM markers data-skinly* to data-repaint* across src and tests. Relies on: class A list in RENAME_MAP, `ROOT_MARK`/`ENGINE_MARK` at src/engine/dom.ts:137-138, validate-dist `ENGINE_MARKER`, scanner `--class A` to prove progress.
